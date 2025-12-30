@@ -150,8 +150,8 @@ const Index: React.FC = () => {
           // Usar análise com IA
           result = await api.analyzeImage(file, config.default_portico);
 
-          // Evita rajadas de requisições (reduz 429 / ERRO em lote)
-          await new Promise(resolve => setTimeout(resolve, 1200));
+          // Delay maior entre requisições para evitar rate limit (429)
+          await new Promise(resolve => setTimeout(resolve, 3000));
         } else {
           // Classificação simples sem IA (baseado apenas no nome do arquivo)
           result = {
