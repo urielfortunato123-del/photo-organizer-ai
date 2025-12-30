@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Play, Download, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree,
-  Settings, User, Sparkles
+  Settings, User, Sparkles, RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -200,6 +200,91 @@ const Index: React.FC = () => {
       console.error('Processing error:', error);
       toast({
         title: "Erro no processamento",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+      setProcessingProgress({ current: 0, total: 0, currentFile: '' });
+      setProcessingStartTime(undefined);
+    }
+  };
+
+  // Reprocessar apenas fotos que falharam
+  const handleRetryFailed = async () => {
+    const failedResults = results.filter(r => r.status.includes('Erro'));
+    if (failedResults.length === 0) {
+      toast({
+        title: "Nenhum erro encontrado",
+        description: "Não há fotos com erro para reprocessar.",
+      });
+      return;
+    }
+
+    const failedFiles = files.filter(f => 
+      failedResults.some(r => r.filename === f.name)
+    );
+
+    if (failedFiles.length === 0) {
+      toast({
+        title: "Arquivos não encontrados",
+        description: "Os arquivos originais não estão mais disponíveis.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    setProcessingStartTime(Date.now());
+    setProcessingProgress({ current: 0, total: failedFiles.length, currentFile: '' });
+
+    try {
+      for (let i = 0; i < failedFiles.length; i++) {
+        const file = failedFiles[i];
+        setProcessingProgress({ 
+          current: i + 1, 
+          total: failedFiles.length, 
+          currentFile: file.name 
+        });
+
+        let result: ProcessingResult;
+
+        try {
+          result = await api.analyzeImage(file, defaultPortico);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        } catch (fileError) {
+          console.warn(`Erro ao reprocessar ${file.name}:`, fileError);
+          result = {
+            filename: file.name,
+            status: `Erro: ${fileError instanceof Error ? fileError.message : 'Falha na análise'}`,
+            method: 'ia_forcada',
+            confidence: 0,
+          };
+        }
+
+        // Atualizar resultado existente
+        setResults(prev => prev.map(r => 
+          r.filename === file.name ? result : r
+        ));
+      }
+
+      const newResults = results.map(r => {
+        const retried = failedFiles.find(f => f.name === r.filename);
+        return retried ? results.find(nr => nr.filename === r.filename) || r : r;
+      });
+
+      const retriedSuccessCount = newResults.filter(r => 
+        failedResults.some(fr => fr.filename === r.filename) && r.status === 'Sucesso'
+      ).length;
+
+      toast({
+        title: "Reprocessamento concluído!",
+        description: `${retriedSuccessCount} de ${failedFiles.length} fotos recuperadas.`,
+      });
+    } catch (error) {
+      console.error('Retry error:', error);
+      toast({
+        title: "Erro no reprocessamento",
         description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
@@ -427,7 +512,19 @@ const Index: React.FC = () => {
                   onViewPhoto={handleViewPhoto}
                 />
                 
-                <div className="flex justify-center">
+                <div className="flex justify-center gap-4">
+                  {errorCount > 0 && (
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      onClick={handleRetryFailed}
+                      disabled={isProcessing}
+                      className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                    >
+                      <RefreshCw className="w-5 h-5" />
+                      Reprocessar {errorCount} com Erro
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="lg"
