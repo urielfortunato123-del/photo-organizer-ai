@@ -306,8 +306,8 @@ const Index: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExportZIP = async () => {
-    const successResults = results.filter(r => r.status === 'Sucesso' && r.dest);
-    
+    const successResults = results.filter((r) => r.status === 'Sucesso' && r.dest);
+
     if (successResults.length === 0) {
       toast({
         title: "Nenhuma foto para exportar",
@@ -317,35 +317,49 @@ const Index: React.FC = () => {
       return;
     }
 
+    const sanitizeZipPart = (part: string) =>
+      part
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim();
+
     setIsExporting(true);
-    
+
     try {
       const zip = new JSZip();
-      
+
       for (const result of successResults) {
-        const file = files.find(f => f.name === result.filename);
-        if (file && result.dest) {
-          const arrayBuffer = await file.arrayBuffer();
-          // Adiciona o arquivo na estrutura de pastas
-          zip.file(`${result.dest}/${result.filename}`, arrayBuffer);
-        }
+        const file = files.find((f) => f.name === result.filename);
+        if (!file || !result.dest) continue;
+
+        const arrayBuffer = await file.arrayBuffer();
+
+        const destParts = result.dest
+          .split('/')
+          .filter(Boolean)
+          .map(sanitizeZipPart);
+        const safeFilename = sanitizeZipPart(result.filename);
+
+        // Adiciona o arquivo na estrutura de pastas
+        zip.file(`${destParts.join('/')}/${safeFilename}`, arrayBuffer);
       }
-      
-      const zipBlob = await zip.generateAsync({ 
+
+      const zipBlob = await zip.generateAsync({
         type: 'blob',
         compression: 'DEFLATE',
-        compressionOptions: { level: 6 }
+        compressionOptions: { level: 6 },
       });
-      
+
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `obraphoto_organizado_${new Date().toISOString().split('T')[0]}.zip`;
       document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
+      a.remove();
+      // Revogar depois para não interromper download em alguns navegadores
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+
       toast({
         title: "ZIP exportado!",
         description: `${successResults.length} fotos organizadas em pastas.`,
