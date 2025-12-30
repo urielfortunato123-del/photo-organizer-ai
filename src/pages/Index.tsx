@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Play, Download, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree, AlertCircle,
-  Settings, Server
+  Settings, Server, User
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,6 +13,10 @@ import ProcessingOptions from '@/components/ProcessingOptions';
 import ResultsTable from '@/components/ResultsTable';
 import StatsCard from '@/components/StatsCard';
 import TreeView from '@/components/TreeView';
+import ProcessingProgress from '@/components/ProcessingProgress';
+import PhotoPreviewModal from '@/components/PhotoPreviewModal';
+import ResultsFilters, { ResultFilters } from '@/components/ResultsFilters';
+import StatisticsCard from '@/components/StatisticsCard';
 import { 
   api, 
   ProcessingResult, 
@@ -25,6 +29,7 @@ const Index: React.FC = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('upload');
   const [files, setFiles] = useState<File[]>([]);
+  const [fileUrls, setFileUrls] = useState<Map<string, string>>(new Map());
   const [defaultPortico, setDefaultPortico] = useState('');
   const [organizeByDate, setOrganizeByDate] = useState(true);
   const [iaPriority, setIaPriority] = useState(false);
@@ -33,11 +38,75 @@ const Index: React.FC = () => {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
   const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(null);
   const [isLoadingTree, setIsLoadingTree] = useState(false);
+  
+  // Progress tracking
+  const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0, currentFile: '' });
+  const [processingStartTime, setProcessingStartTime] = useState<number | undefined>();
+  
+  // Photo preview modal
+  const [previewModal, setPreviewModal] = useState<{
+    isOpen: boolean;
+    result: ProcessingResult | null;
+    imageUrl?: string;
+  }>({ isOpen: false, result: null });
+  
+  // Filters
+  const [filters, setFilters] = useState<ResultFilters>({
+    search: '',
+    portico: '',
+    disciplina: '',
+    method: '',
+    minConfidence: 0,
+  });
+
+  // Generate file URLs when files change
+  useEffect(() => {
+    const urls = new Map<string, string>();
+    files.forEach(file => {
+      urls.set(file.name, URL.createObjectURL(file));
+    });
+    setFileUrls(urls);
+    
+    return () => {
+      urls.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [files]);
+
+  // Extract unique values for filter dropdowns
+  const uniquePorticos = useMemo(() => 
+    [...new Set(results.map(r => r.portico).filter(Boolean) as string[])],
+    [results]
+  );
+  
+  const uniqueDisciplinas = useMemo(() => 
+    [...new Set(results.map(r => r.disciplina).filter(Boolean) as string[])],
+    [results]
+  );
+
+  // Filtered results
+  const filteredResults = useMemo(() => {
+    return results.filter(r => {
+      if (filters.search && !r.filename.toLowerCase().includes(filters.search.toLowerCase())) {
+        return false;
+      }
+      if (filters.portico && r.portico !== filters.portico) {
+        return false;
+      }
+      if (filters.disciplina && r.disciplina !== filters.disciplina) {
+        return false;
+      }
+      if (filters.method && r.method !== filters.method) {
+        return false;
+      }
+      if (filters.minConfidence > 0 && (r.confidence || 0) * 100 < filters.minConfidence) {
+        return false;
+      }
+      return true;
+    });
+  }, [results, filters]);
 
   const successCount = results.filter(r => r.status === 'Sucesso').length;
   const errorCount = results.filter(r => r.status.includes('Erro')).length;
-  const heuristicaCount = results.filter(r => r.method === 'heuristica').length;
-  const iaCount = results.filter(r => r.method === 'ia_fallback' || r.method === 'ia_forcada').length;
 
   // Check backend connection on mount
   useEffect(() => {
@@ -46,7 +115,6 @@ const Index: React.FC = () => {
       setIsBackendConnected(connected);
       
       if (connected) {
-        // Load tree data
         try {
           const tree = await api.getTree();
           setTreeData(tree);
@@ -54,7 +122,6 @@ const Index: React.FC = () => {
           setTreeData(mockTreeData);
         }
       } else {
-        // Use mock data for demo
         setTreeData(mockTreeData);
       }
     };
@@ -69,7 +136,6 @@ const Index: React.FC = () => {
         const tree = await api.getTree();
         setTreeData(tree);
       } else {
-        // Simulate loading for demo
         await new Promise(resolve => setTimeout(resolve, 500));
         setTreeData(mockTreeData);
       }
@@ -93,6 +159,8 @@ const Index: React.FC = () => {
 
     setIsProcessing(true);
     setResults([]);
+    setProcessingStartTime(Date.now());
+    setProcessingProgress({ current: 0, total: files.length, currentFile: '' });
 
     const config = {
       default_portico: defaultPortico,
@@ -102,31 +170,31 @@ const Index: React.FC = () => {
 
     try {
       if (isBackendConnected) {
-        // Real API call
         const processedResults = await api.processPhotos(files, config);
         setResults(processedResults);
       } else {
-        // Mock processing for demo
         const mockResults: ProcessingResult[] = [];
         
         for (let i = 0; i < files.length; i++) {
-          await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 500));
+          setProcessingProgress({ 
+            current: i + 1, 
+            total: files.length, 
+            currentFile: files[i].name 
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 400));
           const batchResults = generateMockResults([files[i]], config);
           mockResults.push(...batchResults);
           setResults([...mockResults]);
         }
       }
 
-      // Switch to results tab
       setActiveTab('results');
-      
-      // Reload tree data
       await loadTreeData();
 
-      const finalSuccessCount = results.filter(r => r.status === 'Sucesso').length;
       toast({
         title: "Processamento concluído!",
-        description: `${finalSuccessCount} de ${files.length} fotos processadas.`,
+        description: `${successCount} de ${files.length} fotos processadas.`,
       });
     } catch (error) {
       console.error('Processing error:', error);
@@ -137,6 +205,8 @@ const Index: React.FC = () => {
       });
     } finally {
       setIsProcessing(false);
+      setProcessingProgress({ current: 0, total: 0, currentFile: '' });
+      setProcessingStartTime(undefined);
     }
   };
 
@@ -167,6 +237,57 @@ const Index: React.FC = () => {
     }
   };
 
+  const handleExportCSV = () => {
+    const headers = ['Arquivo', 'Status', 'Portico', 'Disciplina', 'Servico', 'Data', 'Metodo', 'Confianca', 'Destino', 'Analise_Tecnica'];
+    const rows = results.map(r => [
+      r.filename,
+      r.status,
+      r.portico || '',
+      r.disciplina || '',
+      r.service || '',
+      r.data_detectada || '',
+      r.method || '',
+      r.confidence ? Math.round(r.confidence * 100) + '%' : '',
+      r.dest || '',
+      r.tecnico || '',
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `resultados_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    toast({
+      title: "CSV exportado!",
+      description: `${results.length} registros exportados.`,
+    });
+  };
+
+  const handleViewPhoto = (result: ProcessingResult, imageUrl?: string) => {
+    setPreviewModal({ isOpen: true, result, imageUrl });
+  };
+
+  const handleUpdateResult = (updated: ProcessingResult) => {
+    setResults(prev => prev.map(r => 
+      r.filename === updated.filename ? updated : r
+    ));
+    setPreviewModal({ isOpen: false, result: null });
+    toast({
+      title: "Classificação atualizada",
+      description: `${updated.filename} foi reclassificado.`,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background noise-overlay">
       <Header />
@@ -187,8 +308,21 @@ const Index: React.FC = () => {
           </div>
         )}
 
+        {/* Processing Progress */}
+        {isProcessing && (
+          <div className="mb-6">
+            <ProcessingProgress
+              current={processingProgress.current}
+              total={processingProgress.total}
+              currentFileName={processingProgress.currentFile}
+              startTime={processingStartTime}
+              isProcessing={isProcessing}
+            />
+          </div>
+        )}
+
         {/* Stats */}
-        {results.length > 0 && (
+        {results.length > 0 && !isProcessing && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 animate-fade-in">
             <StatsCard
               icon={ImageIcon}
@@ -203,15 +337,14 @@ const Index: React.FC = () => {
               variant="success"
             />
             <StatsCard
-              icon={Settings}
-              label="Heurística"
-              value={heuristicaCount}
+              icon={XCircle}
+              label="Erros"
+              value={errorCount}
             />
             <StatsCard
               icon={Settings}
-              label="IA"
-              value={iaCount}
-              variant="primary"
+              label="Filtradas"
+              value={filteredResults.length}
             />
           </div>
         )}
@@ -295,7 +428,24 @@ const Index: React.FC = () => {
           <TabsContent value="results" className="space-y-6 animate-fade-in">
             {results.length > 0 ? (
               <>
-                <ResultsTable results={results} isProcessing={isProcessing} />
+                {/* Filters */}
+                <ResultsFilters
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  porticos={uniquePorticos}
+                  disciplinas={uniqueDisciplinas}
+                />
+
+                {/* Statistics */}
+                <StatisticsCard results={results} onExportCSV={handleExportCSV} />
+                
+                {/* Results Table */}
+                <ResultsTable 
+                  results={filteredResults} 
+                  isProcessing={isProcessing}
+                  fileUrls={fileUrls}
+                  onViewPhoto={handleViewPhoto}
+                />
                 
                 <div className="flex justify-center">
                   <Button
@@ -409,16 +559,29 @@ const Index: React.FC = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Footer */}
+        {/* Footer with Developer Credit */}
         <div className="text-center py-8 mt-8 border-t border-border">
-          <p className="text-xs text-muted-foreground">
-            ObraPhoto AI • OCR + Heurística + Gemini/GPT
+          <p className="text-sm text-foreground font-medium mb-1">
+            ObraPhoto AI
           </p>
-          <p className="text-xs text-muted-foreground/60 mt-1">
-            Padrão: PORTICO/DISCIPLINA/SERVICO/MM_MES/DD_MM
+          <p className="text-xs text-muted-foreground mb-2">
+            OCR + Heurística + Gemini/GPT • Padrão: PORTICO/DISCIPLINA/SERVICO/MM_MES/DD_MM
+          </p>
+          <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+            <User className="w-3 h-3" />
+            Desenvolvido por <span className="text-primary font-medium">Uriel da Fonseca Fortunato</span>
           </p>
         </div>
       </main>
+
+      {/* Photo Preview Modal */}
+      <PhotoPreviewModal
+        isOpen={previewModal.isOpen}
+        onClose={() => setPreviewModal({ isOpen: false, result: null })}
+        result={previewModal.result}
+        imageUrl={previewModal.imageUrl}
+        onUpdateResult={handleUpdateResult}
+      />
     </div>
   );
 };
