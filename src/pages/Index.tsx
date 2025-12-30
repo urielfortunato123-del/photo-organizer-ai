@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import JSZip from 'jszip';
 import { 
-  Play, Download, ImageIcon, CheckCircle2, XCircle, 
+  Play, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree,
-  Settings, User, Sparkles, RefreshCw
+  Settings, User, Sparkles, RefreshCw, FolderArchive
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -302,41 +303,63 @@ const Index: React.FC = () => {
     });
   };
 
-  const handleExportCSV = () => {
-    const headers = ['Arquivo', 'Status', 'Portico', 'Disciplina', 'Servico', 'Data', 'Metodo', 'Confianca', 'Destino', 'Analise_Tecnica', 'OCR_Text'];
-    const rows = results.map(r => [
-      r.filename,
-      r.status,
-      r.portico || '',
-      r.disciplina || '',
-      r.service || '',
-      r.data_detectada || '',
-      r.method || '',
-      r.confidence ? Math.round(r.confidence * 100) + '%' : '',
-      r.dest || '',
-      r.tecnico || '',
-      r.ocr_text || '',
-    ]);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportZIP = async () => {
+    const successResults = results.filter(r => r.status === 'Sucesso' && r.dest);
     
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
+    if (successResults.length === 0) {
+      toast({
+        title: "Nenhuma foto para exportar",
+        description: "Não há fotos com classificação bem-sucedida.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsExporting(true);
     
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `obraphoto_resultados_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-    
-    toast({
-      title: "CSV exportado!",
-      description: `${results.length} registros exportados.`,
-    });
+    try {
+      const zip = new JSZip();
+      
+      for (const result of successResults) {
+        const file = files.find(f => f.name === result.filename);
+        if (file && result.dest) {
+          const arrayBuffer = await file.arrayBuffer();
+          // Adiciona o arquivo na estrutura de pastas
+          zip.file(`${result.dest}/${result.filename}`, arrayBuffer);
+        }
+      }
+      
+      const zipBlob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+      
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `obraphoto_organizado_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "ZIP exportado!",
+        description: `${successResults.length} fotos organizadas em pastas.`,
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Erro na exportação",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleViewPhoto = (result: ProcessingResult, imageUrl?: string) => {
@@ -502,7 +525,7 @@ const Index: React.FC = () => {
                 />
 
                 {/* Statistics */}
-                <StatisticsCard results={results} onExportCSV={handleExportCSV} />
+                <StatisticsCard results={results} />
                 
                 {/* Results Table */}
                 <ResultsTable 
@@ -526,13 +549,22 @@ const Index: React.FC = () => {
                     </Button>
                   )}
                   <Button
-                    variant="outline"
+                    variant="hero"
                     size="lg"
-                    onClick={handleExportCSV}
-                    disabled={isProcessing}
+                    onClick={handleExportZIP}
+                    disabled={isProcessing || isExporting}
                   >
-                    <Download className="w-5 h-5" />
-                    Exportar CSV
+                    {isExporting ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                        Gerando ZIP...
+                      </>
+                    ) : (
+                      <>
+                        <FolderArchive className="w-5 h-5" />
+                        Baixar ZIP Organizado
+                      </>
+                    )}
                   </Button>
                 </div>
               </>
@@ -610,14 +642,23 @@ const Index: React.FC = () => {
                 </div>
 
                 <Button
-                  variant="outline"
+                  variant="hero"
                   size="lg"
-                  onClick={handleExportCSV}
+                  onClick={handleExportZIP}
+                  disabled={isExporting || results.length === 0}
                   className="w-full"
-                  disabled={results.length === 0}
                 >
-                  <Download className="w-5 h-5" />
-                  Exportar CSV
+                  {isExporting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                      Gerando ZIP...
+                    </>
+                  ) : (
+                    <>
+                      <FolderArchive className="w-5 h-5" />
+                      Baixar ZIP Organizado
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
