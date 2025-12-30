@@ -121,81 +121,55 @@ const isCreditLimitError = (err: unknown) => {
 };
 
 export const api = {
-  // Analyze image with AI (with retry logic)
-  async analyzeImage(file: File, defaultPortico?: string, maxRetries: number = 5): Promise<ProcessingResult> {
-    let lastError: unknown = null;
+  // Analyze image with AI (edge function handles retries internally)
+  async analyzeImage(file: File, defaultPortico?: string): Promise<ProcessingResult> {
+    try {
+      const imageBase64 = await fileToBase64(file);
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      try {
-        const imageBase64 = await fileToBase64(file);
-
-        const { data, error } = await supabase.functions.invoke('analyze-image', {
-          body: {
-            imageBase64,
-            filename: file.name,
-            defaultPortico,
-          },
-        });
-
-        if (error) {
-          lastError = error;
-
-          if (isCreditLimitError(error)) {
-            throw new Error('Limite de créditos atingido (402).');
-          }
-
-          // Check if rate limited and retry
-          if (isRateLimitError(error)) {
-            if (attempt < maxRetries - 1) {
-              const waitTime = 5000 * Math.pow(2, attempt); // 5s, 10s, 20s, 40s...
-              console.log(`Rate limited, waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
-              await delay(waitTime);
-              continue;
-            }
-            throw new Error('Limite de requisições atingido (429). Tente novamente em alguns instantes.');
-          }
-
-          throw new Error(getMessageFromInvokeError(error));
-        }
-
-        return {
+      const { data, error } = await supabase.functions.invoke('analyze-image', {
+        body: {
+          imageBase64,
           filename: file.name,
-          status: 'Sucesso',
-          portico: data.portico,
-          disciplina: data.disciplina,
-          service: data.servico,
-          data_detectada: data.data,
-          tecnico: data.analise_tecnica,
-          confidence: data.confidence,
-          method: 'ia_forcada',
-          ocr_text: data.ocr_text,
-          dest: buildDestPath(data.portico, data.disciplina, data.servico, data.data, true),
-        };
-      } catch (error) {
-        lastError = error;
+          defaultPortico,
+        },
+      });
 
+      if (error) {
         if (isCreditLimitError(error)) {
-          break;
+          throw new Error('Limite de créditos atingido (402).');
         }
 
-        // If rate limit error and more retries available, wait and retry
-        if (isRateLimitError(error) && attempt < maxRetries - 1) {
-          const waitTime = 5000 * Math.pow(2, attempt);
-          await delay(waitTime);
-          continue;
+        if (isRateLimitError(error)) {
+          throw new Error('Limite de requisições atingido (429). Tente novamente em alguns instantes.');
         }
+
+        throw new Error(getMessageFromInvokeError(error));
       }
+
+      return {
+        filename: file.name,
+        status: 'Sucesso',
+        portico: data.portico,
+        disciplina: data.disciplina,
+        service: data.servico,
+        data_detectada: data.data,
+        tecnico: data.analise_tecnica,
+        confidence: data.confidence,
+        method: 'ia_forcada',
+        ocr_text: data.ocr_text,
+        dest: buildDestPath(data.portico, data.disciplina, data.servico, data.data, true),
+      };
+    } catch (error) {
+      const finalStatus = getHttpStatusFromInvokeError(error);
+      const finalMsg = getMessageFromInvokeError(error);
+
+      return {
+        filename: file.name,
+        status: `Erro${finalStatus ? ` (${finalStatus})` : ''}: ${finalMsg}`,
+        method: 'ia_forcada',
+        confidence: 0,
+      };
     }
-
-    const finalStatus = getHttpStatusFromInvokeError(lastError);
-    const finalMsg = getMessageFromInvokeError(lastError);
-
-    return {
-      filename: file.name,
-      status: `Erro${finalStatus ? ` (${finalStatus})` : ''}: ${finalMsg}`,
-      method: 'ia_forcada',
-      confidence: 0,
-    };
   },
 
   // Process multiple photos
