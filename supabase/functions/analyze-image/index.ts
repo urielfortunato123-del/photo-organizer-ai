@@ -70,6 +70,22 @@ serve(async (req) => {
     const prompt = `Você é um engenheiro especialista em obras rodoviárias, prediais e industriais.
 Analise esta foto de obra e classifique usando EXATAMENTE as categorias abaixo.
 
+## IMPORTANTE: ANÁLISE VISUAL PRIORITÁRIA
+Se NÃO houver texto/legenda visível na imagem, você DEVE identificar o serviço pela ANÁLISE VISUAL:
+- Retroescavadeira/escavadeira + terra = TERRAPLENAGEM / ESCAVACAO
+- Caçamba/caminhão basculante = TERRAPLENAGEM / CARGA_TRANSPORTE  
+- Formas de madeira + ferragem = ESTRUTURA / FORMA ou ARMACAO
+- Concreto fresco = ESTRUTURA / CONCRETAGEM
+- Trabalhador com colher de pedreiro = ALVENARIA ou REVESTIMENTO
+- Pintura/rolo/tinta = ACABAMENTO / PINTURA_*
+- Tubos PEAD/PVC = DRENAGEM ou HIDRAULICA
+- Manômetro/macaco = CONTENCAO / PROTENSAO_TIRANTE
+- Barreira de concreto = BARREIRAS / BARREIRA_NEW_JERSEY
+- Grama/vegetação plantada = PAISAGISMO / PLANTIO_GRAMA
+- Cercas/alambrado = SEGURANCA / ALAMBRADO
+
+Mesmo SEM texto na foto, você consegue identificar o serviço pelos elementos visuais!
+
 ## 1. FRENTE DE SERVIÇO (campo "portico" no JSON)
 Identifique a frente de serviço, local ou estrutura principal:
 - Pórticos: P-10, P 10, P_10, PORTICO 10, Free Flow P-11, Praça 05, BSO
@@ -188,8 +204,17 @@ Formato: DD/MM/YYYY
 - Louças/Pias/Vasos → LOUCAS_METAIS
 - Use MAIÚSCULAS, _ no lugar de espaços
 
-Responda em JSON:
-{"portico":"P_11","disciplina":"ACABAMENTO","servico":"PINTURA_EXTERNA","data":"29/08/2025","analise_tecnica":"Descrição...","confidence":0.95,"ocr_text":"texto"}`;
+## 5. FOTOS SEM LEGENDA/OCR
+Se não conseguir ler texto/OCR na imagem:
+- Analise VISUALMENTE os elementos (equipamentos, materiais, atividade)
+- Identifique a disciplina e serviço pelo que está sendo executado
+- Use confidence menor (0.6-0.8) quando baseado apenas em visual
+- Em "ocr_text" coloque "" (vazio)
+- Em "analise_tecnica" descreva detalhadamente o que você VÊ na foto
+- Se não identificar frente de serviço, use "${defaultPortico || 'NAO_IDENTIFICADO'}"
+
+Responda SEMPRE em JSON válido:
+{"portico":"P_11","disciplina":"ACABAMENTO","servico":"PINTURA_EXTERNA","data":"29/08/2025","analise_tecnica":"Descrição detalhada do que está sendo executado...","confidence":0.95,"ocr_text":"texto lido ou vazio"}`;
 
     const response = await fetchWithRetry('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -213,7 +238,7 @@ Responda em JSON:
             ]
           }
         ],
-        max_tokens: 1000,
+        max_tokens: 1200,
       }),
     }, 3, 2000); // 3 retries, starting with 2s delay
 
