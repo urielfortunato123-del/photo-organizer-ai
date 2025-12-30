@@ -67,29 +67,51 @@ serve(async (req) => {
 
     console.log(`Analyzing image: ${filename}`);
 
-    const prompt = `Você é um engenheiro rodoviário sênior especialista em obras de infraestrutura. 
+    const prompt = `Você é um engenheiro rodoviário sênior especialista em obras de infraestrutura rodoviária e predial. 
 Analise esta foto de obra e extraia as seguintes informações:
 
-1. PÓRTICO: Identifique o número do pórtico se visível (ex: P-10, P 10, PORTICO 10). Se não encontrar, use "${defaultPortico || 'NAO_IDENTIFICADO'}".
-2. DISCIPLINA: Classifique em uma das categorias: FUNDACAO, DRENAGEM, TERRAPLENAGEM, PAVIMENTACAO, OAC (Obras de Arte Correntes), SINALIZACAO, OUTROS.
-3. SERVIÇO: Identifique o serviço específico (ex: CONCRETAGEM_BLOCO, BUEIRO_TUBULAR, ESCADA_HIDRAULICA, CORTE_ATERRO, etc).
+1. PÓRTICO: Identifique o número do pórtico se visível (ex: P-10, P 10, PORTICO 10, Free Flow P-11). Se não encontrar, use "${defaultPortico || 'NAO_IDENTIFICADO'}".
+
+2. DISCIPLINA: Classifique conforme as regras abaixo:
+   - FUNDACAO: Blocos de fundação, estacas, sapatas, tubulões
+   - DRENAGEM: Bueiros, caixas de drenagem, sarjetas, descidas d'água
+   - TERRAPLENAGEM: Corte, aterro, compactação de solo
+   - PAVIMENTACAO: Asfalto, base, sub-base, imprimação, CBUQ
+   - OAC: Obras de arte correntes - pontes, viadutos, passarelas
+   - SINALIZACAO: Placas, pinturas de solo, tachas, balizadores
+   - ACABAMENTO: Pintura de qualquer tipo, reboco, textura, revestimentos
+   - SEGURANCA: Fechaduras, alambrados, cercas, câmeras de segurança, alarmes, portões
+   - MANUTENCAO: Limpeza de terreno, roçagem, capina, remoção de entulho
+   - PAISAGISMO: Plantio de grama, jardinagem, árvores, vegetação
+   - ELETRICA: Instalações elétricas, iluminação, quadros de energia, cabeamento
+   - HIDRAULICA: Tubulações de água, esgoto, caixas d'água, bombas
+   - ESTRUTURA: Pilares, vigas, lajes, estruturas metálicas
+   - OUTROS: Apenas se não se encaixar em nenhuma categoria acima
+
+3. SERVIÇO: Identifique o serviço específico (ex: PINTURA_EXTERNA, INSTALACAO_ALAMBRADO, PLANTIO_GRAMA, LIMPEZA_TERRENO).
+
 4. DATA: Se houver data visível na imagem ou placa, extraia no formato DD/MM/YYYY.
+
 5. ANÁLISE TÉCNICA: Breve descrição técnica do que está sendo executado.
 
-IMPORTANTE:
+REGRAS IMPORTANTES:
+- Pintura de paredes, muros, fachadas → DISCIPLINA = ACABAMENTO
+- Instalação de cercas, alambrados, câmeras, fechaduras → DISCIPLINA = SEGURANCA
+- Limpeza, roçagem, capina de vegetação → DISCIPLINA = MANUTENCAO
+- Plantio de grama, jardim → DISCIPLINA = PAISAGISMO
 - Use MAIÚSCULAS para PORTICO, DISCIPLINA e SERVICO
 - Substitua espaços por underscore (_) nos nomes
 - Remova acentos
-- Se não conseguir identificar algo, use "NAO_IDENTIFICADO"
+- NUNCA classifique como OUTROS se uma das categorias específicas se aplicar
 
 Responda APENAS em JSON válido no formato:
 {
-  "portico": "PORTICO_P_10",
-  "disciplina": "FUNDACAO",
-  "servico": "CONCRETAGEM_BLOCO_B1",
-  "data": "12/10/2024",
-  "analise_tecnica": "Concretagem de bloco de fundação com...",
-  "confidence": 0.85,
+  "portico": "P_11",
+  "disciplina": "ACABAMENTO",
+  "servico": "PINTURA_EXTERNA_SALA_TECNICA",
+  "data": "29/08/2025",
+  "analise_tecnica": "Pintura de acabamento na face externa da sala técnica...",
+  "confidence": 0.95,
   "ocr_text": "texto extraído da imagem se houver"
 }`;
 
