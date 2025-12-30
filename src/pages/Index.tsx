@@ -146,23 +146,34 @@ const Index: React.FC = () => {
         
         let result: ProcessingResult;
 
-        if (config.ia_priority) {
-          // Usar análise com IA
-          result = await api.analyzeImage(file, config.default_portico);
+        try {
+          if (config.ia_priority) {
+            // Usar análise com IA
+            result = await api.analyzeImage(file, config.default_portico);
 
-          // Delay maior entre requisições para evitar rate limit (429)
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        } else {
-          // Classificação simples sem IA (baseado apenas no nome do arquivo)
+            // Delay maior entre requisições para evitar rate limit (429)
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          } else {
+            // Classificação simples sem IA (baseado apenas no nome do arquivo)
+            result = {
+              filename: file.name,
+              status: 'Sucesso',
+              portico: config.default_portico || 'NAO_IDENTIFICADO',
+              disciplina: 'GERAL',
+              service: 'REGISTRO',
+              method: 'heuristica',
+              confidence: 0.5,
+              dest: `organized_photos/${config.default_portico || 'NAO_IDENTIFICADO'}/GERAL/REGISTRO`,
+            };
+          }
+        } catch (fileError) {
+          // Se falhar, registra erro mas continua com próximos arquivos
+          console.warn(`Erro ao processar ${file.name}:`, fileError);
           result = {
             filename: file.name,
-            status: 'Sucesso',
-            portico: config.default_portico || 'NAO_IDENTIFICADO',
-            disciplina: 'GERAL',
-            service: 'REGISTRO',
-            method: 'heuristica',
-            confidence: 0.5,
-            dest: `organized_photos/${config.default_portico || 'NAO_IDENTIFICADO'}/GERAL/REGISTRO`,
+            status: `Erro: ${fileError instanceof Error ? fileError.message : 'Falha na análise'}`,
+            method: 'ia_forcada',
+            confidence: 0,
           };
         }
 
