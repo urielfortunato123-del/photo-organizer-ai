@@ -80,9 +80,9 @@ const ResultsFilters: React.FC<ResultsFiltersProps> = ({
           </div>
         </div>
 
-        {/* Portico */}
+        {/* Frente de Serviço */}
         <div>
-          <Label className="text-xs text-muted-foreground">Pórtico</Label>
+          <Label className="text-xs text-muted-foreground">Frente</Label>
           <Select
             value={filters.portico}
             onValueChange={(value) => onFiltersChange({ ...filters, portico: value === 'all' ? '' : value })}

@@ -135,11 +135,11 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
             {isEditing ? (
               <div className="grid sm:grid-cols-3 gap-4">
                 <div className="space-y-1">
-                  <Label className="text-xs">Pórtico</Label>
+                  <Label className="text-xs">Frente de Serviço</Label>
                   <Input 
                     value={editedPortico}
                     onChange={(e) => setEditedPortico(e.target.value.toUpperCase())}
-                    placeholder="PORTICO_P_10"
+                    placeholder="P_10, CORTINA_01..."
                     className="font-mono text-sm"
                   />
                 </div>
@@ -165,7 +165,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
             ) : (
               <div className="grid sm:grid-cols-3 gap-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">Pórtico</p>
+                  <p className="text-xs text-muted-foreground">Frente de Serviço</p>
                   <p className="font-mono text-sm font-medium">{result.portico || '-'}</p>
                 </div>
                 <div>
