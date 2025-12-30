@@ -1,12 +1,10 @@
 import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { Download, BarChart3 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { BarChart3 } from 'lucide-react';
 import { ProcessingResult } from '@/services/api';
 
 interface StatisticsCardProps {
   results: ProcessingResult[];
-  onExportCSV: () => void;
 }
 
 const COLORS = [
@@ -20,7 +18,7 @@ const COLORS = [
   'hsl(320, 70%, 50%)',   // Pink
 ];
 
-const StatisticsCard: React.FC<StatisticsCardProps> = ({ results, onExportCSV }) => {
+const StatisticsCard: React.FC<StatisticsCardProps> = ({ results }) => {
   // Group by disciplina
   const disciplinaStats = results.reduce((acc, r) => {
     if (r.disciplina && r.status === 'Sucesso') {
@@ -82,10 +80,6 @@ const StatisticsCard: React.FC<StatisticsCardProps> = ({ results, onExportCSV })
             <p className="text-xs text-muted-foreground">{results.length} fotos processadas</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={onExportCSV}>
-          <Download className="w-4 h-4 mr-1" />
-          Exportar CSV
-        </Button>
       </div>
 
       {/* Quick Stats */}
