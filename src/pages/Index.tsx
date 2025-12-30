@@ -153,7 +153,7 @@ const Index: React.FC = () => {
             result = await api.analyzeImage(file, config.default_portico);
 
             // Delay maior entre requisições para evitar rate limit (429)
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            await new Promise(resolve => setTimeout(resolve, 10000));
           } else {
             // Classificação simples sem IA (baseado apenas no nome do arquivo)
             result = {
@@ -252,7 +252,7 @@ const Index: React.FC = () => {
 
         try {
           result = await api.analyzeImage(file, defaultPortico);
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          await new Promise(resolve => setTimeout(resolve, 10000));
         } catch (fileError) {
           console.warn(`Erro ao reprocessar ${file.name}:`, fileError);
           result = {
