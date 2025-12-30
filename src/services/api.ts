@@ -86,15 +86,49 @@ const buildDestPath = (
 // Delay helper
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const getHttpStatusFromInvokeError = (err: unknown): number | undefined => {
+  const anyErr = err as any;
+  return (
+    anyErr?.status ??
+    anyErr?.context?.status ??
+    anyErr?.context?.statusCode ??
+    anyErr?.cause?.status ??
+    anyErr?.cause?.statusCode
+  );
+};
+
+const getMessageFromInvokeError = (err: unknown): string => {
+  const anyErr = err as any;
+  return (
+    anyErr?.message ||
+    anyErr?.error_description ||
+    anyErr?.error ||
+    (typeof anyErr === 'string' ? anyErr : '') ||
+    'Falha na análise'
+  );
+};
+
+const isRateLimitError = (err: unknown) => {
+  const status = getHttpStatusFromInvokeError(err);
+  const msg = getMessageFromInvokeError(err).toLowerCase();
+  return status === 429 || msg.includes('429') || msg.includes('rate limit') || msg.includes('rate limited');
+};
+
+const isCreditLimitError = (err: unknown) => {
+  const status = getHttpStatusFromInvokeError(err);
+  const msg = getMessageFromInvokeError(err).toLowerCase();
+  return status === 402 || msg.includes('402') || msg.includes('crédito') || msg.includes('payment');
+};
+
 export const api = {
   // Analyze image with AI (with retry logic)
-  async analyzeImage(file: File, defaultPortico?: string, maxRetries: number = 3): Promise<ProcessingResult> {
-    let lastError: Error | null = null;
-    
+  async analyzeImage(file: File, defaultPortico?: string, maxRetries: number = 5): Promise<ProcessingResult> {
+    let lastError: unknown = null;
+
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const imageBase64 = await fileToBase64(file);
-        
+
         const { data, error } = await supabase.functions.invoke('analyze-image', {
           body: {
             imageBase64,
@@ -104,19 +138,24 @@ export const api = {
         });
 
         if (error) {
-          console.error('Edge function error:', error);
-          
+          lastError = error;
+
+          if (isCreditLimitError(error)) {
+            throw new Error('Limite de créditos atingido (402).');
+          }
+
           // Check if rate limited and retry
-          if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+          if (isRateLimitError(error)) {
             if (attempt < maxRetries - 1) {
-              const waitTime = 3000 * Math.pow(2, attempt); // 3s, 6s, 12s
+              const waitTime = 5000 * Math.pow(2, attempt); // 5s, 10s, 20s, 40s...
               console.log(`Rate limited, waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
               await delay(waitTime);
               continue;
             }
+            throw new Error('Limite de requisições atingido (429). Tente novamente em alguns instantes.');
           }
-          
-          throw new Error(error.message || 'Failed to analyze image');
+
+          throw new Error(getMessageFromInvokeError(error));
         }
 
         return {
@@ -130,32 +169,30 @@ export const api = {
           confidence: data.confidence,
           method: 'ia_forcada',
           ocr_text: data.ocr_text,
-          dest: buildDestPath(
-            data.portico,
-            data.disciplina,
-            data.servico,
-            data.data,
-            true
-          ),
+          dest: buildDestPath(data.portico, data.disciplina, data.servico, data.data, true),
         };
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        console.error(`Attempt ${attempt + 1} failed:`, lastError.message);
-        
+        lastError = error;
+
+        if (isCreditLimitError(error)) {
+          break;
+        }
+
         // If rate limit error and more retries available, wait and retry
-        if (lastError.message?.includes('429') || lastError.message?.includes('rate limit')) {
-          if (attempt < maxRetries - 1) {
-            const waitTime = 3000 * Math.pow(2, attempt);
-            await delay(waitTime);
-            continue;
-          }
+        if (isRateLimitError(error) && attempt < maxRetries - 1) {
+          const waitTime = 5000 * Math.pow(2, attempt);
+          await delay(waitTime);
+          continue;
         }
       }
     }
-    
+
+    const finalStatus = getHttpStatusFromInvokeError(lastError);
+    const finalMsg = getMessageFromInvokeError(lastError);
+
     return {
       filename: file.name,
-      status: `Erro: ${lastError?.message || 'Falha na análise'}`,
+      status: `Erro${finalStatus ? ` (${finalStatus})` : ''}: ${finalMsg}`,
       method: 'ia_forcada',
       confidence: 0,
     };
