@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, XCircle, Loader2, FileImage, FolderOpen, Brain } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, FileImage, FolderOpen, Brain, Cpu, BarChart3 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -13,19 +13,34 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-
-export interface ProcessingResult {
-  filename: string;
-  service?: string;
-  dest?: string;
-  status: string;
-  tecnico?: string;
-}
+import { cn } from '@/lib/utils';
+import { ProcessingResult } from '@/services/api';
 
 interface ResultsTableProps {
   results: ProcessingResult[];
   isProcessing: boolean;
 }
+
+const getConfidenceClass = (confidence: number | undefined): string => {
+  if (!confidence) return 'confidence-low';
+  if (confidence >= 0.8) return 'confidence-high';
+  if (confidence >= 0.5) return 'confidence-medium';
+  return 'confidence-low';
+};
+
+const getConfidenceLabel = (confidence: number | undefined): string => {
+  if (!confidence) return '0%';
+  return `${Math.round(confidence * 100)}%`;
+};
+
+const getMethodLabel = (method: string | undefined): string => {
+  switch (method) {
+    case 'heuristica': return 'Heurística';
+    case 'ia_fallback': return 'IA Fallback';
+    case 'ia_forcada': return 'IA Forçada';
+    default: return '-';
+  }
+};
 
 const ResultsTable: React.FC<ResultsTableProps> = ({ results, isProcessing }) => {
   if (results.length === 0 && !isProcessing) {
@@ -40,7 +55,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isProcessing }) =>
             <FileImage className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">Resultados</h3>
+            <h3 className="font-semibold text-foreground">Resultados do Processamento</h3>
             <p className="text-xs text-muted-foreground">
               {results.length} {results.length === 1 ? 'foto processada' : 'fotos processadas'}
             </p>
@@ -58,11 +73,15 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isProcessing }) =>
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="text-muted-foreground font-semibold">Status</TableHead>
+              <TableHead className="text-muted-foreground font-semibold w-20">Status</TableHead>
               <TableHead className="text-muted-foreground font-semibold">Arquivo</TableHead>
+              <TableHead className="text-muted-foreground font-semibold">Pórtico</TableHead>
+              <TableHead className="text-muted-foreground font-semibold">Disciplina</TableHead>
               <TableHead className="text-muted-foreground font-semibold">Serviço</TableHead>
+              <TableHead className="text-muted-foreground font-semibold">Data</TableHead>
+              <TableHead className="text-muted-foreground font-semibold">Método</TableHead>
+              <TableHead className="text-muted-foreground font-semibold">Confiança</TableHead>
               <TableHead className="text-muted-foreground font-semibold">Destino</TableHead>
-              <TableHead className="text-muted-foreground font-semibold">Análise Técnica</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -70,7 +89,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isProcessing }) =>
               <TableRow 
                 key={`${result.filename}-${index}`}
                 className="border-border animate-fade-in"
-                style={{ animationDelay: `${index * 100}ms` }}
+                style={{ animationDelay: `${index * 50}ms` }}
               >
                 <TableCell>
                   {result.status === 'Sucesso' ? (
@@ -97,48 +116,99 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isProcessing }) =>
                     </span>
                   )}
                 </TableCell>
+                
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <FileImage className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-mono text-xs text-foreground truncate max-w-[150px]">
+                    <FileImage className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <span className="font-mono text-xs text-foreground truncate max-w-[120px]">
                       {result.filename}
                     </span>
                   </div>
                 </TableCell>
+                
+                <TableCell>
+                  <span className="text-sm font-medium text-foreground">
+                    {result.portico || '-'}
+                  </span>
+                </TableCell>
+                
+                <TableCell>
+                  <span className="text-sm text-foreground">
+                    {result.disciplina || '-'}
+                  </span>
+                </TableCell>
+                
                 <TableCell>
                   <span className="text-sm text-foreground">
                     {result.service || '-'}
                   </span>
                 </TableCell>
+                
                 <TableCell>
-                  {result.dest ? (
-                    <div className="flex items-center gap-2">
-                      <FolderOpen className="w-4 h-4 text-primary" />
-                      <span className="font-mono text-xs text-muted-foreground truncate max-w-[200px]">
-                        {result.dest.split('/').slice(-3).join('/')}
-                      </span>
-                    </div>
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {result.data_detectada || '-'}
+                  </span>
+                </TableCell>
+                
+                <TableCell>
+                  {result.method ? (
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <span className={cn(
+                          result.method === 'heuristica' ? 'method-heuristica' : 'method-ia',
+                          'flex items-center gap-1 w-fit'
+                        )}>
+                          {result.method === 'heuristica' ? (
+                            <BarChart3 className="w-3 h-3" />
+                          ) : (
+                            <Cpu className="w-3 h-3" />
+                          )}
+                          {getMethodLabel(result.method)}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">
+                          {result.method === 'heuristica' && 'Classificado por regras e padrões'}
+                          {result.method === 'ia_fallback' && 'IA ativada por OCR fraco ou serviço não identificado'}
+                          {result.method === 'ia_forcada' && 'IA ativada manualmente pelo usuário'}
+                        </p>
+                        {result.tecnico && (
+                          <p className="text-xs mt-1 text-muted-foreground">{result.tecnico}</p>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
                 </TableCell>
+                
                 <TableCell>
-                  {result.tecnico ? (
+                  {result.confidence !== undefined ? (
+                    <span className={cn(getConfidenceClass(result.confidence), 'inline-block')}>
+                      {getConfidenceLabel(result.confidence)}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+                
+                <TableCell>
+                  {result.dest ? (
                     <Tooltip>
                       <TooltipTrigger>
                         <div className="flex items-center gap-2 cursor-help">
-                          <Brain className="w-4 h-4 text-primary" />
-                          <span className="text-xs text-muted-foreground truncate max-w-[150px]">
-                            {result.tecnico.slice(0, 50)}...
+                          <FolderOpen className="w-4 h-4 text-warning flex-shrink-0" />
+                          <span className="font-mono text-xs text-muted-foreground truncate max-w-[150px]">
+                            .../{result.dest.split('/').slice(-2).join('/')}
                           </span>
                         </div>
                       </TooltipTrigger>
-                      <TooltipContent side="left" className="max-w-sm">
-                        <p className="text-xs">{result.tecnico}</p>
+                      <TooltipContent side="left" className="max-w-md">
+                        <p className="font-mono text-xs break-all">{result.dest}</p>
                       </TooltipContent>
                     </Tooltip>
                   ) : (
-                    <span className="text-muted-foreground text-xs">-</span>
+                    <span className="text-muted-foreground">-</span>
                   )}
                 </TableCell>
               </TableRow>

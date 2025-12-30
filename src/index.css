@@ -33,6 +33,9 @@
     --success: 142 76% 36%;
     --success-foreground: 45 20% 95%;
 
+    --warning: 45 93% 47%;
+    --warning-foreground: 220 20% 8%;
+
     --border: 220 15% 20%;
     --input: 220 15% 18%;
     --ring: 35 100% 50%;
@@ -51,7 +54,6 @@
     /* Custom tokens */
     --gradient-primary: linear-gradient(135deg, hsl(35 100% 50%), hsl(25 100% 45%));
     --gradient-card: linear-gradient(145deg, hsl(220 18% 14%), hsl(220 18% 10%));
-    --gradient-hero: linear-gradient(180deg, hsl(220 20% 8%) 0%, hsl(220 18% 12%) 100%);
     --shadow-glow: 0 0 40px hsl(35 100% 50% / 0.15);
     --shadow-card: 0 4px 24px hsl(0 0% 0% / 0.4);
     --font-mono: 'JetBrains Mono', monospace;
@@ -75,13 +77,15 @@
     --accent-foreground: 220 20% 8%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 45 20% 95%;
+    --success: 142 76% 36%;
+    --success-foreground: 45 20% 95%;
+    --warning: 45 93% 47%;
+    --warning-foreground: 220 20% 8%;
     --border: 220 15% 20%;
     --input: 220 15% 18%;
     --ring: 35 100% 50%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
@@ -106,39 +110,11 @@
     box-shadow: var(--shadow-card);
   }
 
-  .glow-border {
-    @apply relative;
-  }
-
-  .glow-border::before {
-    content: '';
-    @apply absolute -inset-[1px] rounded-xl opacity-0 transition-opacity duration-300;
-    background: var(--gradient-primary);
-    z-index: -1;
-  }
-
-  .glow-border:hover::before {
-    @apply opacity-100;
-  }
-
   .text-gradient {
     background: var(--gradient-primary);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-  }
-
-  .animate-pulse-glow {
-    animation: pulse-glow 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse-glow {
-    0%, 100% {
-      box-shadow: 0 0 20px hsl(35 100% 50% / 0.2);
-    }
-    50% {
-      box-shadow: 0 0 40px hsl(35 100% 50% / 0.4);
-    }
   }
 
   .upload-zone {
@@ -153,6 +129,29 @@
     background: linear-gradient(145deg, hsl(220 18% 13%), hsl(220 18% 11%));
   }
 
+  /* Confidence badges */
+  .confidence-high {
+    @apply px-2 py-0.5 rounded-full text-xs font-semibold bg-success/20 text-success border border-success/30;
+  }
+
+  .confidence-medium {
+    @apply px-2 py-0.5 rounded-full text-xs font-semibold bg-warning/20 text-warning border border-warning/30;
+  }
+
+  .confidence-low {
+    @apply px-2 py-0.5 rounded-full text-xs font-semibold bg-destructive/20 text-destructive border border-destructive/30;
+  }
+
+  /* Method badges */
+  .method-heuristica {
+    @apply px-2 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground border border-border;
+  }
+
+  .method-ia {
+    @apply px-2 py-0.5 rounded-full text-xs font-medium bg-primary/20 text-primary border border-primary/30;
+  }
+
+  /* Status badges */
   .status-badge {
     @apply px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide;
   }
@@ -167,6 +166,23 @@
 
   .status-processing {
     @apply bg-primary/20 text-primary border border-primary/30;
+  }
+
+  /* Tree view styles */
+  .tree-node {
+    @apply flex items-center gap-2 py-1 px-2 rounded-md hover:bg-secondary/50 cursor-pointer transition-colors text-sm;
+  }
+
+  .tree-node-active {
+    @apply bg-secondary;
+  }
+
+  .tree-connector {
+    @apply text-border select-none;
+  }
+
+  .folder-icon {
+    color: hsl(var(--warning));
   }
 
   .grid-pattern {
