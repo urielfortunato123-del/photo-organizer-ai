@@ -144,7 +144,24 @@ const Index: React.FC = () => {
           currentFile: file.name 
         });
         
-        const result = await api.analyzeImage(file, config.default_portico);
+        let result: ProcessingResult;
+        
+        if (config.ia_priority) {
+          // Usar análise com IA
+          result = await api.analyzeImage(file, config.default_portico);
+        } else {
+          // Classificação simples sem IA (baseado apenas no nome do arquivo)
+          result = {
+            filename: file.name,
+            status: 'Sucesso',
+            portico: config.default_portico || 'NAO_IDENTIFICADO',
+            disciplina: 'GERAL',
+            service: 'REGISTRO',
+            method: 'heuristica',
+            confidence: 0.5,
+            dest: `organized_photos/${config.default_portico || 'NAO_IDENTIFICADO'}/GERAL/REGISTRO`,
+          };
+        }
         
         // Update dest based on organize_by_date setting
         if (result.status === 'Sucesso' && result.dest && !config.organize_by_date) {
@@ -163,7 +180,7 @@ const Index: React.FC = () => {
       const finalSuccessCount = processedResults.filter(r => r.status === 'Sucesso').length;
       toast({
         title: "Processamento concluído!",
-        description: `${finalSuccessCount} de ${files.length} fotos analisadas com IA.`,
+        description: `${finalSuccessCount} de ${files.length} fotos ${config.ia_priority ? 'analisadas com IA' : 'processadas'}.`,
       });
     } catch (error) {
       console.error('Processing error:', error);
@@ -345,12 +362,15 @@ const Index: React.FC = () => {
                     {isProcessing ? (
                       <>
                         <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                        Analisando com IA...
+                        {iaPriority ? 'Analisando com IA...' : 'Processando...'}
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-5 h-5" />
-                        Analisar {files.length > 0 ? `${files.length} Fotos` : 'Fotos'} com IA
+                        {iaPriority ? <Sparkles className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                        {iaPriority 
+                          ? `Analisar ${files.length > 0 ? `${files.length} Fotos` : 'Fotos'} com IA`
+                          : `Processar ${files.length > 0 ? `${files.length} Fotos` : 'Fotos'}`
+                        }
                       </>
                     )}
                   </Button>
