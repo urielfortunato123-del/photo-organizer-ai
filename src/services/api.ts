@@ -210,7 +210,7 @@ export const api = {
 // Mock tree data for visualization (since we don't have actual file storage)
 export const mockTreeData: TreeNode[] = [
   {
-    name: 'PORTICO_P_10',
+    name: 'CORTINA_ATIRANTADA_KM_167',
     type: 'folder',
     children: [
       {

@@ -34,21 +34,21 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
       </div>
 
       <div className="space-y-5">
-        {/* Default Portico */}
+        {/* Default Frente de Serviço */}
         <div className="space-y-2">
           <Label htmlFor="portico" className="flex items-center gap-2 text-sm font-medium">
             <MapPin className="w-4 h-4 text-primary" />
-            Pórtico Padrão
+            Frente de Serviço Padrão
           </Label>
           <Input
             id="portico"
-            placeholder="Ex: P01, P02, PORTICO_15..."
+            placeholder="Ex: P01, CORTINA_01, ESCAVACAO_02..."
             value={defaultPortico}
             onChange={(e) => onDefaultPorticoChange(e.target.value)}
             className="bg-secondary/50 border-border focus:border-primary"
           />
           <p className="text-xs text-muted-foreground">
-            Usado quando o pórtico não é identificado na imagem
+            Usado quando a frente de serviço não é identificada na imagem
           </p>
         </div>
 

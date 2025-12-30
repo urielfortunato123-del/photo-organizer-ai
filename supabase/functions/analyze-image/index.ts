@@ -70,9 +70,13 @@ serve(async (req) => {
     const prompt = `Você é um engenheiro especialista em obras rodoviárias, prediais e industriais.
 Analise esta foto de obra e classifique usando EXATAMENTE as categorias abaixo.
 
-## 1. PÓRTICO
-Identifique: P-10, P 10, P_10, PORTICO 10, Free Flow P-11, Praça 05, BSO, etc.
-Padrão: "${defaultPortico || 'NAO_IDENTIFICADO'}"
+## 1. FRENTE DE SERVIÇO (campo "portico" no JSON)
+Identifique a frente de serviço, local ou estrutura principal:
+- Pórticos: P-10, P 10, P_10, PORTICO 10, Free Flow P-11, Praça 05, BSO
+- Cortinas: CORTINA_01, CORTINA_ATIRANTADA_KM_167
+- Escavações: ESCAVACAO_BLOCO_A1, ESCAVACAO_NORTE
+- Outros: PRACA_PEDAGIO_01, VIADUTO_KM_200, PASSARELA_02, GUARITA_01
+Padrão se não identificar: "${defaultPortico || 'NAO_IDENTIFICADO'}"
 
 ## 2. DISCIPLINAS E SERVIÇOS
 
@@ -254,7 +258,7 @@ Responda em JSON:
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError);
       result = {
-        portico: defaultPortico ? `PORTICO_${defaultPortico.toUpperCase()}` : 'PORTICO_NAO_IDENTIFICADO',
+        portico: defaultPortico ? defaultPortico.toUpperCase().replace(/\s+/g, '_') : 'NAO_IDENTIFICADO',
         disciplina: 'OUTROS',
         servico: 'NAO_IDENTIFICADO',
         data: null,
@@ -266,7 +270,7 @@ Responda em JSON:
 
     // Normalize the result
     const normalizedResult = {
-      portico: (result.portico || 'PORTICO_NAO_IDENTIFICADO').toUpperCase().replace(/\s+/g, '_'),
+      portico: (result.portico || 'NAO_IDENTIFICADO').toUpperCase().replace(/\s+/g, '_'),
       disciplina: (result.disciplina || 'OUTROS').toUpperCase().replace(/\s+/g, '_'),
       servico: (result.servico || 'NAO_IDENTIFICADO').toUpperCase().replace(/\s+/g, '_'),
       data: result.data || null,
