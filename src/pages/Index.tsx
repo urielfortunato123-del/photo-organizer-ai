@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Play, Download, ImageIcon, CheckCircle2, XCircle, 
-  Upload, Table as TableIcon, FolderTree, AlertCircle,
-  Settings, Server, User
+  Upload, Table as TableIcon, FolderTree,
+  Settings, User, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,8 +21,7 @@ import {
   api, 
   ProcessingResult, 
   TreeNode,
-  mockTreeData, 
-  generateMockResults 
+  buildTreeFromResults 
 } from '@/services/api';
 
 const Index: React.FC = () => {
@@ -32,12 +31,10 @@ const Index: React.FC = () => {
   const [fileUrls, setFileUrls] = useState<Map<string, string>>(new Map());
   const [defaultPortico, setDefaultPortico] = useState('');
   const [organizeByDate, setOrganizeByDate] = useState(true);
-  const [iaPriority, setIaPriority] = useState(false);
+  const [iaPriority, setIaPriority] = useState(true); // Default to AI mode
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState<ProcessingResult[]>([]);
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
-  const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(null);
-  const [isLoadingTree, setIsLoadingTree] = useState(false);
   
   // Progress tracking
   const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0, currentFile: '' });
@@ -71,6 +68,13 @@ const Index: React.FC = () => {
       urls.forEach(url => URL.revokeObjectURL(url));
     };
   }, [files]);
+
+  // Update tree when results change
+  useEffect(() => {
+    if (results.length > 0) {
+      setTreeData(buildTreeFromResults(results));
+    }
+  }, [results]);
 
   // Extract unique values for filter dropdowns
   const uniquePorticos = useMemo(() => 
@@ -108,45 +112,6 @@ const Index: React.FC = () => {
   const successCount = results.filter(r => r.status === 'Sucesso').length;
   const errorCount = results.filter(r => r.status.includes('Erro')).length;
 
-  // Check backend connection on mount
-  useEffect(() => {
-    const checkBackend = async () => {
-      const connected = await api.healthCheck();
-      setIsBackendConnected(connected);
-      
-      if (connected) {
-        try {
-          const tree = await api.getTree();
-          setTreeData(tree);
-        } catch {
-          setTreeData(mockTreeData);
-        }
-      } else {
-        setTreeData(mockTreeData);
-      }
-    };
-    
-    checkBackend();
-  }, []);
-
-  const loadTreeData = async () => {
-    setIsLoadingTree(true);
-    try {
-      if (isBackendConnected) {
-        const tree = await api.getTree();
-        setTreeData(tree);
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setTreeData(mockTreeData);
-      }
-    } catch (error) {
-      console.error('Failed to load tree:', error);
-      setTreeData(mockTreeData);
-    } finally {
-      setIsLoadingTree(false);
-    }
-  };
-
   const handleProcess = async () => {
     if (files.length === 0) {
       toast({
@@ -169,38 +134,42 @@ const Index: React.FC = () => {
     };
 
     try {
-      if (isBackendConnected) {
-        const processedResults = await api.processPhotos(files, config);
-        setResults(processedResults);
-      } else {
-        const mockResults: ProcessingResult[] = [];
+      const processedResults: ProcessingResult[] = [];
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setProcessingProgress({ 
+          current: i + 1, 
+          total: files.length, 
+          currentFile: file.name 
+        });
         
-        for (let i = 0; i < files.length; i++) {
-          setProcessingProgress({ 
-            current: i + 1, 
-            total: files.length, 
-            currentFile: files[i].name 
-          });
-          
-          await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 400));
-          const batchResults = generateMockResults([files[i]], config);
-          mockResults.push(...batchResults);
-          setResults([...mockResults]);
+        const result = await api.analyzeImage(file, config.default_portico);
+        
+        // Update dest based on organize_by_date setting
+        if (result.status === 'Sucesso' && result.dest && !config.organize_by_date) {
+          // Remove date folders from path
+          const parts = result.dest.split('/');
+          const filtered = parts.filter((_, idx) => idx < 4);
+          result.dest = filtered.join('/');
         }
+        
+        processedResults.push(result);
+        setResults([...processedResults]);
       }
 
       setActiveTab('results');
-      await loadTreeData();
 
+      const finalSuccessCount = processedResults.filter(r => r.status === 'Sucesso').length;
       toast({
         title: "Processamento concluído!",
-        description: `${successCount} de ${files.length} fotos processadas.`,
+        description: `${finalSuccessCount} de ${files.length} fotos analisadas com IA.`,
       });
     } catch (error) {
       console.error('Processing error:', error);
       toast({
         title: "Erro no processamento",
-        description: "Verifique a conexão com o backend",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
         variant: "destructive",
       });
     } finally {
@@ -211,34 +180,14 @@ const Index: React.FC = () => {
   };
 
   const handleDownload = async () => {
-    try {
-      if (isBackendConnected) {
-        const blob = await api.downloadZip();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'fotos_organizadas.zip';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        toast({
-          title: "Modo demonstração",
-          description: "Conecte ao backend FastAPI para baixar o ZIP",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Erro no download",
-        description: "Não foi possível gerar o arquivo ZIP",
-        variant: "destructive",
-      });
-    }
+    toast({
+      title: "Exportação",
+      description: "Use o botão 'Exportar CSV' para baixar os resultados.",
+    });
   };
 
   const handleExportCSV = () => {
-    const headers = ['Arquivo', 'Status', 'Portico', 'Disciplina', 'Servico', 'Data', 'Metodo', 'Confianca', 'Destino', 'Analise_Tecnica'];
+    const headers = ['Arquivo', 'Status', 'Portico', 'Disciplina', 'Servico', 'Data', 'Metodo', 'Confianca', 'Destino', 'Analise_Tecnica', 'OCR_Text'];
     const rows = results.map(r => [
       r.filename,
       r.status,
@@ -250,18 +199,19 @@ const Index: React.FC = () => {
       r.confidence ? Math.round(r.confidence * 100) + '%' : '',
       r.dest || '',
       r.tecnico || '',
+      r.ocr_text || '',
     ]);
     
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
     ].join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `resultados_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `obraphoto_resultados_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     URL.revokeObjectURL(url);
@@ -293,20 +243,16 @@ const Index: React.FC = () => {
       <Header />
       
       <main className="max-w-7xl mx-auto px-4 pb-16">
-        {/* Backend Status Banner */}
-        {isBackendConnected === false && (
-          <div className="mb-6 p-4 rounded-xl bg-warning/10 border border-warning/30 flex items-center gap-3 animate-fade-in">
-            <AlertCircle className="w-5 h-5 text-warning flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">Modo Demonstração</p>
-              <p className="text-xs text-muted-foreground">
-                Backend FastAPI não detectado. Usando dados simulados. 
-                Configure <code className="px-1 py-0.5 bg-secondary rounded text-xs">VITE_API_URL</code> para conectar.
-              </p>
-            </div>
-            <Server className="w-5 h-5 text-muted-foreground" />
+        {/* AI Enabled Banner */}
+        <div className="mb-6 p-4 rounded-xl bg-primary/10 border border-primary/30 flex items-center gap-3 animate-fade-in">
+          <Sparkles className="w-5 h-5 text-primary flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-foreground">IA Integrada Ativa</p>
+            <p className="text-xs text-muted-foreground">
+              Análise de imagens com Gemini 2.5 Flash • Sem necessidade de API key
+            </p>
           </div>
-        )}
+        </div>
 
         {/* Processing Progress */}
         {isProcessing && (
@@ -399,12 +345,12 @@ const Index: React.FC = () => {
                     {isProcessing ? (
                       <>
                         <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                        Processando...
+                        Analisando com IA...
                       </>
                     ) : (
                       <>
-                        <Play className="w-5 h-5" />
-                        Processar {files.length > 0 ? `${files.length} Fotos` : 'Fotos'}
+                        <Sparkles className="w-5 h-5" />
+                        Analisar {files.length > 0 ? `${files.length} Fotos` : 'Fotos'} com IA
                       </>
                     )}
                   </Button>
@@ -451,11 +397,11 @@ const Index: React.FC = () => {
                   <Button
                     variant="outline"
                     size="lg"
-                    onClick={handleDownload}
+                    onClick={handleExportCSV}
                     disabled={isProcessing}
                   >
                     <Download className="w-5 h-5" />
-                    Baixar ZIP Organizado
+                    Exportar CSV
                   </Button>
                 </div>
               </>
@@ -493,18 +439,6 @@ const Index: React.FC = () => {
                         </p>
                       </div>
                     </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={loadTreeData}
-                      disabled={isLoadingTree}
-                    >
-                      {isLoadingTree ? (
-                        <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
-                      ) : (
-                        'Atualizar'
-                      )}
-                    </Button>
                   </div>
                   
                   <div className="max-h-[500px] overflow-y-auto scrollbar-thin">
@@ -547,12 +481,12 @@ const Index: React.FC = () => {
                 <Button
                   variant="outline"
                   size="lg"
-                  onClick={handleDownload}
+                  onClick={handleExportCSV}
                   className="w-full"
-                  disabled={treeData.length === 0}
+                  disabled={results.length === 0}
                 >
                   <Download className="w-5 h-5" />
-                  Baixar ZIP
+                  Exportar CSV
                 </Button>
               </div>
             </div>
@@ -565,7 +499,7 @@ const Index: React.FC = () => {
             ObraPhoto AI
           </p>
           <p className="text-xs text-muted-foreground mb-2">
-            OCR + Heurística + Gemini/GPT • Padrão: PORTICO/DISCIPLINA/SERVICO/MM_MES/DD_MM
+            Análise com IA Gemini • Padrão: PORTICO/DISCIPLINA/SERVICO/MM_MES/DD_MM
           </p>
           <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
             <User className="w-3 h-3" />

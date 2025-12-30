@@ -1,5 +1,4 @@
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ProcessingConfig {
   default_portico?: string;
@@ -18,6 +17,7 @@ export interface ProcessingResult {
   method?: 'heuristica' | 'ia_fallback' | 'ia_forcada';
   confidence?: number;
   data_detectada?: string;
+  ocr_text?: string;
 }
 
 export interface TreeNode {
@@ -43,67 +43,142 @@ export const MONTH_NAMES: Record<number, string> = {
   12: '12_DEZEMBRO',
 };
 
+// Convert file to base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
+      const base64 = result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = error => reject(error);
+  });
+};
+
+// Build destination path based on classification
+const buildDestPath = (
+  portico: string,
+  disciplina: string,
+  servico: string,
+  dataStr: string | null,
+  organizeByDate: boolean
+): string => {
+  let path = `organized_photos/${portico}/${disciplina}/${servico}`;
+  
+  if (organizeByDate && dataStr) {
+    // Parse date DD/MM/YYYY
+    const match = dataStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (match) {
+      const day = match[1];
+      const month = parseInt(match[2], 10);
+      const monthName = MONTH_NAMES[month] || `${month.toString().padStart(2, '0')}_MES`;
+      const dayMonth = `${day}_${month.toString().padStart(2, '0')}`;
+      path += `/${monthName}/${dayMonth}`;
+    }
+  }
+  
+  return path;
+};
+
 export const api = {
-  // Process photos
-  async processPhotos(files: File[], config: ProcessingConfig): Promise<ProcessingResult[]> {
-    const formData = new FormData();
-    
-    files.forEach((file) => {
-      formData.append('files', file);
-    });
-    
-    if (config.default_portico) {
-      formData.append('default_portico', config.default_portico);
-    }
-    formData.append('organize_by_date', String(config.organize_by_date));
-    formData.append('ia_priority', String(config.ia_priority));
-
-    const response = await fetch(`${API_BASE_URL}/process`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return response.json();
-  },
-
-  // Get folder tree
-  async getTree(): Promise<TreeNode[]> {
-    const response = await fetch(`${API_BASE_URL}/tree`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return response.json();
-  },
-
-  // Download organized photos as ZIP
-  async downloadZip(): Promise<Blob> {
-    const response = await fetch(`${API_BASE_URL}/download`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return response.blob();
-  },
-
-  // Health check
-  async healthCheck(): Promise<boolean> {
+  // Analyze image with AI
+  async analyzeImage(file: File, defaultPortico?: string): Promise<ProcessingResult> {
     try {
-      const response = await fetch(`${API_BASE_URL}/`);
-      return response.ok;
-    } catch {
-      return false;
+      const imageBase64 = await fileToBase64(file);
+      
+      const { data, error } = await supabase.functions.invoke('analyze-image', {
+        body: {
+          imageBase64,
+          filename: file.name,
+          defaultPortico,
+        },
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to analyze image');
+      }
+
+      return {
+        filename: file.name,
+        status: 'Sucesso',
+        portico: data.portico,
+        disciplina: data.disciplina,
+        service: data.servico,
+        data_detectada: data.data,
+        tecnico: data.analise_tecnica,
+        confidence: data.confidence,
+        method: 'ia_forcada',
+        ocr_text: data.ocr_text,
+        dest: buildDestPath(
+          data.portico,
+          data.disciplina,
+          data.servico,
+          data.data,
+          true
+        ),
+      };
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      return {
+        filename: file.name,
+        status: `Erro: ${error instanceof Error ? error.message : 'Falha na análise'}`,
+        method: 'ia_forcada',
+        confidence: 0,
+      };
     }
+  },
+
+  // Process multiple photos
+  async processPhotos(
+    files: File[], 
+    config: ProcessingConfig,
+    onProgress?: (current: number, total: number, filename: string) => void
+  ): Promise<ProcessingResult[]> {
+    const results: ProcessingResult[] = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      onProgress?.(i + 1, files.length, file.name);
+      
+      try {
+        const result = await this.analyzeImage(file, config.default_portico);
+        
+        // Update dest based on organize_by_date setting
+        if (result.status === 'Sucesso' && result.portico && result.disciplina && result.service) {
+          result.dest = buildDestPath(
+            result.portico,
+            result.disciplina,
+            result.service,
+            result.data_detectada || null,
+            config.organize_by_date
+          );
+        }
+        
+        results.push(result);
+      } catch (error) {
+        results.push({
+          filename: file.name,
+          status: `Erro: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          method: 'ia_forcada',
+          confidence: 0,
+        });
+      }
+    }
+    
+    return results;
+  },
+
+  // Health check - always returns true now that we have Cloud
+  async healthCheck(): Promise<boolean> {
+    return true;
   },
 };
 
-// Mock data for development/demo
+// Mock tree data for visualization (since we don't have actual file storage)
 export const mockTreeData: TreeNode[] = [
   {
     name: 'PORTICO_P_10',
@@ -128,19 +203,6 @@ export const mockTreeData: TreeNode[] = [
               },
             ],
           },
-          {
-            name: 'FORMA_BLOCO_B2',
-            type: 'folder',
-            children: [
-              {
-                name: '10_OUTUBRO',
-                type: 'folder',
-                children: [
-                  { name: '14_10', type: 'folder', children: [] },
-                ],
-              },
-            ],
-          },
         ],
       },
       {
@@ -156,33 +218,6 @@ export const mockTreeData: TreeNode[] = [
                 type: 'folder',
                 children: [
                   { name: '28_09', type: 'folder', children: [] },
-                  { name: '29_09', type: 'folder', children: [] },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: 'PORTICO_P_15',
-    type: 'folder',
-    children: [
-      {
-        name: 'TERRAPLENAGEM',
-        type: 'folder',
-        children: [
-          {
-            name: 'CORTE_ATERRO',
-            type: 'folder',
-            children: [
-              {
-                name: '11_NOVEMBRO',
-                type: 'folder',
-                children: [
-                  { name: '05_11', type: 'folder', children: [] },
-                  { name: '06_11', type: 'folder', children: [] },
                 ],
               },
             ],
@@ -193,65 +228,26 @@ export const mockTreeData: TreeNode[] = [
   },
 ];
 
-export const generateMockResults = (files: File[], config: ProcessingConfig): ProcessingResult[] => {
-  const services = [
-    { disciplina: 'FUNDACAO', servico: 'CONCRETAGEM_BLOCO_B1' },
-    { disciplina: 'FUNDACAO', servico: 'FORMA_BLOCO_B2' },
-    { disciplina: 'DRENAGEM', servico: 'BUEIRO_TUBULAR' },
-    { disciplina: 'DRENAGEM', servico: 'ESCADA_HIDRAULICA' },
-    { disciplina: 'TERRAPLENAGEM', servico: 'CORTE_ATERRO' },
-    { disciplina: 'PAVIMENTACAO', servico: 'BASE_SOLO_CIMENTO' },
-  ];
+// Build tree from results
+export const buildTreeFromResults = (results: ProcessingResult[]): TreeNode[] => {
+  const tree: TreeNode[] = [];
+  const successResults = results.filter(r => r.status === 'Sucesso' && r.dest);
   
-  const porticos = ['P_10', 'P_15', 'P_20', 'P_25'];
-  const methods: ('heuristica' | 'ia_fallback' | 'ia_forcada')[] = ['heuristica', 'ia_fallback', 'ia_forcada'];
-
-  return files.map((file) => {
-    const isSuccess = Math.random() > 0.05;
-    const randomService = services[Math.floor(Math.random() * services.length)];
-    const randomPortico = config.default_portico 
-      ? config.default_portico.toUpperCase().replace(/[^A-Z0-9_]/g, '_')
-      : `P_${porticos[Math.floor(Math.random() * porticos.length)].split('_')[1]}`;
+  for (const result of successResults) {
+    if (!result.dest) continue;
     
-    const method = config.ia_priority 
-      ? 'ia_forcada' 
-      : (Math.random() > 0.7 ? 'ia_fallback' : 'heuristica');
+    const parts = result.dest.split('/').filter(p => p && p !== 'organized_photos');
+    let currentLevel = tree;
     
-    const confidence = method === 'heuristica' ? 0.85 + Math.random() * 0.15 
-      : method === 'ia_forcada' ? 0.7 + Math.random() * 0.2 
-      : 0.5 + Math.random() * 0.3;
-
-    const month = Math.floor(Math.random() * 3) + 9; // Sep-Nov
-    const day = Math.floor(Math.random() * 28) + 1;
-    const monthName = MONTH_NAMES[month];
-    const dayStr = `${day.toString().padStart(2, '0')}_${month.toString().padStart(2, '0')}`;
-
-    if (!isSuccess) {
-      return {
-        filename: file.name,
-        status: 'Erro: Falha ao processar imagem',
-        method: 'heuristica',
-        confidence: 0,
-      };
+    for (const part of parts) {
+      let existing = currentLevel.find(n => n.name === part);
+      if (!existing) {
+        existing = { name: part, type: 'folder', children: [] };
+        currentLevel.push(existing);
+      }
+      currentLevel = existing.children || [];
     }
-
-    const destPath = config.organize_by_date
-      ? `organized_photos/PORTICO_${randomPortico}/${randomService.disciplina}/${randomService.servico}/${monthName}/${dayStr}`
-      : `organized_photos/PORTICO_${randomPortico}/${randomService.disciplina}/${randomService.servico}`;
-
-    return {
-      filename: file.name,
-      status: 'Sucesso',
-      portico: `PORTICO_${randomPortico}`,
-      disciplina: randomService.disciplina,
-      service: randomService.servico,
-      dest: destPath,
-      method,
-      confidence,
-      data_detectada: config.organize_by_date ? `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/2024` : undefined,
-      tecnico: method !== 'heuristica' 
-        ? `Estrutura de ${randomService.servico.toLowerCase().replace(/_/g, ' ')} identificada. Dimensões compatíveis com projeto.`
-        : undefined,
-    };
-  });
+  }
+  
+  return tree;
 };
