@@ -83,53 +83,82 @@ const buildDestPath = (
   return path;
 };
 
+// Delay helper
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const api = {
-  // Analyze image with AI
-  async analyzeImage(file: File, defaultPortico?: string): Promise<ProcessingResult> {
-    try {
-      const imageBase64 = await fileToBase64(file);
-      
-      const { data, error } = await supabase.functions.invoke('analyze-image', {
-        body: {
-          imageBase64,
+  // Analyze image with AI (with retry logic)
+  async analyzeImage(file: File, defaultPortico?: string, maxRetries: number = 3): Promise<ProcessingResult> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const imageBase64 = await fileToBase64(file);
+        
+        const { data, error } = await supabase.functions.invoke('analyze-image', {
+          body: {
+            imageBase64,
+            filename: file.name,
+            defaultPortico,
+          },
+        });
+
+        if (error) {
+          console.error('Edge function error:', error);
+          
+          // Check if rate limited and retry
+          if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+            if (attempt < maxRetries - 1) {
+              const waitTime = 3000 * Math.pow(2, attempt); // 3s, 6s, 12s
+              console.log(`Rate limited, waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+              await delay(waitTime);
+              continue;
+            }
+          }
+          
+          throw new Error(error.message || 'Failed to analyze image');
+        }
+
+        return {
           filename: file.name,
-          defaultPortico,
-        },
-      });
-
-      if (error) {
-        console.error('Edge function error:', error);
-        throw new Error(error.message || 'Failed to analyze image');
+          status: 'Sucesso',
+          portico: data.portico,
+          disciplina: data.disciplina,
+          service: data.servico,
+          data_detectada: data.data,
+          tecnico: data.analise_tecnica,
+          confidence: data.confidence,
+          method: 'ia_forcada',
+          ocr_text: data.ocr_text,
+          dest: buildDestPath(
+            data.portico,
+            data.disciplina,
+            data.servico,
+            data.data,
+            true
+          ),
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.error(`Attempt ${attempt + 1} failed:`, lastError.message);
+        
+        // If rate limit error and more retries available, wait and retry
+        if (lastError.message?.includes('429') || lastError.message?.includes('rate limit')) {
+          if (attempt < maxRetries - 1) {
+            const waitTime = 3000 * Math.pow(2, attempt);
+            await delay(waitTime);
+            continue;
+          }
+        }
       }
-
-      return {
-        filename: file.name,
-        status: 'Sucesso',
-        portico: data.portico,
-        disciplina: data.disciplina,
-        service: data.servico,
-        data_detectada: data.data,
-        tecnico: data.analise_tecnica,
-        confidence: data.confidence,
-        method: 'ia_forcada',
-        ocr_text: data.ocr_text,
-        dest: buildDestPath(
-          data.portico,
-          data.disciplina,
-          data.servico,
-          data.data,
-          true
-        ),
-      };
-    } catch (error) {
-      console.error('Error analyzing image:', error);
-      return {
-        filename: file.name,
-        status: `Erro: ${error instanceof Error ? error.message : 'Falha na análise'}`,
-        method: 'ia_forcada',
-        confidence: 0,
-      };
     }
+    
+    return {
+      filename: file.name,
+      status: `Erro: ${lastError?.message || 'Falha na análise'}`,
+      method: 'ia_forcada',
+      confidence: 0,
+    };
   },
 
   // Process multiple photos
