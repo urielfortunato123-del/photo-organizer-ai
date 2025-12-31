@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface ProcessingConfig {
   default_portico?: string;
+  empresa?: string;
   organize_by_date: boolean;
   ia_priority: boolean;
 }
@@ -11,6 +12,7 @@ export interface ProcessingResult {
   service?: string;
   portico?: string;
   disciplina?: string;
+  empresa?: string;
   dest?: string;
   status: string;
   tecnico?: string;
@@ -59,14 +61,17 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 // Build destination path based on classification
+// Structure: EMPRESA/FOTOS/FRENTE_SERVICO/DISCIPLINA/SERVICO/MES_ANO/DIA_MES
 const buildDestPath = (
+  empresa: string,
   portico: string,
   disciplina: string,
   servico: string,
   dataStr: string | null,
   organizeByDate: boolean
 ): string => {
-  let path = `organized_photos/${portico}/${disciplina}/${servico}`;
+  // Base structure: EMPRESA/FOTOS/FRENTE_SERVICO/DISCIPLINA/SERVICO
+  let path = `${empresa}/FOTOS/${portico}/${disciplina}/${servico}`;
   
   if (organizeByDate && dataStr) {
     // Parse date DD/MM/YYYY
@@ -74,9 +79,11 @@ const buildDestPath = (
     if (match) {
       const day = match[1];
       const month = parseInt(match[2], 10);
+      const year = match[3];
       const monthName = MONTH_NAMES[month] || `${month.toString().padStart(2, '0')}_MES`;
+      const monthYear = `${monthName}_${year}`;
       const dayMonth = `${day}_${month.toString().padStart(2, '0')}`;
-      path += `/${monthName}/${dayMonth}`;
+      path += `/${monthYear}/${dayMonth}`;
     }
   }
   
@@ -122,7 +129,9 @@ const isCreditLimitError = (err: unknown) => {
 
 export const api = {
   // Analyze image with AI (edge function handles retries internally)
-  async analyzeImage(file: File, defaultPortico?: string): Promise<ProcessingResult> {
+  async analyzeImage(file: File, defaultPortico?: string, empresa?: string): Promise<ProcessingResult> {
+    const empresaNome = empresa || 'EMPRESA';
+    
     try {
       const imageBase64 = await fileToBase64(file);
 
@@ -152,12 +161,13 @@ export const api = {
         portico: data.portico,
         disciplina: data.disciplina,
         service: data.servico,
+        empresa: empresaNome,
         data_detectada: data.data,
         tecnico: data.analise_tecnica,
         confidence: data.confidence,
         method: 'ia_forcada',
         ocr_text: data.ocr_text,
-        dest: buildDestPath(data.portico, data.disciplina, data.servico, data.data, true),
+        dest: buildDestPath(empresaNome, data.portico, data.disciplina, data.servico, data.data, true),
       };
     } catch (error) {
       const finalStatus = getHttpStatusFromInvokeError(error);
@@ -179,17 +189,19 @@ export const api = {
     onProgress?: (current: number, total: number, filename: string) => void
   ): Promise<ProcessingResult[]> {
     const results: ProcessingResult[] = [];
+    const empresaNome = config.empresa || 'EMPRESA';
     
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       onProgress?.(i + 1, files.length, file.name);
       
       try {
-        const result = await this.analyzeImage(file, config.default_portico);
+        const result = await this.analyzeImage(file, config.default_portico, empresaNome);
         
         // Update dest based on organize_by_date setting
         if (result.status === 'Sucesso' && result.portico && result.disciplina && result.service) {
           result.dest = buildDestPath(
+            empresaNome,
             result.portico,
             result.disciplina,
             result.service,

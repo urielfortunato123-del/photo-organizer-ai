@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, MapPin, Calendar, Brain } from 'lucide-react';
+import { Settings, MapPin, Calendar, Brain, Building2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 interface ProcessingOptionsProps {
   defaultPortico: string;
   onDefaultPorticoChange: (value: string) => void;
+  empresa: string;
+  onEmpresaChange: (value: string) => void;
   organizeByDate: boolean;
   onOrganizeByDateChange: (value: boolean) => void;
   iaPriority: boolean;
@@ -16,6 +18,8 @@ interface ProcessingOptionsProps {
 const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
   defaultPortico,
   onDefaultPorticoChange,
+  empresa,
+  onEmpresaChange,
   organizeByDate,
   onOrganizeByDateChange,
   iaPriority,
@@ -34,6 +38,24 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
       </div>
 
       <div className="space-y-5">
+        {/* Empresa/Cliente */}
+        <div className="space-y-2">
+          <Label htmlFor="empresa" className="flex items-center gap-2 text-sm font-medium">
+            <Building2 className="w-4 h-4 text-primary" />
+            Empresa / Cliente
+          </Label>
+          <Input
+            id="empresa"
+            placeholder="Ex: HABITECHENE, ABTECK..."
+            value={empresa}
+            onChange={(e) => onEmpresaChange(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
+            className="bg-secondary/50 border-border focus:border-primary"
+          />
+          <p className="text-xs text-muted-foreground">
+            Nome da pasta raiz para organização
+          </p>
+        </div>
+
         {/* Default Frente de Serviço */}
         <div className="space-y-2">
           <Label htmlFor="portico" className="flex items-center gap-2 text-sm font-medium">
@@ -42,13 +64,13 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
           </Label>
           <Input
             id="portico"
-            placeholder="Ex: P01, CORTINA_01, ESCAVACAO_02..."
+            placeholder="Ex: PORTICO_01, CONSERVACAO_RODOVIA..."
             value={defaultPortico}
             onChange={(e) => onDefaultPorticoChange(e.target.value)}
             className="bg-secondary/50 border-border focus:border-primary"
           />
           <p className="text-xs text-muted-foreground">
-            Usado quando a frente de serviço não é identificada na imagem
+            Usado quando a frente de serviço não é identificada
           </p>
         </div>
 
@@ -61,7 +83,7 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
             <div>
               <p className="text-sm font-medium text-foreground">Organizar por Data</p>
               <p className="text-xs text-muted-foreground">
-                Cria subpastas com a data da foto
+                Cria subpastas MÊS_ANO/DIA_MÊS
               </p>
             </div>
           </div>
