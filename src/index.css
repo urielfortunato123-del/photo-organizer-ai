@@ -6,96 +6,69 @@
 
 @layer base {
   :root {
-    /* GNOME Light Theme - Clean & Modern */
-    --background: 210 20% 98%;
-    --foreground: 220 15% 20%;
+    /* ObraPhoto Dark Theme - Gradient Inspired */
+    --background: 220 25% 8%;
+    --foreground: 210 15% 95%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 15% 20%;
+    --card: 220 25% 12%;
+    --card-foreground: 210 15% 95%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 20%;
+    --popover: 220 25% 10%;
+    --popover-foreground: 210 15% 95%;
 
-    /* GNOME Blue as primary */
-    --primary: 211 70% 50%;
-    --primary-foreground: 0 0% 100%;
+    /* Cyan/Teal as primary (from logo) */
+    --primary: 185 80% 50%;
+    --primary-foreground: 220 25% 8%;
 
-    --secondary: 210 15% 93%;
-    --secondary-foreground: 220 15% 35%;
+    --secondary: 220 20% 16%;
+    --secondary-foreground: 210 15% 85%;
 
-    --muted: 210 15% 90%;
-    --muted-foreground: 220 10% 50%;
+    --muted: 220 20% 14%;
+    --muted-foreground: 210 10% 55%;
 
-    /* GNOME accent colors */
-    --accent: 260 60% 55%;
+    /* Purple/Magenta accent (from logo) */
+    --accent: 280 70% 60%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 65% 50%;
+    --destructive: 0 60% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 145 65% 40%;
+    --success: 145 60% 45%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 35 95% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 35 90% 55%;
+    --warning-foreground: 220 15% 15%;
 
-    --border: 210 15% 88%;
-    --input: 210 15% 93%;
-    --ring: 211 70% 50%;
+    --border: 220 20% 18%;
+    --input: 220 20% 16%;
+    --ring: 185 80% 50%;
 
-    /* GNOME uses very rounded corners */
     --radius: 12px;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 220 15% 35%;
-    --sidebar-primary: 211 70% 50%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 15% 95%;
-    --sidebar-accent-foreground: 220 15% 35%;
-    --sidebar-border: 210 15% 90%;
-    --sidebar-ring: 211 70% 50%;
+    --sidebar-background: 220 25% 10%;
+    --sidebar-foreground: 210 15% 85%;
+    --sidebar-primary: 185 80% 50%;
+    --sidebar-primary-foreground: 220 25% 8%;
+    --sidebar-accent: 220 20% 14%;
+    --sidebar-accent-foreground: 210 15% 85%;
+    --sidebar-border: 220 20% 16%;
+    --sidebar-ring: 185 80% 50%;
 
-    /* GNOME Custom tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(211 70% 55%), hsl(230 70% 55%));
-    --gradient-teal: linear-gradient(135deg, hsl(170 70% 45%), hsl(190 70% 50%));
-    --gradient-purple: linear-gradient(135deg, hsl(260 65% 55%), hsl(280 65% 50%));
-    --gradient-coral: linear-gradient(135deg, hsl(350 70% 55%), hsl(15 80% 55%));
+    /* Logo-inspired gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(320 70% 55%), hsl(280 70% 55%), hsl(220 70% 55%), hsl(185 80% 50%));
+    --gradient-teal: linear-gradient(135deg, hsl(185 80% 50%), hsl(170 70% 45%));
+    --gradient-purple: linear-gradient(135deg, hsl(320 70% 55%), hsl(280 65% 55%));
+    --gradient-coral: linear-gradient(135deg, hsl(350 70% 55%), hsl(320 70% 55%));
     --gradient-yellow: linear-gradient(135deg, hsl(45 95% 55%), hsl(35 95% 50%));
-    --shadow-soft: 0 2px 8px hsl(220 20% 20% / 0.08), 0 8px 24px hsl(220 20% 20% / 0.06);
-    --shadow-card: 0 1px 3px hsl(220 20% 20% / 0.04), 0 4px 12px hsl(220 20% 20% / 0.06);
-    --shadow-elevated: 0 4px 16px hsl(220 20% 20% / 0.1), 0 12px 32px hsl(220 20% 20% / 0.08);
+    --shadow-soft: 0 2px 8px hsl(220 50% 5% / 0.3), 0 8px 24px hsl(220 50% 5% / 0.4);
+    --shadow-card: 0 1px 3px hsl(220 50% 5% / 0.2), 0 4px 12px hsl(220 50% 5% / 0.3);
+    --shadow-elevated: 0 4px 16px hsl(220 50% 5% / 0.4), 0 12px 32px hsl(220 50% 5% / 0.5);
     --font-mono: 'JetBrains Mono', monospace;
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
   .dark {
-    --background: 220 15% 12%;
-    --foreground: 210 15% 95%;
-    --card: 220 15% 16%;
-    --card-foreground: 210 15% 95%;
-    --popover: 220 15% 14%;
-    --popover-foreground: 210 15% 95%;
-    --primary: 211 70% 55%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 15% 20%;
-    --secondary-foreground: 210 15% 85%;
-    --muted: 220 15% 18%;
-    --muted-foreground: 210 10% 55%;
-    --accent: 260 60% 60%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 60% 55%;
-    --destructive-foreground: 0 0% 100%;
-    --success: 145 60% 45%;
-    --success-foreground: 0 0% 100%;
-    --warning: 35 90% 55%;
-    --warning-foreground: 220 15% 15%;
-    --border: 220 15% 22%;
-    --input: 220 15% 20%;
-    --ring: 211 70% 55%;
-    --sidebar-background: 220 15% 14%;
-    --sidebar-foreground: 210 15% 85%;
-    --sidebar-accent: 220 15% 18%;
-    --sidebar-border: 220 15% 22%;
+    /* Same as root - already dark */
   }
 
   * {
