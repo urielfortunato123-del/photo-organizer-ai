@@ -2,88 +2,100 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @layer base {
   :root {
-    --background: 220 20% 8%;
-    --foreground: 45 20% 95%;
+    /* GNOME Light Theme - Clean & Modern */
+    --background: 210 20% 98%;
+    --foreground: 220 15% 20%;
 
-    --card: 220 18% 12%;
-    --card-foreground: 45 20% 95%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 15% 20%;
 
-    --popover: 220 18% 10%;
-    --popover-foreground: 45 20% 95%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 20%;
 
-    --primary: 35 100% 50%;
-    --primary-foreground: 220 20% 8%;
+    /* GNOME Blue as primary */
+    --primary: 211 70% 50%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 45 15% 85%;
+    --secondary: 210 15% 93%;
+    --secondary-foreground: 220 15% 35%;
 
-    --muted: 220 15% 15%;
-    --muted-foreground: 220 10% 55%;
+    --muted: 210 15% 90%;
+    --muted-foreground: 220 10% 50%;
 
-    --accent: 35 90% 45%;
-    --accent-foreground: 220 20% 8%;
+    /* GNOME accent colors */
+    --accent: 260 60% 55%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 45 20% 95%;
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --success: 142 76% 36%;
-    --success-foreground: 45 20% 95%;
+    --success: 145 65% 40%;
+    --success-foreground: 0 0% 100%;
 
-    --warning: 45 93% 47%;
-    --warning-foreground: 220 20% 8%;
+    --warning: 35 95% 50%;
+    --warning-foreground: 0 0% 100%;
 
-    --border: 220 15% 20%;
-    --input: 220 15% 18%;
-    --ring: 35 100% 50%;
+    --border: 210 15% 88%;
+    --input: 210 15% 93%;
+    --ring: 211 70% 50%;
 
-    --radius: 0.75rem;
+    /* GNOME uses very rounded corners */
+    --radius: 12px;
 
-    --sidebar-background: 220 18% 10%;
-    --sidebar-foreground: 45 15% 85%;
-    --sidebar-primary: 35 100% 50%;
-    --sidebar-primary-foreground: 220 20% 8%;
-    --sidebar-accent: 220 15% 18%;
-    --sidebar-accent-foreground: 45 15% 85%;
-    --sidebar-border: 220 15% 20%;
-    --sidebar-ring: 35 100% 50%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 15% 35%;
+    --sidebar-primary: 211 70% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 15% 95%;
+    --sidebar-accent-foreground: 220 15% 35%;
+    --sidebar-border: 210 15% 90%;
+    --sidebar-ring: 211 70% 50%;
 
-    /* Custom tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(35 100% 50%), hsl(25 100% 45%));
-    --gradient-card: linear-gradient(145deg, hsl(220 18% 14%), hsl(220 18% 10%));
-    --shadow-glow: 0 0 40px hsl(35 100% 50% / 0.15);
-    --shadow-card: 0 4px 24px hsl(0 0% 0% / 0.4);
+    /* GNOME Custom tokens */
+    --gradient-primary: linear-gradient(135deg, hsl(211 70% 55%), hsl(230 70% 55%));
+    --gradient-teal: linear-gradient(135deg, hsl(170 70% 45%), hsl(190 70% 50%));
+    --gradient-purple: linear-gradient(135deg, hsl(260 65% 55%), hsl(280 65% 50%));
+    --gradient-coral: linear-gradient(135deg, hsl(350 70% 55%), hsl(15 80% 55%));
+    --gradient-yellow: linear-gradient(135deg, hsl(45 95% 55%), hsl(35 95% 50%));
+    --shadow-soft: 0 2px 8px hsl(220 20% 20% / 0.08), 0 8px 24px hsl(220 20% 20% / 0.06);
+    --shadow-card: 0 1px 3px hsl(220 20% 20% / 0.04), 0 4px 12px hsl(220 20% 20% / 0.06);
+    --shadow-elevated: 0 4px 16px hsl(220 20% 20% / 0.1), 0 12px 32px hsl(220 20% 20% / 0.08);
     --font-mono: 'JetBrains Mono', monospace;
-    --font-sans: 'Inter', sans-serif;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
   .dark {
-    --background: 220 20% 8%;
-    --foreground: 45 20% 95%;
-    --card: 220 18% 12%;
-    --card-foreground: 45 20% 95%;
-    --popover: 220 18% 10%;
-    --popover-foreground: 45 20% 95%;
-    --primary: 35 100% 50%;
-    --primary-foreground: 220 20% 8%;
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 45 15% 85%;
-    --muted: 220 15% 15%;
-    --muted-foreground: 220 10% 55%;
-    --accent: 35 90% 45%;
-    --accent-foreground: 220 20% 8%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 45 20% 95%;
-    --success: 142 76% 36%;
-    --success-foreground: 45 20% 95%;
-    --warning: 45 93% 47%;
-    --warning-foreground: 220 20% 8%;
-    --border: 220 15% 20%;
-    --input: 220 15% 18%;
-    --ring: 35 100% 50%;
+    --background: 220 15% 12%;
+    --foreground: 210 15% 95%;
+    --card: 220 15% 16%;
+    --card-foreground: 210 15% 95%;
+    --popover: 220 15% 14%;
+    --popover-foreground: 210 15% 95%;
+    --primary: 211 70% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 15% 20%;
+    --secondary-foreground: 210 15% 85%;
+    --muted: 220 15% 18%;
+    --muted-foreground: 210 10% 55%;
+    --accent: 260 60% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 60% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 145 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 90% 55%;
+    --warning-foreground: 220 15% 15%;
+    --border: 220 15% 22%;
+    --input: 220 15% 20%;
+    --ring: 211 70% 55%;
+    --sidebar-background: 220 15% 14%;
+    --sidebar-foreground: 210 15% 85%;
+    --sidebar-accent: 220 15% 18%;
+    --sidebar-border: 220 15% 22%;
   }
 
   * {
@@ -97,6 +109,7 @@
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-sans);
+    @apply font-semibold;
   }
 
   code, pre, .mono {
@@ -105,11 +118,115 @@
 }
 
 @layer components {
-  .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-border/50 rounded-xl;
+  /* GNOME Window Style */
+  .gnome-window {
+    @apply bg-card rounded-[20px] overflow-hidden;
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .gnome-window-header {
+    @apply flex items-center justify-between px-4 py-3 bg-secondary/50;
+  }
+
+  .gnome-window-title {
+    @apply text-sm font-semibold text-foreground;
+  }
+
+  .gnome-window-controls {
+    @apply flex items-center gap-2;
+  }
+
+  .gnome-window-btn {
+    @apply w-3 h-3 rounded-full transition-all hover:opacity-80;
+  }
+
+  /* GNOME Cards */
+  .gnome-card {
+    @apply bg-card rounded-2xl border-0 transition-all duration-200;
     box-shadow: var(--shadow-card);
   }
 
+  .gnome-card:hover {
+    box-shadow: var(--shadow-elevated);
+    transform: translateY(-1px);
+  }
+
+  /* GNOME Sidebar */
+  .gnome-sidebar {
+    @apply bg-card border-r border-border/50 h-full;
+    box-shadow: 1px 0 0 hsl(var(--border));
+  }
+
+  .gnome-sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground rounded-xl mx-2 transition-all duration-150 cursor-pointer;
+  }
+
+  .gnome-sidebar-item:hover {
+    @apply bg-secondary text-foreground;
+  }
+
+  .gnome-sidebar-item.active {
+    @apply bg-primary text-primary-foreground;
+  }
+
+  /* GNOME Buttons */
+  .gnome-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all duration-150;
+  }
+
+  .gnome-btn-primary {
+    background: var(--gradient-primary);
+    @apply text-white shadow-md;
+  }
+
+  .gnome-btn-primary:hover {
+    @apply opacity-90 shadow-lg;
+    transform: translateY(-1px);
+  }
+
+  .gnome-btn-secondary {
+    @apply bg-secondary text-secondary-foreground;
+  }
+
+  .gnome-btn-secondary:hover {
+    @apply bg-secondary/80;
+  }
+
+  /* GNOME Category Pills */
+  .gnome-pill {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-150 cursor-pointer;
+  }
+
+  .gnome-pill-blue {
+    background: var(--gradient-primary);
+    @apply text-white;
+  }
+
+  .gnome-pill-teal {
+    background: var(--gradient-teal);
+    @apply text-white;
+  }
+
+  .gnome-pill-purple {
+    background: var(--gradient-purple);
+    @apply text-white;
+  }
+
+  .gnome-pill-coral {
+    background: var(--gradient-coral);
+    @apply text-white;
+  }
+
+  .gnome-pill-yellow {
+    background: var(--gradient-yellow);
+    @apply text-foreground;
+  }
+
+  .gnome-pill-dark {
+    @apply bg-foreground/90 text-background;
+  }
+
+  /* Text gradient */
   .text-gradient {
     background: var(--gradient-primary);
     -webkit-background-clip: text;
@@ -117,64 +234,63 @@
     background-clip: text;
   }
 
+  /* Upload zone GNOME style */
   .upload-zone {
-    @apply border-2 border-dashed border-border/60 rounded-xl transition-all duration-300;
-    background: linear-gradient(145deg, hsl(220 18% 11%), hsl(220 18% 9%));
+    @apply border-2 border-dashed border-border rounded-2xl transition-all duration-300 bg-secondary/30;
   }
 
   .upload-zone:hover,
   .upload-zone.drag-active {
-    @apply border-primary/60;
-    box-shadow: var(--shadow-glow);
-    background: linear-gradient(145deg, hsl(220 18% 13%), hsl(220 18% 11%));
+    @apply border-primary bg-primary/5;
+    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.1);
   }
 
   /* Confidence badges */
   .confidence-high {
-    @apply px-2 py-0.5 rounded-full text-xs font-semibold bg-success/20 text-success border border-success/30;
+    @apply px-2.5 py-1 rounded-full text-xs font-medium bg-success/15 text-success;
   }
 
   .confidence-medium {
-    @apply px-2 py-0.5 rounded-full text-xs font-semibold bg-warning/20 text-warning border border-warning/30;
+    @apply px-2.5 py-1 rounded-full text-xs font-medium bg-warning/15 text-warning;
   }
 
   .confidence-low {
-    @apply px-2 py-0.5 rounded-full text-xs font-semibold bg-destructive/20 text-destructive border border-destructive/30;
+    @apply px-2.5 py-1 rounded-full text-xs font-medium bg-destructive/15 text-destructive;
   }
 
   /* Method badges */
   .method-heuristica {
-    @apply px-2 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground border border-border;
+    @apply px-2.5 py-1 rounded-full text-xs font-medium bg-secondary text-secondary-foreground;
   }
 
   .method-ia {
-    @apply px-2 py-0.5 rounded-full text-xs font-medium bg-primary/20 text-primary border border-primary/30;
+    @apply px-2.5 py-1 rounded-full text-xs font-medium bg-primary/15 text-primary;
   }
 
   /* Status badges */
   .status-badge {
-    @apply px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide;
+    @apply px-3 py-1.5 rounded-full text-xs font-medium;
   }
 
   .status-success {
-    @apply bg-success/20 text-success border border-success/30;
+    @apply bg-success/15 text-success;
   }
 
   .status-error {
-    @apply bg-destructive/20 text-destructive border border-destructive/30;
+    @apply bg-destructive/15 text-destructive;
   }
 
   .status-processing {
-    @apply bg-primary/20 text-primary border border-primary/30;
+    @apply bg-primary/15 text-primary;
   }
 
   /* Tree view styles */
   .tree-node {
-    @apply flex items-center gap-2 py-1 px-2 rounded-md hover:bg-secondary/50 cursor-pointer transition-colors text-sm;
+    @apply flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-secondary cursor-pointer transition-colors text-sm;
   }
 
   .tree-node-active {
-    @apply bg-secondary;
+    @apply bg-primary/10 text-primary;
   }
 
   .tree-connector {
@@ -185,25 +301,27 @@
     color: hsl(var(--warning));
   }
 
-  .grid-pattern {
-    background-image: 
-      linear-gradient(hsl(220 15% 15% / 0.5) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(220 15% 15% / 0.5) 1px, transparent 1px);
-    background-size: 40px 40px;
+  /* GNOME File Grid Item */
+  .gnome-file-item {
+    @apply flex flex-col items-center gap-2 p-4 rounded-xl transition-all duration-150 cursor-pointer;
   }
 
-  .noise-overlay {
-    position: relative;
+  .gnome-file-item:hover {
+    @apply bg-secondary;
   }
 
-  .noise-overlay::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-    opacity: 0.03;
-    pointer-events: none;
-    mix-blend-mode: overlay;
+  .gnome-file-item.selected {
+    @apply bg-primary/10;
+  }
+
+  .gnome-file-icon {
+    @apply w-16 h-16 rounded-xl flex items-center justify-center text-primary;
+  }
+
+  /* Glass effect for modals */
+  .glass-card {
+    @apply bg-card/95 backdrop-blur-xl rounded-2xl;
+    box-shadow: var(--shadow-elevated);
   }
 }
 
@@ -214,8 +332,8 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-track {
@@ -224,7 +342,7 @@
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background: hsl(var(--muted));
-    border-radius: 3px;
+    border-radius: 4px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
