@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import { 
   Play, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree,
-  Settings, User, Sparkles, RefreshCw, FolderArchive
+  Settings, User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,13 +11,14 @@ import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
 import UploadZone from '@/components/UploadZone';
 import ProcessingOptions from '@/components/ProcessingOptions';
-import ResultsTable from '@/components/ResultsTable';
+import EditableResultsTable from '@/components/EditableResultsTable';
 import StatsCard from '@/components/StatsCard';
 import TreeView from '@/components/TreeView';
 import ProcessingProgress from '@/components/ProcessingProgress';
 import PhotoPreviewModal from '@/components/PhotoPreviewModal';
 import ResultsFilters, { ResultFilters } from '@/components/ResultsFilters';
 import StatisticsCard from '@/components/StatisticsCard';
+import { exportToCSV, exportToExcelXML } from '@/utils/exportExcel';
 import { 
   api, 
   ProcessingResult, 
@@ -541,12 +542,13 @@ const Index: React.FC = () => {
                 {/* Statistics */}
                 <StatisticsCard results={results} />
                 
-                {/* Results Table */}
-                <ResultsTable 
+                {/* Editable Results Table */}
+                <EditableResultsTable 
                   results={filteredResults} 
                   isProcessing={isProcessing}
                   fileUrls={fileUrls}
                   onViewPhoto={handleViewPhoto}
+                  onUpdateResult={handleUpdateResult}
                 />
                 
                 <div className="flex justify-center gap-4">
@@ -562,6 +564,15 @@ const Index: React.FC = () => {
                       Reprocessar {errorCount} com Erro
                     </Button>
                   )}
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => exportToExcelXML(results, `obraphoto_${new Date().toISOString().split('T')[0]}.xls`)}
+                    disabled={isProcessing}
+                  >
+                    <FileSpreadsheet className="w-5 h-5" />
+                    Exportar Excel
+                  </Button>
                   <Button
                     variant="hero"
                     size="lg"

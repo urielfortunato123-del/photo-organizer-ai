@@ -67,154 +67,132 @@ serve(async (req) => {
 
     console.log(`Analyzing image: ${filename}`);
 
-    const prompt = `Você é um engenheiro especialista em obras rodoviárias, prediais e industriais.
-Analise esta foto de obra e classifique usando EXATAMENTE as categorias abaixo.
+    // Prompt otimizado para maior precisão
+    const prompt = `Você é um engenheiro civil sênior especialista em obras de infraestrutura rodoviária, pontes, viadutos e construção civil.
 
-## IMPORTANTE: ANÁLISE VISUAL PRIORITÁRIA
-Se NÃO houver texto/legenda visível na imagem, você DEVE identificar o serviço pela ANÁLISE VISUAL:
-- Retroescavadeira/escavadeira + terra = TERRAPLENAGEM / ESCAVACAO
-- Caçamba/caminhão basculante = TERRAPLENAGEM / CARGA_TRANSPORTE  
-- Formas de madeira + ferragem = ESTRUTURA / FORMA ou ARMACAO
-- Concreto fresco = ESTRUTURA / CONCRETAGEM
-- Trabalhador com colher de pedreiro = ALVENARIA ou REVESTIMENTO
-- Pintura/rolo/tinta = ACABAMENTO / PINTURA_*
-- Tubos PEAD/PVC = DRENAGEM ou HIDRAULICA
-- Manômetro/macaco = CONTENCAO / PROTENSAO_TIRANTE
-- Barreira de concreto = BARREIRAS / BARREIRA_NEW_JERSEY
-- Grama/vegetação plantada = PAISAGISMO / PLANTIO_GRAMA
-- Cercas/alambrado = SEGURANCA / ALAMBRADO
+## TAREFA PRINCIPAL
+Analise esta foto de obra e classifique com precisão máxima.
 
-Mesmo SEM texto na foto, você consegue identificar o serviço pelos elementos visuais!
+## PASSO 1: IDENTIFICAÇÃO VISUAL (OBRIGATÓRIO)
+Antes de classificar, DESCREVA em detalhes o que você VÊ na imagem:
+- Equipamentos presentes (escavadeira, caminhão, guindaste, betoneira, etc.)
+- Materiais visíveis (concreto, ferro, madeira, tubos, terra, asfalto, etc.)
+- Atividade em execução (escavação, concretagem, montagem, pintura, etc.)
+- Estruturas identificáveis (pórtico, cortina, viaduto, bueiro, etc.)
+- Elementos de texto/placas legíveis na foto
 
-## 1. FRENTE DE SERVIÇO (campo "portico" no JSON)
-Identifique a frente de serviço, local ou estrutura principal:
-- Pórticos: P-10, P 10, P_10, PORTICO 10, Free Flow P-11, Praça 05, BSO
+## PASSO 2: LEITURA DE TEXTO (OCR)
+Procure por QUALQUER texto visível na foto:
+- Placas de obra, identificação de frente
+- Datas em qualquer formato
+- Números de estruturas (P-10, P 11, Cortina 01, etc.)
+- Legendas ou anotações na foto
+
+## PASSO 3: CLASSIFICAÇÃO
+
+### FRENTE DE SERVIÇO (portico)
+Identifique o local/estrutura principal. Exemplos:
+- Pórticos Free Flow: P-10, P_11, P 12, PORTICO_13, FREE_FLOW_P14
 - Cortinas: CORTINA_01, CORTINA_ATIRANTADA_KM_167
-- Escavações: ESCAVACAO_BLOCO_A1, ESCAVACAO_NORTE
-- Outros: PRACA_PEDAGIO_01, VIADUTO_KM_200, PASSARELA_02, GUARITA_01
-Padrão se não identificar: "${defaultPortico || 'NAO_IDENTIFICADO'}"
+- Praças: PRACA_PEDAGIO_01, PRACA_05
+- Estruturas: VIADUTO_KM_200, PASSARELA_02, PONTE_01
+- Outros: BSO, GUARITA_01, CANTEIRO_OBRAS
+- Use "${defaultPortico || 'NAO_IDENTIFICADO'}" se não conseguir identificar
 
-## 2. DISCIPLINAS E SERVIÇOS
+### DISCIPLINA (escolha UMA das opções abaixo)
+| Disciplina | Quando usar |
+|------------|-------------|
+| FUNDACAO | Estacas, blocos, sapatas, tubulões, perfuração de solo |
+| ESTRUTURA | Pilares, vigas, lajes, formas, armação, concretagem estrutural |
+| PORTICO_FREE_FLOW | Montagem/içamento de pórticos, instalação RFID, estrutura de Free Flow |
+| CONTENCAO | Cortinas atirantadas, tirantes, protensão, solo grampeado, muros |
+| TERRAPLENAGEM | Escavação, aterro, corte, compactação, carga/transporte de terra |
+| DRENAGEM | Bueiros, bocas de lobo, sarjetas, canaletas, descidas d'água |
+| PAVIMENTACAO | Asfalto, CBUQ, base, sub-base, fresagem, imprimação, pavimento |
+| SINALIZACAO | Placas, pintura de solo, defensas, tachas, balizadores |
+| BARREIRAS | Barreiras New Jersey, barreiras de concreto |
+| ACABAMENTO | Pintura (interna/externa), texturas, verniz, selador, forro |
+| REVESTIMENTO | Reboco, chapisco, cerâmica, piso, contrapiso |
+| ALVENARIA | Paredes de bloco/tijolo, muros, vergas |
+| HIDRAULICA | Tubulações de água/esgoto, caixas d'água, bombas, instalações |
+| ELETRICA | Eletrodutos, cabeamento, quadros, iluminação, postes |
+| SEGURANCA | Cercas, alambrados, câmeras CFTV, guaritas, controle acesso |
+| PAISAGISMO | Grama, plantio, jardim, hidrossemeadura, biomanta |
+| MANUTENCAO | Limpeza, roçagem, capina, reparos gerais |
+| DEMOLICAO | Demolição, remoção de estruturas, corte de concreto |
+| OAC/OAE | Obras de arte correntes (bueiros maiores) e especiais (pontes, viadutos) |
+| ESQUADRIAS | Portas, janelas, portões, grades, guarda-corpos |
+| IMPERMEABILIZACAO | Mantas, impermeabilizantes, juntas |
+| MOBILIZACAO | Canteiro de obras, instalações provisórias |
+| ENSAIOS | Testes, ensaios de campo, prova de carga |
+| LOUCAS_METAIS | Vasos sanitários, pias, cubas, metais sanitários |
+| OUTROS | APENAS se não se encaixar em nenhuma outra categoria |
 
-### FUNDACAO
-ESTACA_RAIZ, ESTACA_HELICE, ESTACA_FRANKI, ESTACA_PRE_MOLDADA, ESTACA_BROCA, TUBULAO, SAPATA_CORRIDA, SAPATA_ISOLADA, BLOCO_COROAMENTO, BLOCO_FUNDACAO, BALDRAME, VIGA_BALDRAME, ESCAVACAO_FUNDACAO, CONCRETAGEM_BLOCO, CRAVACAO_ESTACA, PERFURACAO_SOLO, PERFURACAO_ROCHA, ARRASAMENTO_ESTACA, PLACA_ANCORAGEM
+### SERVIÇO (específico dentro da disciplina)
+Exemplos por disciplina:
+- FUNDACAO: ESTACA_RAIZ, BLOCO_COROAMENTO, CONCRETAGEM_BLOCO
+- ESTRUTURA: ARMACAO, CONCRETAGEM, FORMA, DESFORMA, PILAR
+- PORTICO_FREE_FLOW: MONTAGEM_PORTICO, ICAMENTO_PORTICO, INSTALACAO_RFID
+- CONTENCAO: PROTENSAO_TIRANTE, CORTINA_ATIRANTADA, INJECAO_CIMENTO
+- TERRAPLENAGEM: ESCAVACAO, ATERRO, COMPACTACAO, CARGA_TRANSPORTE
+- DRENAGEM: BUEIRO, BOCA_LOBO, DESCIDA_DAGUA, GABIAO
+- PAVIMENTACAO: CBUQ, IMPRIMACAO, BASE, FRESAGEM
+- ACABAMENTO: PINTURA_EXTERNA, PINTURA_INTERNA, TEXTURA
+- SEGURANCA: ALAMBRADO, CERCA, CAMERA, CFTV
+- PAISAGISMO: PLANTIO_GRAMA, HIDROSSEMEADURA
 
-### ESTRUTURA
-PILAR, PILAR_METALICO, PILAR_CONCRETO, PILARETE, VIGA, VIGA_BALDRAME, VIGA_METALICA, LAJE, LAJE_PRE_MOLDADA, LAJE_MACICA, ESTRUTURA_METALICA, PERFIL_METALICO, TRELICA, FORMA, DESFORMA, ARMACAO, FERRAGEM, CONCRETAGEM, CURA_CONCRETO, ESCORAMENTO, RADIER, CALCADA, CALÇADA_TECNICA, MONTAGEM_PILARETES, BASE_CHUMBADOR
-
-### PORTICO_FREE_FLOW
-ICAMENTO_PORTICO, MONTAGEM_PORTICO, IMPLANTACAO_PORTICO, FORNECIMENTO_PORTICO, SEMI_PORTICO, BRACO_PROJETADO, INSTALACAO_RFID, TRILHO_RFID, LINHA_VIDA, GUARDA_CORPO_PORTICO, SALA_TECNICA, SALA_GERADOR, CHUMBADOR
-
-### ALVENARIA
-ALVENARIA_VEDACAO, ALVENARIA_ESTRUTURAL, BLOCO_CERAMICO, BLOCO_CONCRETO, TIJOLO, PAREDE, MURO, VERGA, CONTRAVERGA, ENCUNHAMENTO, MARCACAO_ALVENARIA
-
-### COBERTURA
-TELHADO, TELHA_METALICA, TELHA_CERAMICA, TELHA_FIBROCIMENTO, TELHA_SANDUICHE, CUMEEIRA, RUFO, CALHA, ESTRUTURA_TELHADO, TESOURA, IMPERMEABILIZACAO_COBERTURA, PLATIBANDA, BEIRAL, LIMPEZA_CALHA, DESCIDA_AGUA_PLUVIAL
-
-### REVESTIMENTO
-CHAPISCO, EMBOCO, REBOCO, MASSA_CORRIDA, GESSO, GESSO_LISO, CERAMICA, PORCELANATO, PISO, CONTRAPISO, REGULARIZACAO, REVESTIMENTO_FACHADA, PASTILHA, GRANITO, MARMORE, EMASSAMENTO
-
-### ACABAMENTO
-PINTURA_INTERNA, PINTURA_EXTERNA, PINTURA_FACHADA, PINTURA_EPOXI, PINTURA_TEXTURA, PINTURA_ACRILICA, PINTURA_LATEX, PINTURA_ESMALTE, PINTURA_PISO, TEXTURA, GRAFIATO, TEXTURA_PROJETADA, MASSA_ACRILICA, SELADOR, VERNIZ, LACA, ESMALTE, RODAPE, RODATETO, MOLDURA, SOLEIRA, PEITORIL, FORRO, FORRO_GESSO, FORRO_PVC, FORRO_DRYWALL, REJUNTAMENTO
-
-### ESQUADRIAS
-PORTA, PORTA_MADEIRA, PORTA_METALICA, PORTA_VIDRO, PORTA_CORTA_FOGO, PORTA_ALUMINIO, JANELA, JANELA_ALUMINIO, JANELA_VIDRO, PORTAO, PORTAO_METALICO, PORTAO_AUTOMATICO, GRADIL, GRADE, GUARDA_CORPO, CORRIMAO, VIDRO, VIDRACARIA, ESPELHO, PERSIANA, CORTINA
-
-### IMPERMEABILIZACAO
-MANTA_ASFALTICA, MANTA_ALUMINIZADA, IMPERMEABILIZANTE_LIQUIDO, IMPERMEABILIZACAO_LAJE, IMPERMEABILIZACAO_PISO, IMPERMEABILIZACAO_BANHEIRO, JUNTA_DILATACAO, MASTIQUE
-
-### HIDRAULICA
-TUBULACAO_AGUA_FRIA, TUBULACAO_AGUA_QUENTE, TUBULACAO_ESGOTO, CAIXA_DAGUA, RESERVATORIO, BOMBA, CASA_BOMBAS, CAIXA_GORDURA, CAIXA_INSPECAO, FOSSA, SUMIDOURO, VASO_SANITARIO, PIA, LAVATORIO, REGISTRO, VALVULA, AQUECEDOR, BOILER, ESGOTAMENTO, PRESSURIZADOR, TANQUE_LOUCA, CUBA_EMBUTIR, ENGATE_FLEXIVEL, BANCADA_GRANITO
-
-### ELETRICA
-ELETRODUTO, CABEAMENTO, FIACAO, QUADRO_ELETRICO, QUADRO_DISTRIBUICAO, DISJUNTOR, TOMADA, INTERRUPTOR, LUMINARIA, ILUMINACAO, POSTE_LUZ, ATERRAMENTO, SPDA, PARA_RAIO, SUBESTACAO, TRANSFORMADOR, GERADOR, NOBREAK, PAINEL_ELETRICO, BANCO_DUTOS, PONTO_ELETRICO
-
-### AR_CONDICIONADO
-SPLIT, CASSETE, PISO_TETO, CONDENSADORA, EVAPORADORA, DUTO_AR, GRELHA_AR, EXAUSTOR, VENTILACAO, INFRA_AR_CONDICIONADO, DRENO_AR, REMOCAO_AR_CONDICIONADO, INSTALACAO_AR_CONDICIONADO
-
-### DRENAGEM
-BUEIRO, BUEIRO_TUBULAR, BUEIRO_CELULAR, BUEIRO_CAIXAO, BSTC, BOCA_LOBO, CAIXA_RALO, CAIXA_COLETORA, SARJETA, MEIO_FIO, DESCIDA_DAGUA, ESCADA_HIDRAULICA, DISSIPADOR, DISSIPADOR_ENERGIA, BACIA_CONTENCAO, CANALETA, VALETA, DRENO, DRENO_PROFUNDO, GABIAO, COLCHAO_RENO, GEODRENO, BARBACA, CANAL_TRAPEZOIDAL
-
-### TERRAPLENAGEM
-CORTE, ATERRO, CORTE_ATERRO, COMPACTACAO, TERRACAGEM, ESCAVACAO, ESCAVACAO_MECANIZADA, BOTA_FORA, CARGA_TRANSPORTE, REGULARIZACAO_PLATAFORMA, TALUDE, PROTECAO_TALUDE, ENROCAMENTO, GEOTEXTIL, REATERRO, SOLO_CIMENTO, ROYALTIE_BOTA_FORA, ROYALTIE_JAZIDA
-
-### PAVIMENTACAO
-SUB_BASE, BASE, SUB_LEITO, IMPRIMACAO, PINTURA_LIGACAO, CBUQ, CONCRETO_BETUMINOSO, ASFALTO, RECAPEAMENTO, FRESAGEM, FRESAGEM_FUNCIONAL, REMENDO, PISO_INTERTRAVADO, BLOQUETE, MEIO_FIO_SARJETA, PAVIMENTO_RIGIDO, CALCADA_CONCRETO, PISO_PODOTAIL
-
-### OAC
-PONTE, VIADUTO, PASSARELA, MURO_ARRIMO, MURO_CONTENCAO, ENCONTRO, PILARETE, ATERRO_ACESSO, CORTINA, OMBREIRA
-
-### OAE
-PONTE_ESTAIADA, PONTE_METALICA, VIADUTO_ESPECIAL, TUNEL, APARELHO_APOIO
-
-### SINALIZACAO
-PLACA_SINALIZACAO, PLACA_INDICATIVA, PLACA_REGULAMENTACAO, PLACA_AEREA, PLACA_SOLO, PINTURA_SOLO, FAIXA_PEDESTRE, TACHA, TACHAO, BALIZADOR, CATADIOPTRICO, DEFENSA, DEFENSA_METALICA, DEFENSA_SIMPLES, SEMAFORO, SONORIZADOR, SUPORTE_PLACA, SUPORTE_METALICO, SUPORTE_POLIMERICO, TERMINAL_ABATIDO, TERMINAL_ABSORVEDOR, TRANSICAO_DEFENSA_BARREIRA, REMANEJAMENTO_PLACA, REMOCAO_PLACA, IMPLANTACAO_PLACA
-
-### BARREIRAS
-BARREIRA_RIGIDA, BARREIRA_NEW_JERSEY, BARREIRA_CONCRETO, BARREIRA_SIMPLES_ALTA, EXECUCAO_BARREIRA
-
-### SEGURANCA
-ALAMBRADO, CERCA, CERCA_ELETRICA, CERCA_CONCERTINA, CERCA_TELA, CAMERA, CAMERA_SEGURANCA, CFTV, ALARME, SENSOR, FECHADURA, FECHADURA_ELETRONICA, CONTROLE_ACESSO, CANCELA, CATRACA, PORTARIA, GUARITA, BARRA_APOIO
-
-### PAISAGISMO
-PLANTIO_GRAMA, GRAMA, GRAMADO, GRAMA_ESMERALDA, JARDIM, JARDINAGEM, ARVORE, HIDROSSEMEADURA, BIOMANTA, IRRIGACAO, PODA, TRANSPLANTE, PAISAGISMO_ORNAMENTAL, CANTEIRO, REVEGETACAO
-
-### MANUTENCAO
-LIMPEZA_TERRENO, LIMPEZA_OBRA, LIMPEZA_MECANIZADA, ROCAGEM, CAPINA, DESMATAMENTO, REMOCAO_ENTULHO, REPARO, MANUTENCAO_PREVENTIVA, PINTURA_MANUTENCAO, LIMPEZA_FACHADA, READEQUACAO_CANAL
-
-### DEMOLICAO
-DEMOLICAO_TOTAL, DEMOLICAO_PARCIAL, DEMOLICAO_REVESTIMENTO, DEMOLICAO_ALVENARIA, DEMOLICAO_PISO_CONCRETO, REMOCAO, REMOCAO_FORRO, REMOCAO_LOUCA, REMOCAO_TESOURA, REMOCAO_TELHA, REMOCAO_ACESSORIOS, DESMONTE, CORTE_CONCRETO, APICOAMENTO, SUCATEAMENTO_ESTRUTURA, CARGA_TRANSPORTE_ENTULHO, ESPALHAMENTO_MATERIAL_DEMOLIDO
-
-### CONTENCAO
-CORTINA_ATIRANTADA, CORTINA_ESTACA, TIRANTE, PROTENSAO_TIRANTE, SOLO_GRAMPEADO, MURO_GABIAO, GEOGRELHA, ESTABILIZACAO_TALUDE, PERFIL_METALICO_CONTENCAO, TELA_ELETROSSOLDADA, PROJECAO_CONCRETO, INJECAO_CIMENTO
-
-### INFRAESTRUTURA
-REDE_AGUA, REDE_ESGOTO, REDE_ELETRICA, REDE_TELEFONICA, FIBRA_OPTICA, CABEAMENTO_ESTRUTURADO, POCO_VISITA, GALERIA_TECNICA
-
-### EQUIPAMENTOS
-PEDAGIO, CABINE_PEDAGIO, BALANCA, PRACA_PEDAGIO, FREE_FLOW, PORTICO_ELETRONICO, CANCELA_AUTOMATICA, SISTEMA_OCR, EQUIPAMENTO_MONITORAMENTO
-
-### MOBILIZACAO
-MOBILIZACAO, DESMOBILIZACAO, CANTEIRO_OBRAS, MONTAGEM_CANTEIRO
-
-### LOUCAS_METAIS
-VASO_SANITARIO, CUBA_EMBUTIR, TANQUE_LOUCA, LAVATORIO, BARRA_APOIO, BANCADA_GRANITO, REGISTRO_PRESSAO, ENGATE_FLEXIVEL, TORNEIRA
-
-### INCENDIO
-HIDRANTE, EXTINTOR, SPRINKLER, CENTRAL_INCENDIO, PORTA_CORTA_FOGO, DETECTOR_FUMACA
-
-### ENSAIOS
-ENSAIO_LP, ENSAIO_FLUENCIA, ENSAIO_QUALIFICACAO
-
-### OUTROS
-- SOMENTE se não encaixar em NENHUMA categoria acima
-
-## 3. DATA
+### DATA
 Formato: DD/MM/YYYY
+Procure datas em:
+- Marcas d'água em fotos
+- Placas de identificação
+- Legendas escritas
+- Metadados visíveis
 
-## 4. REGRAS
-- Pintura → ACABAMENTO
-- Cerca/Alambrado/Câmera → SEGURANCA
-- Limpeza/Roçagem → MANUTENCAO
-- Grama/Jardim → PAISAGISMO
-- Porta/Janela → ESQUADRIAS
-- Defensa/Barreira → SINALIZACAO ou BARREIRAS
-- Pórtico Free Flow → PORTICO_FREE_FLOW
-- Demolição → DEMOLICAO
-- Louças/Pias/Vasos → LOUCAS_METAIS
-- Use MAIÚSCULAS, _ no lugar de espaços
+## REGRAS CRÍTICAS DE CLASSIFICAÇÃO
 
-## 5. FOTOS SEM LEGENDA/OCR
-Se não conseguir ler texto/OCR na imagem:
-- Analise VISUALMENTE os elementos (equipamentos, materiais, atividade)
-- Identifique a disciplina e serviço pelo que está sendo executado
-- Use confidence menor (0.6-0.8) quando baseado apenas em visual
-- Em "ocr_text" coloque "" (vazio)
-- Em "analise_tecnica" descreva detalhadamente o que você VÊ na foto
-- Se não identificar frente de serviço, use "${defaultPortico || 'NAO_IDENTIFICADO'}"
+1. **Equipamentos NÃO definem a disciplina sozinhos:**
+   - Escavadeira + TERRA = TERRAPLENAGEM
+   - Escavadeira + ROCHA para fundação = FUNDACAO
+   - Caminhão betoneira = depende do destino do concreto
 
-Responda SEMPRE em JSON válido:
-{"portico":"P_11","disciplina":"ACABAMENTO","servico":"PINTURA_EXTERNA","data":"29/08/2025","analise_tecnica":"Descrição detalhada do que está sendo executado...","confidence":0.95,"ocr_text":"texto lido ou vazio"}`;
+2. **Priorize o SERVIÇO sendo executado, não apenas o equipamento:**
+   - Trabalhador pintando parede = ACABAMENTO/PINTURA
+   - Trabalhador lançando concreto em bloco = FUNDACAO/CONCRETAGEM_BLOCO
+   - Trabalhador lançando concreto em pilar = ESTRUTURA/CONCRETAGEM
+
+3. **Se houver pórtico Free Flow visível:**
+   - Durante montagem/içamento = PORTICO_FREE_FLOW
+   - Trabalhos no entorno (terraplenagem, fundação) = disciplina correspondente
+
+4. **Cortinas e contenções:**
+   - Tirantes sendo protendidos = CONTENCAO/PROTENSAO_TIRANTE
+   - Escavação para cortina = CONTENCAO ou FUNDACAO dependendo do contexto
+   - Injeção de cimento em tirantes = CONTENCAO/INJECAO_CIMENTO
+
+5. **Confiança:**
+   - Se baseado em texto/OCR legível: 0.85-0.95
+   - Se baseado apenas em análise visual clara: 0.70-0.85
+   - Se houver dúvida na classificação: 0.50-0.70
+
+## FORMATO DA RESPOSTA (JSON OBRIGATÓRIO)
+\`\`\`json
+{
+  "portico": "P_11",
+  "disciplina": "CONTENCAO",
+  "servico": "PROTENSAO_TIRANTE",
+  "data": "29/08/2025",
+  "analise_tecnica": "Foto mostra equipamento de protensão (macaco hidráulico) posicionado em tirante de cortina atirantada. Manômetro visível indicando pressão de serviço. Trabalhadores utilizando EPIs. Estrutura de contenção com altura aproximada de 6m. Placa indica 'Cortina P-11 Km 167'.",
+  "confidence": 0.92,
+  "ocr_text": "CORTINA P-11 KM 167 - 29/08/2025"
+}
+\`\`\`
+
+IMPORTANTE: 
+- Responda APENAS com o JSON, sem texto adicional
+- Use MAIÚSCULAS para todos os campos exceto analise_tecnica
+- Use _ (underscore) no lugar de espaços
+- O campo analise_tecnica deve descrever detalhadamente o que você VÊ na foto`;
 
     const response = await fetchWithRetry('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -238,7 +216,7 @@ Responda SEMPRE em JSON válido:
             ]
           }
         ],
-        max_tokens: 1200,
+        max_tokens: 1500,
       }),
     }, 3, 2000); // 3 retries, starting with 2s delay
 
@@ -293,14 +271,14 @@ Responda SEMPRE em JSON válido:
       };
     }
 
-    // Normalize the result
+    // Normalize and validate the result
     const normalizedResult = {
-      portico: (result.portico || 'NAO_IDENTIFICADO').toUpperCase().replace(/\s+/g, '_'),
-      disciplina: (result.disciplina || 'OUTROS').toUpperCase().replace(/\s+/g, '_'),
-      servico: (result.servico || 'NAO_IDENTIFICADO').toUpperCase().replace(/\s+/g, '_'),
-      data: result.data || null,
+      portico: normalizeField(result.portico, defaultPortico || 'NAO_IDENTIFICADO'),
+      disciplina: normalizeField(result.disciplina, 'OUTROS'),
+      servico: normalizeField(result.servico, 'NAO_IDENTIFICADO'),
+      data: normalizeDate(result.data),
       analise_tecnica: result.analise_tecnica || '',
-      confidence: result.confidence || 0.7,
+      confidence: normalizeConfidence(result.confidence),
       ocr_text: result.ocr_text || '',
       method: 'ia_forcada'
     };
@@ -321,3 +299,46 @@ Responda SEMPRE em JSON válido:
     );
   }
 });
+
+// Helper functions
+function normalizeField(value: string | undefined | null, defaultValue: string): string {
+  if (!value || typeof value !== 'string') return defaultValue;
+  return value.toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
+}
+
+function normalizeDate(value: string | undefined | null): string | null {
+  if (!value || typeof value !== 'string') return null;
+  
+  // Try to parse different date formats
+  // DD/MM/YYYY
+  const match1 = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (match1) {
+    const [, day, month, year] = match1;
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+  }
+  
+  // YYYY-MM-DD
+  const match2 = value.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (match2) {
+    const [, year, month, day] = match2;
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+  }
+  
+  // DD-MM-YYYY
+  const match3 = value.match(/(\d{1,2})-(\d{1,2})-(\d{4})/);
+  if (match3) {
+    const [, day, month, year] = match3;
+    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+  }
+  
+  return null;
+}
+
+function normalizeConfidence(value: number | string | undefined | null): number {
+  if (value === undefined || value === null) return 0.7;
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(num)) return 0.7;
+  // Ensure it's between 0 and 1
+  if (num > 1) return num / 100;
+  return Math.min(Math.max(num, 0), 1);
+}
