@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import JSZip from 'jszip';
 import { 
   Play, ImageIcon, CheckCircle2, XCircle, 
-  Upload, Table as TableIcon, FolderTree,
+  Upload, Table as TableIcon, FolderTree, Folder,
   User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet,
   Plus, X
 } from 'lucide-react';
@@ -653,6 +653,29 @@ const Index: React.FC = () => {
               <div className="grid lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
                   <div className="gnome-card p-6">
+                    {/* Editable root folder */}
+                    <div className="flex items-center gap-2 mb-4 pb-4 border-b border-border">
+                      <Folder className="w-5 h-5 text-primary" />
+                      <input
+                        type="text"
+                        value={empresa}
+                        onChange={(e) => {
+                          const newEmpresa = e.target.value.toUpperCase().replace(/\s+/g, '_');
+                          setEmpresa(newEmpresa);
+                          // Update all results with new empresa
+                          setResults(prev => prev.map(r => ({
+                            ...r,
+                            empresa: newEmpresa,
+                            dest: r.dest?.replace(/^[^/]+/, newEmpresa)
+                          })));
+                        }}
+                        className="font-mono font-semibold text-foreground bg-transparent border-b border-dashed border-primary/50 focus:border-primary outline-none px-1"
+                        placeholder="NOME_EMPRESA"
+                      />
+                      <span className="text-muted-foreground font-mono">/</span>
+                      <span className="font-mono text-muted-foreground">FOTOS/</span>
+                    </div>
+                    
                     <div className="max-h-[500px] overflow-y-auto scrollbar-thin">
                       {treeData.length > 0 ? (
                         <TreeView data={treeData} />
@@ -670,13 +693,17 @@ const Index: React.FC = () => {
                   <div className="gnome-card p-6">
                     <h4 className="font-semibold text-foreground mb-4">Estrutura Padrão</h4>
                     <div className="space-y-2 text-sm font-mono text-muted-foreground bg-secondary/50 p-4 rounded-xl">
-                      <p className="text-foreground">organized_photos/</p>
-                      <p className="pl-4">└─ PORTICO_P_XX/</p>
-                      <p className="pl-8">└─ DISCIPLINA/</p>
-                      <p className="pl-12">└─ SERVICO/</p>
-                      <p className="pl-16">└─ MM_MES/</p>
-                      <p className="pl-20">└─ DD_MM/</p>
+                      <p className="text-primary font-semibold">{empresa || 'EMPRESA'}/</p>
+                      <p className="pl-4">└─ FOTOS/</p>
+                      <p className="pl-8">└─ FRENTE_SERVICO/</p>
+                      <p className="pl-12">└─ DISCIPLINA/</p>
+                      <p className="pl-16">└─ SERVICO/</p>
+                      <p className="pl-20">└─ MES_ANO/</p>
+                      <p className="pl-24">└─ DIA_MES/</p>
                     </div>
+                    <p className="text-xs text-muted-foreground mt-3">
+                      Clique no nome da empresa acima para editar
+                    </p>
                   </div>
 
                   <div className="gnome-card p-6">
