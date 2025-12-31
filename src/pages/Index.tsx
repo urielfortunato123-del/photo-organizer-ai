@@ -3,12 +3,12 @@ import JSZip from 'jszip';
 import { 
   Play, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree,
-  Settings, User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet
+  User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet,
+  Plus, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import Header from '@/components/Header';
+import GnomeSidebar from '@/components/GnomeSidebar';
 import UploadZone from '@/components/UploadZone';
 import ProcessingOptions from '@/components/ProcessingOptions';
 import EditableResultsTable from '@/components/EditableResultsTable';
@@ -18,7 +18,7 @@ import ProcessingProgress from '@/components/ProcessingProgress';
 import PhotoPreviewModal from '@/components/PhotoPreviewModal';
 import ResultsFilters, { ResultFilters } from '@/components/ResultsFilters';
 import StatisticsCard from '@/components/StatisticsCard';
-import { exportToCSV, exportToExcelXML } from '@/utils/exportExcel';
+import { exportToExcelXML } from '@/utils/exportExcel';
 import { 
   api, 
   ProcessingResult, 
@@ -33,7 +33,7 @@ const Index: React.FC = () => {
   const [fileUrls, setFileUrls] = useState<Map<string, string>>(new Map());
   const [defaultPortico, setDefaultPortico] = useState('');
   const [organizeByDate, setOrganizeByDate] = useState(true);
-  const [iaPriority, setIaPriority] = useState(true); // Default to AI mode
+  const [iaPriority, setIaPriority] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState<ProcessingResult[]>([]);
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
@@ -150,13 +150,9 @@ const Index: React.FC = () => {
 
         try {
           if (config.ia_priority) {
-            // Usar análise com IA
             result = await api.analyzeImage(file, config.default_portico);
-
-            // Delay maior entre requisições para evitar rate limit (429)
             await new Promise(resolve => setTimeout(resolve, 10000));
           } else {
-            // Classificação simples sem IA (baseado apenas no nome do arquivo)
             result = {
               filename: file.name,
               status: 'Sucesso',
@@ -169,7 +165,6 @@ const Index: React.FC = () => {
             };
           }
         } catch (fileError) {
-          // Se falhar, registra erro mas continua com próximos arquivos
           console.warn(`Erro ao processar ${file.name}:`, fileError);
           result = {
             filename: file.name,
@@ -179,9 +174,7 @@ const Index: React.FC = () => {
           };
         }
 
-        // Update dest based on organize_by_date setting
         if (result.status === 'Sucesso' && result.dest && !config.organize_by_date) {
-          // Remove date folders from path
           const parts = result.dest.split('/');
           const filtered = parts.filter((_, idx) => idx < 4);
           result.dest = filtered.join('/');
@@ -196,7 +189,7 @@ const Index: React.FC = () => {
       const finalSuccessCount = processedResults.filter(r => r.status === 'Sucesso').length;
       toast({
         title: "Processamento concluído!",
-        description: `${finalSuccessCount} de ${files.length} fotos ${config.ia_priority ? 'analisadas com IA' : 'processadas'}.`,
+        description: `${finalSuccessCount} de ${files.length} fotos analisadas.`,
       });
     } catch (error) {
       console.error('Processing error:', error);
@@ -212,7 +205,6 @@ const Index: React.FC = () => {
     }
   };
 
-  // Reprocessar apenas fotos que falharam
   const handleRetryFailed = async () => {
     const failedResults = results.filter(r => r.status.includes('Erro'));
     if (failedResults.length === 0) {
@@ -264,24 +256,14 @@ const Index: React.FC = () => {
           };
         }
 
-        // Atualizar resultado existente
         setResults(prev => prev.map(r => 
           r.filename === file.name ? result : r
         ));
       }
 
-      const newResults = results.map(r => {
-        const retried = failedFiles.find(f => f.name === r.filename);
-        return retried ? results.find(nr => nr.filename === r.filename) || r : r;
-      });
-
-      const retriedSuccessCount = newResults.filter(r => 
-        failedResults.some(fr => fr.filename === r.filename) && r.status === 'Sucesso'
-      ).length;
-
       toast({
         title: "Reprocessamento concluído!",
-        description: `${retriedSuccessCount} de ${failedFiles.length} fotos recuperadas.`,
+        description: `${failedFiles.length} fotos reprocessadas.`,
       });
     } catch (error) {
       console.error('Retry error:', error);
@@ -295,13 +277,6 @@ const Index: React.FC = () => {
       setProcessingProgress({ current: 0, total: 0, currentFile: '' });
       setProcessingStartTime(undefined);
     }
-  };
-
-  const handleDownload = async () => {
-    toast({
-      title: "Exportação",
-      description: "Use o botão 'Exportar CSV' para baixar os resultados.",
-    });
   };
 
   const [isExporting, setIsExporting] = useState(false);
@@ -341,7 +316,6 @@ const Index: React.FC = () => {
           .map(sanitizeZipPart);
         const safeFilename = sanitizeZipPart(result.filename);
 
-        // Adiciona o arquivo na estrutura de pastas
         zip.file(`${destParts.join('/')}/${safeFilename}`, arrayBuffer);
       }
 
@@ -358,7 +332,6 @@ const Index: React.FC = () => {
       document.body.appendChild(a);
       a.click();
       a.remove();
-      // Revogar depois para não interromper download em alguns navegadores
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 
       toast({
@@ -393,24 +366,19 @@ const Index: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background noise-overlay">
-      <Header />
-      
-      <main className="max-w-7xl mx-auto px-4 pb-16">
-        {/* AI Enabled Banner */}
-        <div className="mb-6 p-4 rounded-xl bg-primary/10 border border-primary/30 flex items-center gap-3 animate-fade-in">
-          <Sparkles className="w-5 h-5 text-primary flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-foreground">IA Integrada Ativa</p>
-            <p className="text-xs text-muted-foreground">
-              Análise de imagens com Gemini 2.5 Flash • Sem necessidade de API key
-            </p>
-          </div>
-        </div>
+    <div className="min-h-screen bg-background flex">
+      {/* GNOME Sidebar */}
+      <GnomeSidebar 
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        resultsCount={results.length}
+      />
 
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto">
         {/* Processing Progress */}
         {isProcessing && (
-          <div className="mb-6">
+          <div className="p-6 border-b border-border bg-card">
             <ProcessingProgress
               current={processingProgress.current}
               total={processingProgress.total}
@@ -421,288 +389,270 @@ const Index: React.FC = () => {
           </div>
         )}
 
-        {/* Stats */}
+        {/* Stats Bar */}
         {results.length > 0 && !isProcessing && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 animate-fade-in">
-            <StatsCard
-              icon={ImageIcon}
-              label="Processadas"
-              value={results.length}
-              variant="primary"
-            />
-            <StatsCard
-              icon={CheckCircle2}
-              label="Sucesso"
-              value={successCount}
-              variant="success"
-            />
-            <StatsCard
-              icon={XCircle}
-              label="Erros"
-              value={errorCount}
-            />
-            <StatsCard
-              icon={Settings}
-              label="Filtradas"
-              value={filteredResults.length}
-            />
+          <div className="p-6 border-b border-border bg-card/50">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 animate-fade-in">
+              <StatsCard
+                icon={ImageIcon}
+                label="Processadas"
+                value={results.length}
+                variant="primary"
+              />
+              <StatsCard
+                icon={CheckCircle2}
+                label="Sucesso"
+                value={successCount}
+                variant="success"
+              />
+              <StatsCard
+                icon={XCircle}
+                label="Erros"
+                value={errorCount}
+              />
+              <StatsCard
+                icon={TableIcon}
+                label="Filtradas"
+                value={filteredResults.length}
+              />
+            </div>
           </div>
         )}
 
-        {/* Main Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 bg-secondary/50 p-1 rounded-xl">
-            <TabsTrigger 
-              value="upload" 
-              className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg transition-all"
-            >
-              <Upload className="w-4 h-4" />
-              <span className="hidden sm:inline">Upload</span>
-            </TabsTrigger>
-            <TabsTrigger 
-              value="results"
-              className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg transition-all"
-            >
-              <TableIcon className="w-4 h-4" />
-              <span className="hidden sm:inline">Resultados</span>
-              {results.length > 0 && (
-                <span className="w-5 h-5 rounded-full bg-primary/20 text-primary text-xs flex items-center justify-center">
-                  {results.length}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger 
-              value="tree"
-              className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-lg transition-all"
-            >
-              <FolderTree className="w-4 h-4" />
-              <span className="hidden sm:inline">Árvore</span>
-            </TabsTrigger>
-          </TabsList>
-
+        {/* Tab Content */}
+        <div className="p-6">
           {/* Upload Tab */}
-          <TabsContent value="upload" className="space-y-6 animate-fade-in">
-            <div className="grid lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <div className="glass-card p-6">
-                  <UploadZone files={files} onFilesChange={setFiles} />
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Button
-                    variant="hero"
-                    size="xl"
-                    onClick={handleProcess}
-                    disabled={isProcessing || files.length === 0}
-                    className="flex-1"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                        {iaPriority ? 'Analisando com IA...' : 'Processando...'}
-                      </>
-                    ) : (
-                      <>
-                        {iaPriority ? <Sparkles className="w-5 h-5" /> : <Play className="w-5 h-5" />}
-                        {iaPriority 
-                          ? `Analisar ${files.length > 0 ? `${files.length} Fotos` : 'Fotos'} com IA`
-                          : `Processar ${files.length > 0 ? `${files.length} Fotos` : 'Fotos'}`
-                        }
-                      </>
-                    )}
-                  </Button>
+          {activeTab === 'upload' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-semibold text-foreground">Upload de Fotos</h2>
+                  <p className="text-muted-foreground">Adicione fotos de obra para análise automática com IA</p>
                 </div>
               </div>
 
-              <div className="lg:col-span-1">
-                <ProcessingOptions
-                  defaultPortico={defaultPortico}
-                  onDefaultPorticoChange={setDefaultPortico}
-                  organizeByDate={organizeByDate}
-                  onOrganizeByDateChange={setOrganizeByDate}
-                  iaPriority={iaPriority}
-                  onIaPriorityChange={setIaPriority}
-                />
+              <div className="grid lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="gnome-card p-6">
+                    <UploadZone files={files} onFilesChange={setFiles} />
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <Button
+                      onClick={handleProcess}
+                      disabled={isProcessing || files.length === 0}
+                      className="gnome-btn-primary flex-1 h-12 text-base"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Analisando...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-5 h-5" />
+                          Analisar {files.length > 0 ? `${files.length} Fotos` : 'Fotos'} com IA
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-1">
+                  <ProcessingOptions
+                    defaultPortico={defaultPortico}
+                    onDefaultPorticoChange={setDefaultPortico}
+                    organizeByDate={organizeByDate}
+                    onOrganizeByDateChange={setOrganizeByDate}
+                    iaPriority={iaPriority}
+                    onIaPriorityChange={setIaPriority}
+                  />
+                </div>
               </div>
             </div>
-          </TabsContent>
+          )}
 
           {/* Results Tab */}
-          <TabsContent value="results" className="space-y-6 animate-fade-in">
-            {results.length > 0 ? (
-              <>
-                {/* Filters */}
-                <ResultsFilters
-                  filters={filters}
-                  onFiltersChange={setFilters}
-                  porticos={uniquePorticos}
-                  disciplinas={uniqueDisciplinas}
-                />
+          {activeTab === 'results' && (
+            <div className="space-y-6 animate-fade-in">
+              {results.length > 0 ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-semibold text-foreground">Resultados da Análise</h2>
+                      <p className="text-muted-foreground">{results.length} fotos processadas</p>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button
+                        variant="outline"
+                        onClick={() => exportToExcelXML(results, `obraphoto_${new Date().toISOString().split('T')[0]}.xls`)}
+                        disabled={isProcessing}
+                        className="rounded-xl"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" />
+                        Excel
+                      </Button>
+                      <Button
+                        onClick={handleExportZIP}
+                        disabled={isProcessing || isExporting}
+                        className="gnome-btn-primary"
+                      >
+                        {isExporting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Gerando...
+                          </>
+                        ) : (
+                          <>
+                            <FolderArchive className="w-4 h-4" />
+                            Baixar ZIP
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
 
-                {/* Statistics */}
-                <StatisticsCard results={results} />
-                
-                {/* Editable Results Table */}
-                <EditableResultsTable 
-                  results={filteredResults} 
-                  isProcessing={isProcessing}
-                  fileUrls={fileUrls}
-                  onViewPhoto={handleViewPhoto}
-                  onUpdateResult={handleUpdateResult}
-                />
-                
-                <div className="flex justify-center gap-4">
+                  {/* Filters */}
+                  <ResultsFilters
+                    filters={filters}
+                    onFiltersChange={setFilters}
+                    porticos={uniquePorticos}
+                    disciplinas={uniqueDisciplinas}
+                  />
+
+                  {/* Statistics */}
+                  <StatisticsCard results={results} />
+                  
+                  {/* Results Table */}
+                  <EditableResultsTable 
+                    results={filteredResults} 
+                    isProcessing={isProcessing}
+                    fileUrls={fileUrls}
+                    onViewPhoto={handleViewPhoto}
+                    onUpdateResult={handleUpdateResult}
+                  />
+                  
                   {errorCount > 0 && (
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      onClick={handleRetryFailed}
-                      disabled={isProcessing}
-                      className="border-destructive/50 text-destructive hover:bg-destructive/10"
-                    >
-                      <RefreshCw className="w-5 h-5" />
-                      Reprocessar {errorCount} com Erro
-                    </Button>
+                    <div className="flex justify-center">
+                      <Button
+                        variant="outline"
+                        onClick={handleRetryFailed}
+                        disabled={isProcessing}
+                        className="border-destructive/50 text-destructive hover:bg-destructive/10 rounded-xl"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Reprocessar {errorCount} com Erro
+                      </Button>
+                    </div>
                   )}
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={() => exportToExcelXML(results, `obraphoto_${new Date().toISOString().split('T')[0]}.xls`)}
-                    disabled={isProcessing}
+                </>
+              ) : (
+                <div className="gnome-card p-16 text-center">
+                  <TableIcon className="w-20 h-20 mx-auto mb-6 text-muted-foreground/30" />
+                  <h3 className="text-xl font-semibold text-foreground mb-2">
+                    Nenhum resultado ainda
+                  </h3>
+                  <p className="text-muted-foreground mb-6">
+                    Processe algumas fotos para ver os resultados aqui
+                  </p>
+                  <Button 
+                    onClick={() => setActiveTab('upload')}
+                    className="gnome-btn-primary"
                   >
-                    <FileSpreadsheet className="w-5 h-5" />
-                    Exportar Excel
-                  </Button>
-                  <Button
-                    variant="hero"
-                    size="lg"
-                    onClick={handleExportZIP}
-                    disabled={isProcessing || isExporting}
-                  >
-                    {isExporting ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                        Gerando ZIP...
-                      </>
-                    ) : (
-                      <>
-                        <FolderArchive className="w-5 h-5" />
-                        Baixar ZIP Organizado
-                      </>
-                    )}
+                    <Upload className="w-4 h-4" />
+                    Ir para Upload
                   </Button>
                 </div>
-              </>
-            ) : (
-              <div className="glass-card p-12 text-center">
-                <TableIcon className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">
-                  Nenhum resultado ainda
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Processe algumas fotos para ver os resultados aqui
-                </p>
-                <Button variant="outline" onClick={() => setActiveTab('upload')}>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Ir para Upload
-                </Button>
-              </div>
-            )}
-          </TabsContent>
+              )}
+            </div>
+          )}
 
           {/* Tree View Tab */}
-          <TabsContent value="tree" className="animate-fade-in">
-            <div className="grid lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <div className="glass-card p-6">
-                  <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-                        <FolderTree className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">Estrutura de Pastas</h3>
-                        <p className="text-xs text-muted-foreground">
-                          Visualize a organização das fotos
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="max-h-[500px] overflow-y-auto scrollbar-thin">
-                    <TreeView data={treeData} />
-                  </div>
+          {activeTab === 'tree' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-semibold text-foreground">Estrutura de Pastas</h2>
+                  <p className="text-muted-foreground">Visualize a organização das fotos</p>
                 </div>
-              </div>
-
-              <div className="lg:col-span-1 space-y-4">
-                <div className="glass-card p-6">
-                  <h4 className="font-semibold text-foreground mb-3">Estrutura Padrão</h4>
-                  <div className="space-y-2 text-xs font-mono text-muted-foreground">
-                    <p className="text-foreground">organized_photos/</p>
-                    <p className="pl-4">└─ PORTICO_P_XX/</p>
-                    <p className="pl-8">└─ DISCIPLINA/</p>
-                    <p className="pl-12">└─ SERVICO/</p>
-                    <p className="pl-16">└─ MM_MES/</p>
-                    <p className="pl-20">└─ DD_MM/</p>
-                  </div>
-                </div>
-
-                <div className="glass-card p-6">
-                  <h4 className="font-semibold text-foreground mb-3">Legenda</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="confidence-high">90%+</span>
-                      <span className="text-muted-foreground">Alta confiança</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="confidence-medium">50-89%</span>
-                      <span className="text-muted-foreground">Média confiança</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="confidence-low">&lt;50%</span>
-                      <span className="text-muted-foreground">Baixa confiança</span>
-                    </div>
-                  </div>
-                </div>
-
                 <Button
-                  variant="hero"
-                  size="lg"
                   onClick={handleExportZIP}
                   disabled={isExporting || results.length === 0}
-                  className="w-full"
+                  className="gnome-btn-primary"
                 >
                   {isExporting ? (
                     <>
-                      <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                      Gerando ZIP...
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Gerando...
                     </>
                   ) : (
                     <>
-                      <FolderArchive className="w-5 h-5" />
-                      Baixar ZIP Organizado
+                      <FolderArchive className="w-4 h-4" />
+                      Baixar ZIP
                     </>
                   )}
                 </Button>
               </div>
-            </div>
-          </TabsContent>
-        </Tabs>
 
-        {/* Footer with Developer Credit */}
-        <div className="text-center py-8 mt-8 border-t border-border">
-          <p className="text-sm text-foreground font-medium mb-1">
-            ObraPhoto AI
-          </p>
-          <p className="text-xs text-muted-foreground mb-2">
-            Análise com IA Gemini • Padrão: PORTICO/DISCIPLINA/SERVICO/MM_MES/DD_MM
-          </p>
-          <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-            <User className="w-3 h-3" />
-            Desenvolvido por <span className="text-primary font-medium">Uriel da Fonseca Fortunato</span>
-          </p>
+              <div className="grid lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                  <div className="gnome-card p-6">
+                    <div className="max-h-[500px] overflow-y-auto scrollbar-thin">
+                      {treeData.length > 0 ? (
+                        <TreeView data={treeData} />
+                      ) : (
+                        <div className="text-center py-12 text-muted-foreground">
+                          <FolderTree className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                          <p>Nenhuma estrutura para exibir</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-1 space-y-4">
+                  <div className="gnome-card p-6">
+                    <h4 className="font-semibold text-foreground mb-4">Estrutura Padrão</h4>
+                    <div className="space-y-2 text-sm font-mono text-muted-foreground bg-secondary/50 p-4 rounded-xl">
+                      <p className="text-foreground">organized_photos/</p>
+                      <p className="pl-4">└─ PORTICO_P_XX/</p>
+                      <p className="pl-8">└─ DISCIPLINA/</p>
+                      <p className="pl-12">└─ SERVICO/</p>
+                      <p className="pl-16">└─ MM_MES/</p>
+                      <p className="pl-20">└─ DD_MM/</p>
+                    </div>
+                  </div>
+
+                  <div className="gnome-card p-6">
+                    <h4 className="font-semibold text-foreground mb-4">Legenda</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <span className="confidence-high">90%+</span>
+                        <span className="text-sm text-muted-foreground">Alta confiança</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="confidence-medium">50-89%</span>
+                        <span className="text-sm text-muted-foreground">Média confiança</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="confidence-low">&lt;50%</span>
+                        <span className="text-sm text-muted-foreground">Baixa confiança</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Footer */}
+        <footer className="p-6 border-t border-border text-center">
+          <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+            <User className="w-4 h-4" />
+            Desenvolvido por <span className="font-medium text-foreground">Uriel da Fonseca Fortunato</span>
+          </p>
+        </footer>
       </main>
 
       {/* Photo Preview Modal */}
