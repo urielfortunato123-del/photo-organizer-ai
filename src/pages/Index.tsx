@@ -114,20 +114,27 @@ const Index: React.FC = () => {
   const successCount = results.filter(r => r.status === 'Sucesso').length;
   const errorCount = results.filter(r => r.status.includes('Erro')).length;
 
+  // Track processed filenames to avoid duplicates
+  const [processedFiles, setProcessedFiles] = useState<Set<string>>(new Set());
+
   const handleProcess = async () => {
-    if (files.length === 0) {
+    // Filter out already processed files
+    const newFiles = files.filter(f => !processedFiles.has(f.name));
+    
+    if (newFiles.length === 0) {
       toast({
-        title: "Nenhuma foto selecionada",
-        description: "Adicione fotos para processar",
+        title: "Nenhuma foto nova",
+        description: files.length > 0 
+          ? "Todas as fotos já foram processadas. Adicione novas fotos."
+          : "Adicione fotos para processar",
         variant: "destructive",
       });
       return;
     }
 
     setIsProcessing(true);
-    setResults([]);
     setProcessingStartTime(Date.now());
-    setProcessingProgress({ current: 0, total: files.length, currentFile: '' });
+    setProcessingProgress({ current: 0, total: newFiles.length, currentFile: '' });
 
     const config = {
       default_portico: defaultPortico,
@@ -136,13 +143,14 @@ const Index: React.FC = () => {
     };
 
     try {
-      const processedResults: ProcessingResult[] = [];
+      const newResults: ProcessingResult[] = [];
+      const newProcessedNames = new Set(processedFiles);
       
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      for (let i = 0; i < newFiles.length; i++) {
+        const file = newFiles[i];
         setProcessingProgress({ 
           current: i + 1, 
-          total: files.length, 
+          total: newFiles.length, 
           currentFile: file.name 
         });
         
@@ -180,16 +188,20 @@ const Index: React.FC = () => {
           result.dest = filtered.join('/');
         }
 
-        processedResults.push(result);
-        setResults([...processedResults]);
+        newResults.push(result);
+        newProcessedNames.add(file.name);
+        
+        // Accumulate results instead of replacing
+        setResults(prev => [...prev, result]);
       }
 
+      setProcessedFiles(newProcessedNames);
       setActiveTab('results');
 
-      const finalSuccessCount = processedResults.filter(r => r.status === 'Sucesso').length;
+      const finalSuccessCount = newResults.filter(r => r.status === 'Sucesso').length;
       toast({
-        title: "Processamento concluído!",
-        description: `${finalSuccessCount} de ${files.length} fotos analisadas.`,
+        title: "Lote processado!",
+        description: `${finalSuccessCount} de ${newFiles.length} novas fotos analisadas. Total: ${results.length + newResults.length} fotos.`,
       });
     } catch (error) {
       console.error('Processing error:', error);
@@ -424,6 +436,38 @@ const Index: React.FC = () => {
           {/* Upload Tab */}
           {activeTab === 'upload' && (
             <div className="space-y-6 animate-fade-in">
+              {/* Accumulated results banner */}
+              {results.length > 0 && (
+                <div className="gnome-card p-4 bg-primary/10 border-primary/20 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <FolderArchive className="w-5 h-5 text-primary" />
+                    <div>
+                      <p className="font-medium text-foreground">
+                        {results.length} fotos já processadas
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Adicione mais fotos e continue processando. Baixe tudo no final.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setResults([]);
+                      setProcessedFiles(new Set());
+                      setFiles([]);
+                      setTreeData([]);
+                      toast({ title: "Sessão limpa", description: "Todos os resultados foram removidos." });
+                    }}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Limpar tudo
+                  </Button>
+                </div>
+              )}
+
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-semibold text-foreground">Upload de Fotos</h2>
@@ -451,7 +495,11 @@ const Index: React.FC = () => {
                       ) : (
                         <>
                           <Sparkles className="w-5 h-5" />
-                          Analisar {files.length > 0 ? `${files.length} Fotos` : 'Fotos'} com IA
+                          {files.filter(f => !processedFiles.has(f.name)).length > 0 
+                            ? `Analisar ${files.filter(f => !processedFiles.has(f.name)).length} Novas Fotos`
+                            : files.length > 0 
+                              ? 'Todas já processadas'
+                              : 'Adicionar Fotos'}
                         </>
                       )}
                     </Button>
