@@ -32,6 +32,7 @@ const Index: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [fileUrls, setFileUrls] = useState<Map<string, string>>(new Map());
   const [defaultPortico, setDefaultPortico] = useState('');
+  const [empresa, setEmpresa] = useState('HABITECHENE');
   const [organizeByDate, setOrganizeByDate] = useState(true);
   const [iaPriority, setIaPriority] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -138,6 +139,7 @@ const Index: React.FC = () => {
 
     const config = {
       default_portico: defaultPortico,
+      empresa: empresa,
       organize_by_date: organizeByDate,
       ia_priority: iaPriority,
     };
@@ -158,18 +160,20 @@ const Index: React.FC = () => {
 
         try {
           if (config.ia_priority) {
-            result = await api.analyzeImage(file, config.default_portico);
+            result = await api.analyzeImage(file, config.default_portico, config.empresa);
             await new Promise(resolve => setTimeout(resolve, 10000));
           } else {
+            const empresaNome = config.empresa || 'EMPRESA';
             result = {
               filename: file.name,
               status: 'Sucesso',
               portico: config.default_portico || 'NAO_IDENTIFICADO',
               disciplina: 'GERAL',
               service: 'REGISTRO',
+              empresa: empresaNome,
               method: 'heuristica',
               confidence: 0.5,
-              dest: `organized_photos/${config.default_portico || 'NAO_IDENTIFICADO'}/GERAL/REGISTRO`,
+              dest: `${empresaNome}/FOTOS/${config.default_portico || 'NAO_IDENTIFICADO'}/GERAL/REGISTRO`,
             };
           }
         } catch (fileError) {
@@ -182,9 +186,11 @@ const Index: React.FC = () => {
           };
         }
 
+        // If not organizing by date, remove date folders from path
         if (result.status === 'Sucesso' && result.dest && !config.organize_by_date) {
           const parts = result.dest.split('/');
-          const filtered = parts.filter((_, idx) => idx < 4);
+          // Keep: EMPRESA/FOTOS/FRENTE/DISCIPLINA/SERVICO (5 parts)
+          const filtered = parts.slice(0, 5);
           result.dest = filtered.join('/');
         }
 
@@ -510,6 +516,8 @@ const Index: React.FC = () => {
                   <ProcessingOptions
                     defaultPortico={defaultPortico}
                     onDefaultPorticoChange={setDefaultPortico}
+                    empresa={empresa}
+                    onEmpresaChange={setEmpresa}
                     organizeByDate={organizeByDate}
                     onOrganizeByDateChange={setOrganizeByDate}
                     iaPriority={iaPriority}
