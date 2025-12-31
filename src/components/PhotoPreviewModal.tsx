@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ProcessingResult } from '@/services/api';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ProcessingResult, MONTH_NAMES } from '@/services/api';
 import { cn } from '@/lib/utils';
 
 interface PhotoPreviewModalProps {
@@ -17,6 +18,38 @@ interface PhotoPreviewModalProps {
   onUpdateResult?: (updated: ProcessingResult) => void;
 }
 
+// Disciplinas disponíveis
+const DISCIPLINAS = [
+  'FUNDACAO', 'ESTRUTURA', 'PORTICO_FREE_FLOW', 'ALVENARIA', 'COBERTURA',
+  'REVESTIMENTO', 'ACABAMENTO', 'ESQUADRIAS', 'IMPERMEABILIZACAO',
+  'HIDRAULICA', 'ELETRICA', 'AR_CONDICIONADO', 'DRENAGEM', 'TERRAPLENAGEM',
+  'PAVIMENTACAO', 'OAC', 'OAE', 'SINALIZACAO', 'BARREIRAS', 'SEGURANCA',
+  'PAISAGISMO', 'MANUTENCAO', 'DEMOLICAO', 'CONTENCAO', 'INFRAESTRUTURA',
+  'EQUIPAMENTOS', 'MOBILIZACAO', 'LOUCAS_METAIS', 'INCENDIO', 'ENSAIOS', 'OUTROS'
+];
+
+// Serviços por disciplina (principais)
+const SERVICOS_POR_DISCIPLINA: Record<string, string[]> = {
+  FUNDACAO: ['ESTACA_RAIZ', 'ESTACA_HELICE', 'SAPATA_ISOLADA', 'BLOCO_COROAMENTO', 'BALDRAME', 'ESCAVACAO_FUNDACAO', 'CONCRETAGEM_BLOCO', 'CRAVACAO_ESTACA'],
+  ESTRUTURA: ['PILAR', 'VIGA', 'LAJE', 'FORMA', 'DESFORMA', 'ARMACAO', 'CONCRETAGEM', 'ESCORAMENTO', 'ESTRUTURA_METALICA'],
+  PORTICO_FREE_FLOW: ['ICAMENTO_PORTICO', 'MONTAGEM_PORTICO', 'IMPLANTACAO_PORTICO', 'INSTALACAO_RFID', 'LINHA_VIDA', 'GUARDA_CORPO_PORTICO', 'SALA_TECNICA', 'CHUMBADOR'],
+  ACABAMENTO: ['PINTURA_INTERNA', 'PINTURA_EXTERNA', 'PINTURA_FACHADA', 'PINTURA_EPOXI', 'TEXTURA', 'FORRO', 'RODAPE', 'REJUNTAMENTO'],
+  REVESTIMENTO: ['CHAPISCO', 'EMBOCO', 'REBOCO', 'CERAMICA', 'PORCELANATO', 'PISO', 'CONTRAPISO'],
+  TERRAPLENAGEM: ['CORTE', 'ATERRO', 'COMPACTACAO', 'ESCAVACAO', 'CARGA_TRANSPORTE', 'REGULARIZACAO_PLATAFORMA', 'TALUDE'],
+  DRENAGEM: ['BUEIRO', 'BOCA_LOBO', 'SARJETA', 'MEIO_FIO', 'DESCIDA_DAGUA', 'CANALETA', 'GABIAO'],
+  CONTENCAO: ['CORTINA_ATIRANTADA', 'TIRANTE', 'PROTENSAO_TIRANTE', 'SOLO_GRAMPEADO', 'MURO_GABIAO', 'PROJECAO_CONCRETO'],
+  PAVIMENTACAO: ['SUB_BASE', 'BASE', 'IMPRIMACAO', 'CBUQ', 'ASFALTO', 'RECAPEAMENTO', 'PISO_INTERTRAVADO'],
+  SINALIZACAO: ['PLACA_SINALIZACAO', 'PINTURA_SOLO', 'DEFENSA_METALICA', 'TACHA', 'BALIZADOR'],
+  BARREIRAS: ['BARREIRA_RIGIDA', 'BARREIRA_NEW_JERSEY', 'BARREIRA_CONCRETO', 'EXECUCAO_BARREIRA'],
+  SEGURANCA: ['ALAMBRADO', 'CERCA', 'CAMERA', 'CFTV', 'GUARITA'],
+  PAISAGISMO: ['PLANTIO_GRAMA', 'GRAMA', 'JARDIM', 'HIDROSSEMEADURA', 'BIOMANTA', 'PODA'],
+  MANUTENCAO: ['LIMPEZA_TERRENO', 'ROCAGEM', 'CAPINA', 'REMOCAO_ENTULHO', 'REPARO'],
+  DEMOLICAO: ['DEMOLICAO_TOTAL', 'DEMOLICAO_PARCIAL', 'REMOCAO', 'CORTE_CONCRETO'],
+  ELETRICA: ['ELETRODUTO', 'CABEAMENTO', 'QUADRO_ELETRICO', 'TOMADA', 'LUMINARIA', 'ATERRAMENTO'],
+  HIDRAULICA: ['TUBULACAO_AGUA_FRIA', 'TUBULACAO_ESGOTO', 'CAIXA_DAGUA', 'BOMBA', 'VASO_SANITARIO'],
+  OUTROS: ['NAO_IDENTIFICADO', 'REGISTRO', 'GERAL']
+};
+
 const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
   isOpen,
   onClose,
@@ -26,9 +59,33 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
   onUpdateResult,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedPortico, setEditedPortico] = useState(result?.portico || '');
-  const [editedDisciplina, setEditedDisciplina] = useState(result?.disciplina || '');
-  const [editedService, setEditedService] = useState(result?.service || '');
+  const [editedPortico, setEditedPortico] = useState('');
+  const [editedDisciplina, setEditedDisciplina] = useState('');
+  const [editedService, setEditedService] = useState('');
+  const [editedData, setEditedData] = useState('');
+  const [availableServicos, setAvailableServicos] = useState<string[]>([]);
+
+  // Reset form when result changes
+  useEffect(() => {
+    if (result) {
+      setEditedPortico(result.portico || '');
+      setEditedDisciplina(result.disciplina || '');
+      setEditedService(result.service || '');
+      setEditedData(result.data_detectada || '');
+      setIsEditing(false);
+    }
+  }, [result]);
+
+  // Update available services when discipline changes
+  useEffect(() => {
+    const servicos = SERVICOS_POR_DISCIPLINA[editedDisciplina] || SERVICOS_POR_DISCIPLINA['OUTROS'];
+    setAvailableServicos(servicos);
+    
+    // If current service is not in new discipline, reset it
+    if (!servicos.includes(editedService)) {
+      setEditedService(servicos[0] || '');
+    }
+  }, [editedDisciplina]);
 
   if (!result) return null;
 
@@ -36,24 +93,52 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
     setEditedPortico(result.portico || '');
     setEditedDisciplina(result.disciplina || '');
     setEditedService(result.service || '');
+    setEditedData(result.data_detectada || '');
     setIsEditing(true);
+  };
+
+  // Build destination path
+  const buildDestPath = (portico: string, disciplina: string, servico: string, data?: string): string => {
+    const basePath = `organized_photos/${portico}/${disciplina}/${servico}`;
+    
+    if (data) {
+      // Parse date DD/MM/YYYY
+      const match = data.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (match) {
+        const [, day, month] = match;
+        const monthNum = parseInt(month, 10);
+        const monthName = MONTH_NAMES[monthNum] || `${month}_MES`;
+        return `${basePath}/${monthNum.toString().padStart(2, '0')}_${monthName}/${day}_${month}`;
+      }
+    }
+    
+    return basePath;
   };
 
   const handleSaveEdit = () => {
     if (onUpdateResult) {
+      const newDest = buildDestPath(editedPortico, editedDisciplina, editedService, editedData);
+      
       onUpdateResult({
         ...result,
         portico: editedPortico,
         disciplina: editedDisciplina,
         service: editedService,
+        data_detectada: editedData || undefined,
+        dest: newDest,
         method: 'heuristica', // Mark as manually edited
         confidence: 1.0, // Manual = 100% confidence
+        status: 'Sucesso', // Mark as success after manual edit
       });
     }
     setIsEditing(false);
   };
 
   const handleCancelEdit = () => {
+    setEditedPortico(result.portico || '');
+    setEditedDisciplina(result.disciplina || '');
+    setEditedService(result.service || '');
+    setEditedData(result.data_detectada || '');
     setIsEditing(false);
   };
 
@@ -95,13 +180,16 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
               </div>
             </div>
 
-            {/* OCR Text */}
+            {/* AI Analysis / OCR Text */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Texto OCR Extraído</Label>
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                Análise da IA
+              </Label>
               <Textarea 
                 readOnly 
-                value={ocrText || 'Nenhum texto extraído'}
-                className="h-[200px] bg-secondary/50 font-mono text-xs resize-none"
+                value={result.tecnico || ocrText || 'Nenhuma análise disponível'}
+                className="h-[200px] bg-secondary/50 text-xs resize-none"
               />
             </div>
           </div>
@@ -133,37 +221,86 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
             </div>
 
             {isEditing ? (
-              <div className="grid sm:grid-cols-3 gap-4">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-1">
                   <Label className="text-xs">Frente de Serviço</Label>
                   <Input 
                     value={editedPortico}
-                    onChange={(e) => setEditedPortico(e.target.value.toUpperCase())}
+                    onChange={(e) => setEditedPortico(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
                     placeholder="P_10, CORTINA_01..."
                     className="font-mono text-sm"
                   />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Disciplina</Label>
-                  <Input 
-                    value={editedDisciplina}
-                    onChange={(e) => setEditedDisciplina(e.target.value.toUpperCase())}
-                    placeholder="FUNDACAO"
-                    className="font-mono text-sm"
-                  />
+                  <Select value={editedDisciplina} onValueChange={setEditedDisciplina}>
+                    <SelectTrigger className="font-mono text-sm">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {DISCIPLINAS.map(disc => (
+                        <SelectItem key={disc} value={disc} className="font-mono text-sm">
+                          {disc}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Serviço</Label>
+                  <Select value={editedService} onValueChange={setEditedService}>
+                    <SelectTrigger className="font-mono text-sm">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {availableServicos.map(serv => (
+                        <SelectItem key={serv} value={serv} className="font-mono text-sm">
+                          {serv}
+                        </SelectItem>
+                      ))}
+                      {/* Allow custom service */}
+                      <SelectItem value="__custom__" className="font-mono text-sm text-muted-foreground">
+                        + Personalizado
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {editedService === '__custom__' && (
+                    <Input 
+                      value=""
+                      onChange={(e) => setEditedService(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
+                      placeholder="Digite o serviço..."
+                      className="font-mono text-sm mt-1"
+                      autoFocus
+                    />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    Data (DD/MM/AAAA)
+                  </Label>
                   <Input 
-                    value={editedService}
-                    onChange={(e) => setEditedService(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
-                    placeholder="CONCRETAGEM_BLOCO"
+                    value={editedData}
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/[^\d/]/g, '');
+                      // Auto-format as DD/MM/YYYY
+                      if (value.length === 2 && !value.includes('/')) {
+                        value += '/';
+                      } else if (value.length === 5 && value.split('/').length === 2) {
+                        value += '/';
+                      }
+                      if (value.length <= 10) {
+                        setEditedData(value);
+                      }
+                    }}
+                    placeholder="DD/MM/AAAA"
                     className="font-mono text-sm"
+                    maxLength={10}
                   />
                 </div>
               </div>
             ) : (
-              <div className="grid sm:grid-cols-3 gap-4">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <p className="text-xs text-muted-foreground">Frente de Serviço</p>
                   <p className="font-mono text-sm font-medium">{result.portico || '-'}</p>
@@ -176,6 +313,10 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
                   <p className="text-xs text-muted-foreground">Serviço</p>
                   <p className="font-mono text-sm font-medium">{result.service || '-'}</p>
                 </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Data</p>
+                  <p className="font-mono text-sm font-medium">{result.data_detectada || '-'}</p>
+                </div>
               </div>
             )}
 
@@ -183,7 +324,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
               <div>
                 <p className="text-xs text-muted-foreground">Método</p>
                 <p className="font-medium flex items-center gap-1">
-                  {result.method === 'heuristica' ? 'Heurística' : 
+                  {result.method === 'heuristica' ? 'Manual/Heurística' : 
                    result.method === 'ia_fallback' ? 'IA Fallback' : 
                    result.method === 'ia_forcada' ? 'IA Forçada' : '-'}
                   {result.method !== 'heuristica' && <Brain className="w-3 h-3 text-primary" />}
@@ -196,21 +337,19 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Data Detectada</p>
-                <p className="font-medium font-mono">{result.data_detectada || '-'}</p>
+                <p className="text-xs text-muted-foreground">Status</p>
+                <p className={cn(
+                  "font-medium",
+                  result.status === 'Sucesso' ? 'text-success' : 'text-destructive'
+                )}>
+                  {result.status}
+                </p>
               </div>
             </div>
 
-            {result.tecnico && (
-              <div className="pt-2 border-t border-border">
-                <p className="text-xs text-muted-foreground mb-1">Análise Técnica (IA)</p>
-                <p className="text-sm text-foreground">{result.tecnico}</p>
-              </div>
-            )}
-
             <div className="pt-2 border-t border-border">
               <p className="text-xs text-muted-foreground mb-1">Caminho de Destino</p>
-              <p className="font-mono text-xs text-muted-foreground break-all">
+              <p className="font-mono text-xs text-primary break-all bg-secondary/50 p-2 rounded">
                 {result.dest || 'Não definido'}
               </p>
             </div>
