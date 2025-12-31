@@ -1,5 +1,6 @@
 import React from 'react';
-import { Camera, Zap, Cpu } from 'lucide-react';
+import { Cpu } from 'lucide-react';
+import logoObraphoto from '@/assets/logo-obraphoto.png';
 
 const Header: React.FC = () => {
   return (
@@ -12,14 +13,11 @@ const Header: React.FC = () => {
         <div className="max-w-4xl mx-auto text-center">
           {/* Logo */}
           <div className="inline-flex items-center justify-center mb-6">
-            <div className="relative">
-              <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-xl shadow-primary/30 rotate-3 hover:rotate-0 transition-transform duration-300">
-                <Camera className="w-8 h-8 md:w-10 md:h-10 text-primary-foreground" />
-              </div>
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg bg-success flex items-center justify-center shadow-lg">
-                <Zap className="w-3 h-3 text-success-foreground" />
-              </div>
-            </div>
+            <img 
+              src={logoObraphoto} 
+              alt="ObraPhoto AI Logo" 
+              className="w-20 h-20 md:w-28 md:h-28 object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-300"
+            />
           </div>
 
           {/* Title */}
