@@ -213,12 +213,28 @@ const Index: React.FC = () => {
     }
   };
 
+  // Helper to check if a result is incomplete (OK but no data)
+  const isIncompleteResult = (r: ProcessingResult) => {
+    return r.status === 'Sucesso' && (
+      !r.portico || r.portico === '-' || r.portico === '' ||
+      !r.disciplina || r.disciplina === '-' || r.disciplina === '' ||
+      !r.service || r.service === '-' || r.service === ''
+    );
+  };
+
+  // Helper to check if result needs reprocessing
+  const needsReprocessing = (r: ProcessingResult) => {
+    return r.status.includes('Erro') || isIncompleteResult(r);
+  };
+
   const handleRetryFailed = async () => {
-    const failedResults = results.filter(r => r.status.includes('Erro'));
+    // Include both errors AND incomplete results (OK but no data)
+    const failedResults = results.filter(needsReprocessing);
+    
     if (failedResults.length === 0) {
       toast({
         title: "Nenhum erro encontrado",
-        description: "Não há fotos com erro para reprocessar.",
+        description: "Não há fotos com erro ou incompletas para reprocessar.",
       });
       return;
     }
@@ -235,6 +251,13 @@ const Index: React.FC = () => {
       });
       return;
     }
+
+    // Remove from cache so they get reprocessed
+    failedResults.forEach(r => {
+      if (r.hash) {
+        imageCache.removeFromCache(r.hash);
+      }
+    });
 
     setIsProcessing(true);
     setProcessingStartTime(Date.now());
@@ -653,19 +676,33 @@ const Index: React.FC = () => {
                     onUpdateResult={handleUpdateResult}
                   />
                   
-                  {errorCount > 0 && (
-                    <div className="flex justify-center">
-                      <Button
-                        variant="outline"
-                        onClick={handleRetryFailed}
-                        disabled={isProcessing}
-                        className="border-destructive/50 text-destructive hover:bg-destructive/10 rounded-xl"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                        Reprocessar {errorCount} com Erro
-                      </Button>
-                    </div>
-                  )}
+                  {/* Show reprocess button for errors OR incomplete results */}
+                  {(() => {
+                    const incompleteCount = results.filter(isIncompleteResult).length;
+                    const totalNeedsReprocess = errorCount + incompleteCount;
+                    
+                    if (totalNeedsReprocess > 0) {
+                      return (
+                        <div className="flex justify-center">
+                          <Button
+                            variant="outline"
+                            onClick={handleRetryFailed}
+                            disabled={isProcessing}
+                            className="border-destructive/50 text-destructive hover:bg-destructive/10 rounded-xl"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            Reprocessar {totalNeedsReprocess} {totalNeedsReprocess === 1 ? 'Foto' : 'Fotos'} 
+                            {errorCount > 0 && incompleteCount > 0 
+                              ? ` (${errorCount} erros + ${incompleteCount} incompletas)`
+                              : errorCount > 0 
+                                ? ' com Erro' 
+                                : ' Incompletas'}
+                          </Button>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </>
               ) : (
                 <div className="gnome-card p-16 text-center">

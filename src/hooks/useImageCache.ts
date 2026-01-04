@@ -87,6 +87,11 @@ export function useImageCache() {
     localStorage.removeItem(CACHE_KEY);
   }, []);
 
+  const removeFromCache = useCallback((hash: string): void => {
+    cacheRef.current.delete(hash);
+    saveCache(cacheRef.current);
+  }, []);
+
   const getCacheStats = useCallback((): { total: number; size: string } => {
     const total = cacheRef.current.size;
     const stored = localStorage.getItem(CACHE_KEY) || '';
@@ -103,6 +108,7 @@ export function useImageCache() {
     setCache,
     setCacheBulk,
     clearCache,
+    removeFromCache,
     getCacheStats
   };
 }
