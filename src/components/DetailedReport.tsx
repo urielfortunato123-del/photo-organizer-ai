@@ -1,12 +1,13 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { ProcessingResult } from '@/services/api';
 import { 
-  FileText, Printer, Calendar, MapPin, Wrench, 
-  CheckCircle2, XCircle, Sparkles, Camera, Clock
+  FileText, Printer, XCircle, Camera
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import logoObraphoto from '@/assets/logo-obraphoto.png';
 
 interface DetailedReportProps {
   results: ProcessingResult[];
@@ -15,20 +16,6 @@ interface DetailedReportProps {
   onClose: () => void;
 }
 
-const getConfidenceColor = (confidence: number | undefined) => {
-  const value = (confidence || 0) * 100;
-  if (value >= 80) return 'text-green-600 bg-green-100 dark:text-green-400 dark:bg-green-900/30';
-  if (value >= 50) return 'text-yellow-600 bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-900/30';
-  return 'text-red-600 bg-red-100 dark:text-red-400 dark:bg-red-900/30';
-};
-
-const getStatusIcon = (status: string) => {
-  if (status === 'Sucesso') {
-    return <CheckCircle2 className="w-5 h-5 text-green-500" />;
-  }
-  return <XCircle className="w-5 h-5 text-red-500" />;
-};
-
 const DetailedReport: React.FC<DetailedReportProps> = ({
   results,
   fileUrls,
@@ -36,35 +23,26 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
   onClose
 }) => {
   const reportRef = useRef<HTMLDivElement>(null);
+  
+  // Report metadata
+  const [reportData, setReportData] = useState({
+    titulo: 'RELATÓRIO DE ACOMPANHAMENTO DE OBRA',
+    subtitulo: '',
+    de: '',
+    para: '',
+    numeroRelatorio: '001/' + new Date().getFullYear(),
+    data: new Date().toLocaleDateString('pt-BR'),
+  });
 
   const handlePrint = () => {
-    // Set custom title to avoid URL in print
     const originalTitle = document.title;
-    document.title = 'Relatório ObraPhoto AI';
+    document.title = 'Relatório Fotográfico';
     window.print();
     document.title = originalTitle;
   };
 
-  const successCount = results.filter(r => r.status === 'Sucesso').length;
-  const errorCount = results.filter(r => r.status.includes('Erro')).length;
-  const avgConfidence = results.length > 0
-    ? results.reduce((acc, r) => acc + (r.confidence || 0), 0) / results.length * 100
-    : 0;
-
-  // Group by discipline
-  const byDiscipline: Record<string, ProcessingResult[]> = {};
-  results.forEach(r => {
-    const disc = r.disciplina || 'NÃO IDENTIFICADO';
-    if (!byDiscipline[disc]) byDiscipline[disc] = [];
-    byDiscipline[disc].push(r);
-  });
-
-  // Group by portico
-  const byPortico: Record<string, number> = {};
-  results.forEach(r => {
-    const port = r.portico || 'NÃO IDENTIFICADO';
-    byPortico[port] = (byPortico[port] || 0) + 1;
-  });
+  // Get only successful results with images
+  const successResults = results.filter(r => r.status === 'Sucesso');
 
   return (
     <div className="print-container fixed inset-0 z-50 bg-background/95 backdrop-blur-sm overflow-hidden flex flex-col">
@@ -73,8 +51,8 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
         <div className="flex items-center gap-3">
           <FileText className="w-6 h-6 text-primary" />
           <div>
-            <h1 className="text-xl font-bold text-foreground">Relatório Detalhado</h1>
-            <p className="text-sm text-muted-foreground">{results.length} fotos analisadas</p>
+            <h1 className="text-xl font-bold text-foreground">Relatório Fotográfico</h1>
+            <p className="text-sm text-muted-foreground">{successResults.length} fotos</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -89,168 +67,160 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
         </div>
       </div>
 
+      {/* Edit Form - Hide on print */}
+      <div className="print:hidden p-4 border-b border-border bg-muted/30">
+        <div className="max-w-5xl mx-auto">
+          <h3 className="text-sm font-semibold mb-3 text-muted-foreground">Dados do Relatório</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="col-span-2 md:col-span-3">
+              <Label htmlFor="titulo" className="text-xs">Título do Relatório</Label>
+              <Input
+                id="titulo"
+                value={reportData.titulo}
+                onChange={(e) => setReportData(prev => ({ ...prev, titulo: e.target.value }))}
+                placeholder="RELATÓRIO DE ACOMPANHAMENTO DE OBRA"
+                className="text-sm"
+              />
+            </div>
+            <div className="col-span-2 md:col-span-3">
+              <Label htmlFor="subtitulo" className="text-xs">Subtítulo / Local</Label>
+              <Input
+                id="subtitulo"
+                value={reportData.subtitulo}
+                onChange={(e) => setReportData(prev => ({ ...prev, subtitulo: e.target.value }))}
+                placeholder="Ex: CENTRO DE INICIAÇÃO AO ESPORTE (SALVADOR-BA)"
+                className="text-sm"
+              />
+            </div>
+            <div>
+              <Label htmlFor="de" className="text-xs">De:</Label>
+              <Input
+                id="de"
+                value={reportData.de}
+                onChange={(e) => setReportData(prev => ({ ...prev, de: e.target.value }))}
+                placeholder="Engº Nome"
+                className="text-sm"
+              />
+            </div>
+            <div>
+              <Label htmlFor="para" className="text-xs">Para:</Label>
+              <Input
+                id="para"
+                value={reportData.para}
+                onChange={(e) => setReportData(prev => ({ ...prev, para: e.target.value }))}
+                placeholder="Engº Nome"
+                className="text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="numero" className="text-xs">Nº Relatório</Label>
+                <Input
+                  id="numero"
+                  value={reportData.numeroRelatorio}
+                  onChange={(e) => setReportData(prev => ({ ...prev, numeroRelatorio: e.target.value }))}
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label htmlFor="data" className="text-xs">Data</Label>
+                <Input
+                  id="data"
+                  value={reportData.data}
+                  onChange={(e) => setReportData(prev => ({ ...prev, data: e.target.value }))}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Report Content */}
-      <ScrollArea className="flex-1 print:!overflow-visible print:!h-auto">
-        <div ref={reportRef} className="print-report p-6 max-w-5xl mx-auto print:max-w-none print:p-4 print:!block">
+      <ScrollArea className="flex-1">
+        <div ref={reportRef} className="print-report p-6 max-w-5xl mx-auto bg-white text-black">
           
-          {/* Report Header */}
-          <div className="text-center mb-8 pb-6 border-b-2 border-primary print:border-black">
-            <h1 className="text-3xl font-bold text-foreground print:text-black mb-2">
-              📸 RELATÓRIO DE CLASSIFICAÇÃO DE FOTOS
+          {/* Logo Header */}
+          <div className="flex justify-center mb-4 pb-4 border-b-2 border-red-600">
+            <img 
+              src={logoObraphoto} 
+              alt="Logo" 
+              className="h-16 object-contain"
+            />
+          </div>
+
+          {/* Report Title */}
+          <div className="text-center mb-4 p-3 bg-gray-100 border border-gray-300">
+            <h1 className="text-sm font-bold text-gray-800 uppercase">
+              {reportData.titulo}
+              {reportData.subtitulo && (
+                <span className="block mt-1">{reportData.subtitulo}</span>
+              )}
             </h1>
-            <h2 className="text-xl text-primary print:text-gray-700 font-semibold">
-              ObraPhoto AI - {empresa}
-            </h2>
-            <p className="text-muted-foreground print:text-gray-500 mt-2">
-              <Clock className="inline w-4 h-4 mr-1" />
-              Gerado em: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR')}
-            </p>
           </div>
 
-          {/* Summary Stats */}
-          <div className="mb-8 p-6 bg-card print:bg-gray-50 rounded-lg border border-border print:border-gray-300">
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary" />
-              Resumo Geral
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 bg-primary/10 print:bg-blue-50 rounded-lg">
-                <div className="text-3xl font-bold text-primary print:text-blue-600">{results.length}</div>
-                <div className="text-sm text-muted-foreground">Total de Fotos</div>
-              </div>
-              <div className="text-center p-4 bg-green-500/10 print:bg-green-50 rounded-lg">
-                <div className="text-3xl font-bold text-green-600">{successCount}</div>
-                <div className="text-sm text-muted-foreground">Classificadas</div>
-              </div>
-              <div className="text-center p-4 bg-red-500/10 print:bg-red-50 rounded-lg">
-                <div className="text-3xl font-bold text-red-600">{errorCount}</div>
-                <div className="text-sm text-muted-foreground">Com Erros</div>
-              </div>
-              <div className="text-center p-4 bg-yellow-500/10 print:bg-yellow-50 rounded-lg">
-                <div className="text-3xl font-bold text-yellow-600">{avgConfidence.toFixed(0)}%</div>
-                <div className="text-sm text-muted-foreground">Confiança Média</div>
-              </div>
-            </div>
+          {/* Metadata Table */}
+          <table className="w-full mb-4 border-collapse text-sm">
+            <tbody>
+              <tr>
+                <td className="border border-gray-300 p-2 bg-gray-50 font-semibold w-20">De:</td>
+                <td className="border border-gray-300 p-2">{reportData.de || empresa}</td>
+                <td className="border border-gray-300 p-2 bg-gray-50 font-semibold w-20">Para:</td>
+                <td className="border border-gray-300 p-2">{reportData.para || '-'}</td>
+              </tr>
+              <tr>
+                <td className="border border-gray-300 p-2 bg-gray-50 font-semibold">Nº Relatório:</td>
+                <td className="border border-gray-300 p-2">{reportData.numeroRelatorio}</td>
+                <td className="border border-gray-300 p-2 bg-gray-50 font-semibold">Data:</td>
+                <td className="border border-gray-300 p-2">{reportData.data}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Photo Report Section Header */}
+          <div className="text-center mb-4 p-2 bg-gray-200 border border-gray-300">
+            <h2 className="text-sm font-bold text-gray-800 uppercase">RELATÓRIO FOTOGRÁFICO</h2>
           </div>
 
-          {/* Distribution by Portico */}
-          <div className="mb-8 p-6 bg-card print:bg-gray-50 rounded-lg border border-border print:border-gray-300">
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-primary" />
-              Distribuição por Frente de Serviço
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(byPortico).sort((a, b) => b[1] - a[1]).map(([port, count]) => (
-                <Badge key={port} variant="secondary" className="text-sm py-1 px-3">
-                  {port}: <span className="font-bold ml-1">{count}</span>
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          {/* Photos by Discipline */}
-          {Object.entries(byDiscipline).sort((a, b) => b[1].length - a[1].length).map(([disciplina, photos]) => (
-            <div key={disciplina} className="mb-8 print:break-inside-avoid">
-              <div className="flex items-center gap-3 mb-4 p-3 bg-primary/10 print:bg-blue-50 rounded-lg">
-                <Wrench className="w-5 h-5 text-primary" />
-                <h3 className="text-lg font-bold text-foreground print:text-black">
-                  {disciplina}
-                </h3>
-                <Badge className="ml-auto">{photos.length} fotos</Badge>
-              </div>
-
-              <div className="space-y-4">
-                {photos.map((result, idx) => {
-                  const imageUrl = fileUrls.get(result.filename);
-                  return (
-                    <div 
-                      key={`${result.filename}-${idx}`} 
-                      className="border border-border print:border-gray-300 rounded-lg overflow-hidden bg-card print:bg-white print:break-inside-avoid"
-                    >
-                      <div className="flex flex-col md:flex-row">
-                        {/* Image */}
-                        <div className="w-full md:w-48 h-48 bg-muted flex-shrink-0">
-                          {imageUrl ? (
-                            <img 
-                              src={imageUrl} 
-                              alt={result.filename}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Camera className="w-12 h-12 text-muted-foreground" />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Details */}
-                        <div className="flex-1 p-4">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                {getStatusIcon(result.status)}
-                                <h4 className="font-semibold text-foreground print:text-black">
-                                  Foto {idx + 1}
-                                </h4>
-                              </div>
-                              <span className={`px-2 py-1 rounded text-sm font-medium ${getConfidenceColor(result.confidence)}`}>
-                                {((result.confidence || 0) * 100).toFixed(0)}% confiança
-                              </span>
-                            </div>
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Frente:</span>
-                              <p className="font-medium">{result.portico || 'N/A'}</p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Disciplina:</span>
-                              <p className="font-medium">{result.disciplina || 'N/A'}</p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Serviço:</span>
-                              <p className="font-medium">{result.service || 'N/A'}</p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Data:</span>
-                              <p className="font-medium flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {result.data_detectada || 'N/A'}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* AI Analysis */}
-                          {result.tecnico && (
-                            <div className="mt-3 p-3 bg-muted/50 print:bg-gray-100 rounded-lg">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Sparkles className="w-4 h-4 text-primary" />
-                                <span className="text-sm font-semibold text-primary">Análise Técnica da IA:</span>
-                              </div>
-                              <p className="text-sm text-foreground print:text-gray-700 leading-relaxed">
-                                {result.tecnico}
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Destination Path */}
-                          {result.dest && (
-                            <div className="mt-3 text-xs text-muted-foreground">
-                              <span className="font-medium">Destino:</span> {result.dest}
-                            </div>
-                          )}
-                        </div>
+          {/* Photo Grid - 2 per row */}
+          <div className="grid grid-cols-2 gap-4">
+            {successResults.map((result, idx) => {
+              const imageUrl = fileUrls.get(result.filename);
+              const caption = result.service 
+                ? `${result.service}${result.portico ? ` - ${result.portico}` : ''}`
+                : result.tecnico?.substring(0, 50) || result.disciplina || 'REGISTRO';
+              
+              return (
+                <div key={`${result.filename}-${idx}`} className="photo-item">
+                  {/* Photo */}
+                  <div className="border border-gray-300 aspect-[4/3] bg-gray-100 overflow-hidden">
+                    {imageUrl ? (
+                      <img 
+                        src={imageUrl} 
+                        alt={`Foto ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Camera className="w-12 h-12 text-gray-400" />
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+                    )}
+                  </div>
+                  {/* Caption */}
+                  <div className="border border-t-0 border-gray-300 p-2 bg-white">
+                    <p className="text-xs text-gray-800">
+                      <span className="font-semibold">Foto {String(idx + 1).padStart(2, '0')}:</span>{' '}
+                      {caption.toUpperCase()}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
           {/* Footer */}
-          <div className="mt-8 pt-6 border-t border-border print:border-gray-300 text-center text-sm text-muted-foreground print:text-gray-500">
-            <p>Relatório gerado automaticamente pelo ObraPhoto AI</p>
-            <p className="mt-1">© {new Date().getFullYear()} - Classificação inteligente de fotos de obra</p>
+          <div className="mt-8 pt-4 border-t border-gray-300 text-center text-xs text-gray-500">
+            <p>Relatório gerado por ObraPhoto AI - {new Date().toLocaleDateString('pt-BR')}</p>
           </div>
         </div>
       </ScrollArea>
@@ -260,7 +230,7 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
         @media print {
           @page {
             size: A4;
-            margin: 12mm 10mm;
+            margin: 10mm;
           }
           
           /* Hide everything except our report */
@@ -305,8 +275,14 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
             display: none !important;
           }
           
-          /* Page break control */
-          .print\\:break-inside-avoid {
+          /* Photo grid for print */
+          .grid-cols-2 {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+          }
+          
+          .photo-item {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
@@ -327,23 +303,48 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
             overflow: visible !important;
           }
           
-          /* Image sizing for print */
-          img {
-            max-width: 120px !important;
-            height: 120px !important;
+          /* Image sizing for print - maintain aspect ratio */
+          .photo-item img {
+            width: 100% !important;
+            height: auto !important;
+            max-height: 160px !important;
             object-fit: cover !important;
-            border-radius: 4px !important;
           }
           
-          /* Card spacing */
-          .space-y-4 > * + * {
-            margin-top: 0.5rem !important;
+          .aspect-\\[4\\/3\\] {
+            aspect-ratio: 4/3 !important;
+            height: auto !important;
+            max-height: 160px !important;
           }
           
-          /* Section margins */
-          .mb-8 {
-            margin-bottom: 1rem !important;
+          /* Table styling */
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
           }
+          
+          td {
+            border: 1px solid #ccc !important;
+            padding: 4px 8px !important;
+            font-size: 10px !important;
+          }
+          
+          /* Font sizes for print */
+          .text-xs { font-size: 9px !important; }
+          .text-sm { font-size: 10px !important; }
+          
+          /* Header logo */
+          .print-report img:first-of-type {
+            height: 50px !important;
+            object-fit: contain !important;
+          }
+          
+          /* Section spacing */
+          .mb-4 { margin-bottom: 8px !important; }
+          .mb-8 { margin-bottom: 12px !important; }
+          .p-2 { padding: 4px !important; }
+          .p-3 { padding: 6px !important; }
+          .gap-4 { gap: 8px !important; }
         }
       `}</style>
     </div>
