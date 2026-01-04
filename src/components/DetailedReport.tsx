@@ -67,7 +67,7 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm overflow-hidden flex flex-col">
+    <div className="print-container fixed inset-0 z-50 bg-background/95 backdrop-blur-sm overflow-hidden flex flex-col">
       {/* Header - Hide on print */}
       <div className="print:hidden flex items-center justify-between p-4 border-b border-border bg-card">
         <div className="flex items-center gap-3">
@@ -260,72 +260,90 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
         @media print {
           @page {
             size: A4;
-            margin: 15mm 10mm;
+            margin: 12mm 10mm;
           }
-          html, body {
-            visibility: hidden;
-            height: auto !important;
+          
+          /* Hide everything except our report */
+          body > *:not(.print-container) {
+            display: none !important;
+          }
+          
+          /* Reset container positioning */
+          .print-container,
+          .print-container > * {
+            position: static !important;
             overflow: visible !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+            height: auto !important;
+            width: 100% !important;
+            background: white !important;
           }
-          .print-report,
-          .print-report * {
-            visibility: visible !important;
-          }
+          
+          /* Make sure report content is visible */
           .print-report {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+            display: block !important;
+            visibility: visible !important;
+            position: static !important;
+            width: 100% !important;
             height: auto !important;
             overflow: visible !important;
             background: white !important;
             color: black !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: none !important;
           }
+          
+          .print-report * {
+            visibility: visible !important;
+            color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          /* Hide non-print elements */
           .print\\:hidden {
             display: none !important;
           }
-          .print\\:overflow-visible,
-          .print\\:!overflow-visible {
-            overflow: visible !important;
-            height: auto !important;
-          }
+          
+          /* Page break control */
           .print\\:break-inside-avoid {
-            break-inside: avoid;
-            page-break-inside: avoid;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
+          
+          /* Fix ScrollArea for printing */
           [data-radix-scroll-area-viewport],
-          [data-radix-scroll-area-root] {
+          [data-radix-scroll-area-root],
+          [data-radix-scroll-area-scrollbar] {
             overflow: visible !important;
             height: auto !important;
             display: block !important;
-          }
-          .fixed {
             position: static !important;
           }
+          
+          /* Fix fixed positioning */
+          .fixed {
+            position: static !important;
+            overflow: visible !important;
+          }
+          
+          /* Image sizing for print */
           img {
-            max-width: 140px !important;
-            height: auto !important;
-            max-height: 140px !important;
+            max-width: 120px !important;
+            height: 120px !important;
             object-fit: cover !important;
             border-radius: 4px !important;
           }
-          .space-y-4 > * {
-            margin-bottom: 0.75rem;
+          
+          /* Card spacing */
+          .space-y-4 > * + * {
+            margin-top: 0.5rem !important;
           }
-          /* Hide browser default header/footer with URL */
-          title { display: none !important; }
-        }
-        
-        /* Custom print header/footer removal */
-        @page {
-          @top-left { content: none !important; }
-          @top-center { content: none !important; }
-          @top-right { content: none !important; }
-          @bottom-left { content: none !important; }
-          @bottom-center { content: none !important; }
-          @bottom-right { content: none !important; }
+          
+          /* Section margins */
+          .mb-8 {
+            margin-bottom: 1rem !important;
+          }
         }
       `}</style>
     </div>
