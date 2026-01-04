@@ -6,7 +6,6 @@ import {
   FolderTree, 
   HelpCircle,
   Sparkles,
-  LogIn,
   LogOut,
   User,
   Clock
@@ -31,7 +30,7 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
 }) => {
   const navigate = useNavigate();
   const { user, profile, isAuthenticated, signOut } = useAuth();
-  const { isTrialActive, formatRemainingTime, sessionsUsedToday, maxSessionsPerDay } = useTrialSession();
+  const { isTrialActive, formatRemainingTime, sessionsUsedToday, sessionsUsedThisWeek, maxSessionsPerDay, maxSessionsPerWeek } = useTrialSession();
 
   const menuItems = [
     { 
@@ -73,36 +72,37 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
       </div>
 
       {/* User Info */}
-      {isAuthenticated ? (
-        <div className="p-4 border-b border-border/50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-              <User className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">
-                {profile?.full_name || user?.email?.split('@')[0]}
-              </p>
-              <p className="text-xs text-muted-foreground truncate">
-                {profile?.empresa || 'Usuário'}
-              </p>
-            </div>
+      <div className="p-4 border-b border-border/50">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+            <User className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">
+              {profile?.full_name || user?.email?.split('@')[0]}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {profile?.empresa || 'Usuário'}
+            </p>
           </div>
         </div>
-      ) : isTrialActive ? (
-        <div className="p-4 border-b border-border/50 bg-warning/10">
-          <div className="flex items-center gap-2 text-warning">
-            <Clock className="w-4 h-4" />
-            <span className="text-sm font-medium">Degustação</span>
+        
+        {/* Trial Status */}
+        {isTrialActive && (
+          <div className="mt-3 p-2 rounded-lg bg-warning/10 border border-warning/20">
+            <div className="flex items-center gap-2 text-warning">
+              <Clock className="w-4 h-4" />
+              <span className="text-xs font-medium">Modo Degustação</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Tempo: <span className="font-mono text-warning">{formatRemainingTime()}</span>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Hoje: {sessionsUsedToday}/{maxSessionsPerDay} | Semana: {sessionsUsedThisWeek}/{maxSessionsPerWeek}
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Tempo restante: <span className="font-mono text-warning">{formatRemainingTime()}</span>
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Sessões hoje: {sessionsUsedToday}/{maxSessionsPerDay}
-          </p>
-        </div>
-      ) : null}
+        )}
+      </div>
 
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1">
@@ -156,27 +156,15 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
         </div>
 
         {/* Auth Button */}
-        {isAuthenticated ? (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="w-full"
-            onClick={signOut}
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Sair
-          </Button>
-        ) : (
-          <Button 
-            variant="default" 
-            size="sm" 
-            className="w-full"
-            onClick={() => navigate('/auth')}
-          >
-            <LogIn className="w-4 h-4 mr-2" />
-            Entrar / Cadastrar
-          </Button>
-        )}
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="w-full"
+          onClick={signOut}
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Sair
+        </Button>
         
         {/* Version Button */}
         <div className="flex justify-center">

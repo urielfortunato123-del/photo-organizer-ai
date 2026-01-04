@@ -4,7 +4,7 @@ import {
   Play, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree, Folder,
   User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet,
-  Plus, X, Database
+  Plus, X, Database, Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +20,8 @@ import ResultsFilters, { ResultFilters } from '@/components/ResultsFilters';
 import StatisticsCard from '@/components/StatisticsCard';
 import { exportToExcelXML } from '@/utils/exportExcel';
 import { useImageCache } from '@/hooks/useImageCache';
+import { useTrialSession } from '@/hooks/useTrialSession';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   api, 
   ProcessingResult, 
@@ -30,6 +32,17 @@ import {
 const Index: React.FC = () => {
   const imageCache = useImageCache();
   const { toast } = useToast();
+  const { profile } = useAuth();
+  const { 
+    isTrialActive, 
+    canStartTrial, 
+    startTrial, 
+    formatRemainingTime,
+    sessionsUsedToday,
+    sessionsUsedThisWeek,
+    maxSessionsPerDay,
+    maxSessionsPerWeek
+  } = useTrialSession();
   const [activeTab, setActiveTab] = useState('upload');
   const [files, setFiles] = useState<File[]>([]);
   const [fileUrls, setFileUrls] = useState<Map<string, string>>(new Map());
@@ -376,6 +389,49 @@ const Index: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
+        {/* Trial Banner - Show when user needs to start trial */}
+        {!isTrialActive && canStartTrial && (
+          <div className="p-4 bg-gradient-to-r from-primary/10 to-accent/10 border-b border-border">
+            <div className="flex items-center justify-between max-w-4xl mx-auto">
+              <div className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="font-medium text-foreground">Modo Degustação Disponível</p>
+                  <p className="text-sm text-muted-foreground">
+                    {sessionsUsedToday}/{maxSessionsPerDay} sessões usadas hoje | {sessionsUsedThisWeek}/{maxSessionsPerWeek} esta semana
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={async () => {
+                  const started = await startTrial();
+                  if (started) {
+                    toast({ title: "Degustação iniciada!", description: "Você tem 30 minutos para usar o sistema." });
+                  } else {
+                    toast({ title: "Limite atingido", description: "Você já usou todas as sessões disponíveis.", variant: "destructive" });
+                  }
+                }}
+                className="gnome-btn-primary"
+              >
+                <Clock className="w-4 h-4 mr-2" />
+                Iniciar Degustação (30 min)
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Trial Limit Reached Banner */}
+        {!isTrialActive && !canStartTrial && (
+          <div className="p-4 bg-destructive/10 border-b border-destructive/20">
+            <div className="flex items-center justify-center gap-3 max-w-4xl mx-auto">
+              <XCircle className="w-5 h-5 text-destructive" />
+              <p className="text-sm text-destructive">
+                Limite de degustação atingido ({maxSessionsPerDay}x/dia, {maxSessionsPerWeek}x/semana). Entre em contato para acesso completo.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Processing Progress */}
         {isProcessing && (
           <div className="p-6 border-b border-border bg-card">

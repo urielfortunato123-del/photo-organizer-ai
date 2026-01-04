@@ -1,86 +1,101 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './useAuth';
 
 const TRIAL_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 const MAX_SESSIONS_PER_DAY = 2;
-
-// Generate a simple device fingerprint
-const getDeviceFingerprint = (): string => {
-  const nav = navigator;
-  const screen = window.screen;
-  const fingerprint = [
-    nav.userAgent,
-    nav.language,
-    screen.width,
-    screen.height,
-    screen.colorDepth,
-    new Date().getTimezoneOffset(),
-  ].join('|');
-  
-  // Simple hash
-  let hash = 0;
-  for (let i = 0; i < fingerprint.length; i++) {
-    const char = fingerprint.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(36);
-};
+const MAX_SESSIONS_PER_WEEK = 4;
 
 interface TrialState {
   isTrialActive: boolean;
-  remainingTime: number; // in milliseconds
+  remainingTime: number;
   sessionsUsedToday: number;
+  sessionsUsedThisWeek: number;
   canStartTrial: boolean;
   trialEndTime: number | null;
 }
 
 export const useTrialSession = () => {
+  const { user } = useAuth();
   const [state, setState] = useState<TrialState>({
     isTrialActive: false,
     remainingTime: TRIAL_DURATION_MS,
     sessionsUsedToday: 0,
-    canStartTrial: true,
+    sessionsUsedThisWeek: 0,
+    canStartTrial: false,
     trialEndTime: null,
   });
 
-  const deviceFingerprint = getDeviceFingerprint();
+  const getWeekStart = () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    return new Date(now.setDate(diff)).toISOString().split('T')[0];
+  };
 
-  // Check existing trial sessions
   const checkTrialStatus = useCallback(async () => {
+    if (!user) {
+      setState({
+        isTrialActive: false,
+        remainingTime: TRIAL_DURATION_MS,
+        sessionsUsedToday: 0,
+        sessionsUsedThisWeek: 0,
+        canStartTrial: false,
+        trialEndTime: null,
+      });
+      return;
+    }
+
     try {
       const today = new Date().toISOString().split('T')[0];
-      
+      const weekStart = getWeekStart();
+
       const { data, error } = await supabase
         .from('trial_sessions')
         .select('*')
-        .eq('device_fingerprint', deviceFingerprint)
-        .eq('last_session_date', today)
-        .single();
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error checking trial:', error);
         return;
       }
 
       if (data) {
+        let sessionsToday = data.session_count_today;
+        let sessionsWeek = data.session_count_week;
+
+        // Reset daily count if it's a new day
+        if (data.last_session_date !== today) {
+          sessionsToday = 0;
+        }
+
+        // Reset weekly count if it's a new week
+        if (data.week_start_date !== weekStart) {
+          sessionsWeek = 0;
+        }
+
         const sessionStart = new Date(data.session_start).getTime();
         const now = Date.now();
         const elapsed = now - sessionStart;
         const remaining = Math.max(0, TRIAL_DURATION_MS - elapsed);
 
+        const canStart = sessionsToday < MAX_SESSIONS_PER_DAY && sessionsWeek < MAX_SESSIONS_PER_WEEK;
+
         setState({
-          isTrialActive: remaining > 0,
-          remainingTime: remaining,
-          sessionsUsedToday: data.session_count_today,
-          canStartTrial: data.session_count_today < MAX_SESSIONS_PER_DAY,
-          trialEndTime: remaining > 0 ? sessionStart + TRIAL_DURATION_MS : null,
+          isTrialActive: remaining > 0 && data.last_session_date === today,
+          remainingTime: remaining > 0 ? remaining : TRIAL_DURATION_MS,
+          sessionsUsedToday: sessionsToday,
+          sessionsUsedThisWeek: sessionsWeek,
+          canStartTrial: canStart,
+          trialEndTime: remaining > 0 && data.last_session_date === today ? sessionStart + TRIAL_DURATION_MS : null,
         });
       } else {
         setState({
           isTrialActive: false,
           remainingTime: TRIAL_DURATION_MS,
           sessionsUsedToday: 0,
+          sessionsUsedThisWeek: 0,
           canStartTrial: true,
           trialEndTime: null,
         });
@@ -88,62 +103,78 @@ export const useTrialSession = () => {
     } catch (error) {
       console.error('Error checking trial status:', error);
     }
-  }, [deviceFingerprint]);
+  }, [user]);
 
-  // Start a new trial session
   const startTrial = useCallback(async (): Promise<boolean> => {
-    if (!state.canStartTrial) {
+    if (!user || !state.canStartTrial) {
       return false;
     }
 
     try {
       const today = new Date().toISOString().split('T')[0];
+      const weekStart = getWeekStart();
       const now = new Date().toISOString();
 
-      // Check if we already have a session for today
       const { data: existing } = await supabase
         .from('trial_sessions')
         .select('*')
-        .eq('device_fingerprint', deviceFingerprint)
-        .eq('last_session_date', today)
-        .single();
+        .eq('user_id', user.id)
+        .maybeSingle();
 
       if (existing) {
-        if (existing.session_count_today >= MAX_SESSIONS_PER_DAY) {
+        let newDayCount = existing.session_count_today;
+        let newWeekCount = existing.session_count_week;
+
+        // Reset daily count if new day
+        if (existing.last_session_date !== today) {
+          newDayCount = 0;
+        }
+
+        // Reset weekly count if new week
+        if (existing.week_start_date !== weekStart) {
+          newWeekCount = 0;
+        }
+
+        if (newDayCount >= MAX_SESSIONS_PER_DAY || newWeekCount >= MAX_SESSIONS_PER_WEEK) {
           return false;
         }
 
-        // Update existing session
         await supabase
           .from('trial_sessions')
           .update({
             session_start: now,
-            session_count_today: existing.session_count_today + 1,
+            session_count_today: newDayCount + 1,
+            session_count_week: newWeekCount + 1,
+            last_session_date: today,
+            week_start_date: weekStart,
           })
-          .eq('id', existing.id);
+          .eq('user_id', user.id);
 
         setState({
           isTrialActive: true,
           remainingTime: TRIAL_DURATION_MS,
-          sessionsUsedToday: existing.session_count_today + 1,
-          canStartTrial: existing.session_count_today + 1 < MAX_SESSIONS_PER_DAY,
+          sessionsUsedToday: newDayCount + 1,
+          sessionsUsedThisWeek: newWeekCount + 1,
+          canStartTrial: newDayCount + 1 < MAX_SESSIONS_PER_DAY && newWeekCount + 1 < MAX_SESSIONS_PER_WEEK,
           trialEndTime: Date.now() + TRIAL_DURATION_MS,
         });
       } else {
-        // Create new session
         await supabase
           .from('trial_sessions')
           .insert({
-            device_fingerprint: deviceFingerprint,
+            user_id: user.id,
             session_start: now,
             session_count_today: 1,
+            session_count_week: 1,
             last_session_date: today,
+            week_start_date: weekStart,
           });
 
         setState({
           isTrialActive: true,
           remainingTime: TRIAL_DURATION_MS,
           sessionsUsedToday: 1,
+          sessionsUsedThisWeek: 1,
           canStartTrial: true,
           trialEndTime: Date.now() + TRIAL_DURATION_MS,
         });
@@ -154,7 +185,7 @@ export const useTrialSession = () => {
       console.error('Error starting trial:', error);
       return false;
     }
-  }, [deviceFingerprint, state.canStartTrial]);
+  }, [user, state.canStartTrial]);
 
   // Update remaining time
   useEffect(() => {
@@ -182,12 +213,11 @@ export const useTrialSession = () => {
     return () => clearInterval(interval);
   }, [state.isTrialActive, state.trialEndTime]);
 
-  // Check status on mount
+  // Check status when user changes
   useEffect(() => {
     checkTrialStatus();
   }, [checkTrialStatus]);
 
-  // Format remaining time
   const formatRemainingTime = (): string => {
     const minutes = Math.floor(state.remainingTime / 60000);
     const seconds = Math.floor((state.remainingTime % 60000) / 1000);
@@ -200,5 +230,6 @@ export const useTrialSession = () => {
     checkTrialStatus,
     formatRemainingTime,
     maxSessionsPerDay: MAX_SESSIONS_PER_DAY,
+    maxSessionsPerWeek: MAX_SESSIONS_PER_WEEK,
   };
 };

@@ -41,27 +41,33 @@ export type Database = {
       trial_sessions: {
         Row: {
           created_at: string
-          device_fingerprint: string
           id: string
           last_session_date: string
           session_count_today: number
+          session_count_week: number
           session_start: string
+          user_id: string
+          week_start_date: string
         }
         Insert: {
           created_at?: string
-          device_fingerprint: string
           id?: string
           last_session_date?: string
           session_count_today?: number
+          session_count_week?: number
           session_start?: string
+          user_id: string
+          week_start_date?: string
         }
         Update: {
           created_at?: string
-          device_fingerprint?: string
           id?: string
           last_session_date?: string
           session_count_today?: number
+          session_count_week?: number
           session_start?: string
+          user_id?: string
+          week_start_date?: string
         }
         Relationships: []
       }
