@@ -14,7 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string
+          empresa: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          empresa?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          empresa?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      trial_sessions: {
+        Row: {
+          created_at: string
+          device_fingerprint: string
+          id: string
+          last_session_date: string
+          session_count_today: number
+          session_start: string
+        }
+        Insert: {
+          created_at?: string
+          device_fingerprint: string
+          id?: string
+          last_session_date?: string
+          session_count_today?: number
+          session_start?: string
+        }
+        Update: {
+          created_at?: string
+          device_fingerprint?: string
+          id?: string
+          last_session_date?: string
+          session_count_today?: number
+          session_start?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

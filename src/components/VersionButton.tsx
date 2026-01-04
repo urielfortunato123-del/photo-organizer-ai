@@ -10,10 +10,21 @@ import {
 import { toast } from 'sonner';
 
 // Versão atual do aplicativo
-export const APP_VERSION = '1.2.0';
+export const APP_VERSION = '1.3.0';
 
 // Histórico de versões com melhorias
 const CHANGELOG = [
+  {
+    version: '1.3.0',
+    date: '04/01/2026',
+    changes: [
+      'Sistema de login com confirmação por email',
+      'Modo degustação: 30 min gratuitos (2x/dia)',
+      'Página "Como Usar" com tutorial completo',
+      'Perfil de usuário com nome e empresa',
+      'Recuperação de senha por email',
+    ],
+  },
   {
     version: '1.2.0',
     date: '04/01/2026',
