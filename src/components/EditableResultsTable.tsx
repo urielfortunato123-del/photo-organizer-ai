@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -48,6 +48,15 @@ const getConfidenceClass = (confidence: number | undefined): string => {
 const getConfidenceLabel = (confidence: number | undefined): string => {
   if (!confidence) return '0%';
   return `${Math.round(confidence * 100)}%`;
+};
+
+// Check if result is incomplete (OK but missing essential data)
+const isIncompleteResult = (r: ProcessingResult): boolean => {
+  return r.status === 'Sucesso' && (
+    !r.portico || r.portico === '-' || r.portico === '' ||
+    !r.disciplina || r.disciplina === '-' || r.disciplina === '' ||
+    !r.service || r.service === '-' || r.service === ''
+  );
 };
 
 // Build destination path
@@ -227,11 +236,23 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   </TableCell>
                   
                   <TableCell>
-                    {result.status === 'Sucesso' ? (
+                    {result.status === 'Sucesso' && !isIncompleteResult(result) ? (
                       <span className="status-badge status-success flex items-center gap-1 w-fit">
                         <CheckCircle2 className="w-3 h-3" />
                         OK
                       </span>
+                    ) : isIncompleteResult(result) ? (
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <span className="status-badge flex items-center gap-1 w-fit bg-yellow-500/20 text-yellow-600 border-yellow-500/30">
+                            <AlertTriangle className="w-3 h-3" />
+                            Incompleto
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs max-w-xs">Dados incompletos - será reprocessado</p>
+                        </TooltipContent>
+                      </Tooltip>
                     ) : result.status.includes('Erro') ? (
                       <Tooltip>
                         <TooltipTrigger>
