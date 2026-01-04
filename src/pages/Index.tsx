@@ -228,8 +228,12 @@ const Index: React.FC = () => {
   };
 
   const handleRetryFailed = async () => {
+    console.log('handleRetryFailed called');
+    console.log('Total results:', results.length);
+    
     // Include both errors AND incomplete results (OK but no data)
     const failedResults = results.filter(needsReprocessing);
+    console.log('Failed/incomplete results:', failedResults.length, failedResults.map(r => ({ name: r.filename, status: r.status, portico: r.portico })));
     
     if (failedResults.length === 0) {
       toast({
@@ -239,9 +243,11 @@ const Index: React.FC = () => {
       return;
     }
 
+    console.log('Available files:', files.length, files.map(f => f.name));
     const failedFiles = files.filter(f => 
       failedResults.some(r => r.filename === f.name)
     );
+    console.log('Matched files for retry:', failedFiles.length);
 
     if (failedFiles.length === 0) {
       toast({
@@ -258,6 +264,15 @@ const Index: React.FC = () => {
         imageCache.removeFromCache(r.hash);
       }
     });
+
+    // Remove from processed files so they can be reprocessed
+    setProcessedFiles(prev => {
+      const updated = new Set(prev);
+      failedResults.forEach(r => updated.delete(r.filename));
+      return updated;
+    });
+
+    console.log(`Reprocessing ${failedFiles.length} files:`, failedFiles.map(f => f.name));
 
     setIsProcessing(true);
     setProcessingStartTime(Date.now());
