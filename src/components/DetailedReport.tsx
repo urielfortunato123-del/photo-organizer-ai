@@ -86,8 +86,8 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
       </div>
 
       {/* Report Content */}
-      <ScrollArea className="flex-1 print:overflow-visible">
-        <div ref={reportRef} className="print-report p-6 max-w-5xl mx-auto print:max-w-none print:p-4">
+      <ScrollArea className="flex-1 print:!overflow-visible print:!h-auto">
+        <div ref={reportRef} className="print-report p-6 max-w-5xl mx-auto print:max-w-none print:p-4 print:!block">
           
           {/* Report Header */}
           <div className="text-center mb-8 pb-6 border-b-2 border-primary print:border-black">
@@ -254,8 +254,10 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
       {/* Print Styles */}
       <style>{`
         @media print {
-          body {
+          html, body {
             visibility: hidden;
+            height: auto !important;
+            overflow: visible !important;
           }
           .print-report,
           .print-report * {
@@ -266,11 +268,14 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
             left: 0;
             top: 0;
             width: 100%;
+            height: auto !important;
+            overflow: visible !important;
           }
           .print\\:hidden {
             display: none !important;
           }
-          .print\\:overflow-visible {
+          .print\\:overflow-visible,
+          .print\\:!overflow-visible {
             overflow: visible !important;
             height: auto !important;
           }
@@ -278,13 +283,22 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
             break-inside: avoid;
             page-break-inside: avoid;
           }
-          [data-radix-scroll-area-viewport] {
+          [data-radix-scroll-area-viewport],
+          [data-radix-scroll-area-root] {
             overflow: visible !important;
             height: auto !important;
+            display: block !important;
+          }
+          .fixed {
+            position: static !important;
           }
           img {
-            max-width: 100% !important;
+            max-width: 150px !important;
             height: auto !important;
+            max-height: 150px !important;
+          }
+          .space-y-4 > * {
+            margin-bottom: 1rem;
           }
         }
       `}</style>
