@@ -38,7 +38,11 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
   const reportRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => {
+    // Set custom title to avoid URL in print
+    const originalTitle = document.title;
+    document.title = 'Relatório ObraPhoto AI';
     window.print();
+    document.title = originalTitle;
   };
 
   const successCount = results.filter(r => r.status === 'Sucesso').length;
@@ -254,10 +258,16 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
       {/* Print Styles */}
       <style>{`
         @media print {
+          @page {
+            size: A4;
+            margin: 15mm 10mm;
+          }
           html, body {
             visibility: hidden;
             height: auto !important;
             overflow: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .print-report,
           .print-report * {
@@ -270,6 +280,8 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
             width: 100%;
             height: auto !important;
             overflow: visible !important;
+            background: white !important;
+            color: black !important;
           }
           .print\\:hidden {
             display: none !important;
@@ -293,13 +305,27 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
             position: static !important;
           }
           img {
-            max-width: 150px !important;
+            max-width: 140px !important;
             height: auto !important;
-            max-height: 150px !important;
+            max-height: 140px !important;
+            object-fit: cover !important;
+            border-radius: 4px !important;
           }
           .space-y-4 > * {
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
           }
+          /* Hide browser default header/footer with URL */
+          title { display: none !important; }
+        }
+        
+        /* Custom print header/footer removal */
+        @page {
+          @top-left { content: none !important; }
+          @top-center { content: none !important; }
+          @top-right { content: none !important; }
+          @bottom-left { content: none !important; }
+          @bottom-center { content: none !important; }
+          @bottom-right { content: none !important; }
         }
       `}</style>
     </div>
