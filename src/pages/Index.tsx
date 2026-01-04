@@ -158,16 +158,22 @@ const Index: React.FC = () => {
           getCached: imageCache.getCached,
           setCache: imageCache.setCache,
           setCacheBulk: imageCache.setCacheBulk,
+        },
+        // Callback for batch completion - update results in real-time
+        (batchResults) => {
+          setResults(prev => [...prev, ...batchResults]);
+          batchResults.forEach(r => {
+            setProcessedFiles(prev => new Set([...prev, r.filename]));
+          });
+          // Switch to results tab when first results arrive
+          setActiveTab('results');
         }
       );
 
+      // Final update for processed files
       const newProcessedNames = new Set(processedFiles);
       newResults.forEach(r => newProcessedNames.add(r.filename));
       setProcessedFiles(newProcessedNames);
-
-      // Accumulate results
-      setResults(prev => [...prev, ...newResults]);
-      setActiveTab('results');
 
       const cacheStats = imageCache.getCacheStats();
       const cachedCount = newResults.filter(r => r.status === 'Sucesso').length;
@@ -232,20 +238,23 @@ const Index: React.FC = () => {
           setProcessingProgress({ current, total, currentFile: filename });
         },
         // Don't use cache for retries
-        undefined
-      );
-
-      // Replace failed results with new ones
-      setResults(prev => {
-        const updated = [...prev];
-        for (const newResult of retryResults) {
-          const idx = updated.findIndex(r => r.filename === newResult.filename);
-          if (idx >= 0) {
-            updated[idx] = newResult;
-          }
+        undefined,
+        // Callback for batch completion - replace failed results in real-time
+        (batchResults) => {
+          setResults(prev => {
+            const updated = [...prev];
+            for (const newResult of batchResults) {
+              const idx = updated.findIndex(r => r.filename === newResult.filename);
+              if (idx >= 0) {
+                updated[idx] = newResult;
+              } else {
+                updated.push(newResult);
+              }
+            }
+            return updated;
+          });
         }
-        return updated;
-      });
+      );
 
       // Cache successful results
       retryResults
