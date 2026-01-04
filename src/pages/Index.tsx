@@ -34,6 +34,9 @@ const Index: React.FC = () => {
   const imageCache = useImageCache();
   const { toast } = useToast();
   const { profile } = useAuth();
+  
+  // Cooldown for reprocess button (30 seconds)
+  const [reprocessCooldown, setReprocessCooldown] = useState(0);
   const { 
     isTrialActive, 
     canStartTrial, 
@@ -136,6 +139,15 @@ const Index: React.FC = () => {
 
   // Track processed filenames to avoid duplicates
   const [processedFiles, setProcessedFiles] = useState<Set<string>>(new Set());
+
+  // Cooldown timer effect
+  useEffect(() => {
+    if (reprocessCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setReprocessCooldown(prev => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [reprocessCooldown]);
 
   const handleProcess = async () => {
     // Filter out already processed files
@@ -331,6 +343,8 @@ const Index: React.FC = () => {
       setIsProcessing(false);
       setProcessingProgress({ current: 0, total: 0, currentFile: '' });
       setProcessingStartTime(undefined);
+      // Set cooldown after reprocessing
+      setReprocessCooldown(30);
     }
   };
 
@@ -698,21 +712,30 @@ const Index: React.FC = () => {
                     
                     if (totalNeedsReprocess > 0) {
                       return (
-                        <div className="flex justify-center">
+                        <div className="flex flex-col items-center gap-2">
                           <Button
                             variant="outline"
                             onClick={handleRetryFailed}
-                            disabled={isProcessing}
+                            disabled={isProcessing || reprocessCooldown > 0}
                             className="border-destructive/50 text-destructive hover:bg-destructive/10 rounded-xl"
                           >
-                            <RefreshCw className="w-4 h-4" />
-                            Reprocessar {totalNeedsReprocess} {totalNeedsReprocess === 1 ? 'Foto' : 'Fotos'} 
-                            {errorCount > 0 && incompleteCount > 0 
-                              ? ` (${errorCount} erros + ${incompleteCount} incompletas)`
-                              : errorCount > 0 
-                                ? ' com Erro' 
-                                : ' Incompletas'}
+                            <RefreshCw className={`w-4 h-4 ${reprocessCooldown > 0 ? '' : ''}`} />
+                            {reprocessCooldown > 0 
+                              ? `Aguarde ${reprocessCooldown}s`
+                              : `Reprocessar ${totalNeedsReprocess} ${totalNeedsReprocess === 1 ? 'Foto' : 'Fotos'}${
+                                  errorCount > 0 && incompleteCount > 0 
+                                    ? ` (${errorCount} erros + ${incompleteCount} incompletas)`
+                                    : errorCount > 0 
+                                      ? ' com Erro' 
+                                      : ' Incompletas'
+                                }`}
                           </Button>
+                          {reprocessCooldown > 0 && (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              Intervalo para evitar sobrecarga da IA
+                            </p>
+                          )}
                         </div>
                       );
                     }
