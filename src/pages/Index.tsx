@@ -4,7 +4,7 @@ import {
   Play, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree, Folder,
   User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet,
-  Plus, X
+  Plus, X, Database
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +19,7 @@ import PhotoPreviewModal from '@/components/PhotoPreviewModal';
 import ResultsFilters, { ResultFilters } from '@/components/ResultsFilters';
 import StatisticsCard from '@/components/StatisticsCard';
 import { exportToExcelXML } from '@/utils/exportExcel';
+import { useImageCache } from '@/hooks/useImageCache';
 import { 
   api, 
   ProcessingResult, 
@@ -27,6 +28,7 @@ import {
 } from '@/services/api';
 
 const Index: React.FC = () => {
+  const imageCache = useImageCache();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('upload');
   const [files, setFiles] = useState<File[]>([]);
@@ -135,7 +137,7 @@ const Index: React.FC = () => {
 
     setIsProcessing(true);
     setProcessingStartTime(Date.now());
-    setProcessingProgress({ current: 0, total: newFiles.length, currentFile: '' });
+    setProcessingProgress({ current: 0, total: newFiles.length, currentFile: 'Preparando...' });
 
     const config = {
       default_portico: defaultPortico,
@@ -145,69 +147,34 @@ const Index: React.FC = () => {
     };
 
     try {
-      const newResults: ProcessingResult[] = [];
+      // Use the optimized processPhotos with cache and batching
+      const newResults = await api.processPhotos(
+        newFiles,
+        config,
+        (current, total, filename) => {
+          setProcessingProgress({ current, total, currentFile: filename });
+        },
+        {
+          getCached: imageCache.getCached,
+          setCache: imageCache.setCache,
+          setCacheBulk: imageCache.setCacheBulk,
+        }
+      );
+
       const newProcessedNames = new Set(processedFiles);
-      
-      for (let i = 0; i < newFiles.length; i++) {
-        const file = newFiles[i];
-        setProcessingProgress({ 
-          current: i + 1, 
-          total: newFiles.length, 
-          currentFile: file.name 
-        });
-        
-        let result: ProcessingResult;
-
-        try {
-          if (config.ia_priority) {
-            result = await api.analyzeImage(file, config.default_portico, config.empresa);
-            await new Promise(resolve => setTimeout(resolve, 10000));
-          } else {
-            const empresaNome = config.empresa || 'EMPRESA';
-            result = {
-              filename: file.name,
-              status: 'Sucesso',
-              portico: config.default_portico || 'NAO_IDENTIFICADO',
-              disciplina: 'GERAL',
-              service: 'REGISTRO',
-              empresa: empresaNome,
-              method: 'heuristica',
-              confidence: 0.5,
-              dest: `${empresaNome}/FOTOS/${config.default_portico || 'NAO_IDENTIFICADO'}/GERAL/REGISTRO`,
-            };
-          }
-        } catch (fileError) {
-          console.warn(`Erro ao processar ${file.name}:`, fileError);
-          result = {
-            filename: file.name,
-            status: `Erro: ${fileError instanceof Error ? fileError.message : 'Falha na análise'}`,
-            method: 'ia_forcada',
-            confidence: 0,
-          };
-        }
-
-        // If not organizing by date, remove date folders from path
-        if (result.status === 'Sucesso' && result.dest && !config.organize_by_date) {
-          const parts = result.dest.split('/');
-          // Keep: EMPRESA/FOTOS/FRENTE/DISCIPLINA/SERVICO (5 parts)
-          const filtered = parts.slice(0, 5);
-          result.dest = filtered.join('/');
-        }
-
-        newResults.push(result);
-        newProcessedNames.add(file.name);
-        
-        // Accumulate results instead of replacing
-        setResults(prev => [...prev, result]);
-      }
-
+      newResults.forEach(r => newProcessedNames.add(r.filename));
       setProcessedFiles(newProcessedNames);
+
+      // Accumulate results
+      setResults(prev => [...prev, ...newResults]);
       setActiveTab('results');
 
-      const finalSuccessCount = newResults.filter(r => r.status === 'Sucesso').length;
+      const cacheStats = imageCache.getCacheStats();
+      const cachedCount = newResults.filter(r => r.status === 'Sucesso').length;
+      
       toast({
         title: "Lote processado!",
-        description: `${finalSuccessCount} de ${newFiles.length} novas fotos analisadas. Total: ${results.length + newResults.length} fotos.`,
+        description: `${cachedCount} de ${newFiles.length} fotos analisadas. Cache: ${cacheStats.total} itens.`,
       });
     } catch (error) {
       console.error('Processing error:', error);
@@ -250,34 +217,40 @@ const Index: React.FC = () => {
     setProcessingStartTime(Date.now());
     setProcessingProgress({ current: 0, total: failedFiles.length, currentFile: '' });
 
+    const config = {
+      default_portico: defaultPortico,
+      empresa: empresa,
+      organize_by_date: organizeByDate,
+      ia_priority: true,
+    };
+
     try {
-      for (let i = 0; i < failedFiles.length; i++) {
-        const file = failedFiles[i];
-        setProcessingProgress({ 
-          current: i + 1, 
-          total: failedFiles.length, 
-          currentFile: file.name 
-        });
+      const retryResults = await api.processPhotos(
+        failedFiles,
+        config,
+        (current, total, filename) => {
+          setProcessingProgress({ current, total, currentFile: filename });
+        },
+        // Don't use cache for retries
+        undefined
+      );
 
-        let result: ProcessingResult;
-
-        try {
-          result = await api.analyzeImage(file, defaultPortico);
-          await new Promise(resolve => setTimeout(resolve, 10000));
-        } catch (fileError) {
-          console.warn(`Erro ao reprocessar ${file.name}:`, fileError);
-          result = {
-            filename: file.name,
-            status: `Erro: ${fileError instanceof Error ? fileError.message : 'Falha na análise'}`,
-            method: 'ia_forcada',
-            confidence: 0,
-          };
+      // Replace failed results with new ones
+      setResults(prev => {
+        const updated = [...prev];
+        for (const newResult of retryResults) {
+          const idx = updated.findIndex(r => r.filename === newResult.filename);
+          if (idx >= 0) {
+            updated[idx] = newResult;
+          }
         }
+        return updated;
+      });
 
-        setResults(prev => prev.map(r => 
-          r.filename === file.name ? result : r
-        ));
-      }
+      // Cache successful results
+      retryResults
+        .filter(r => r.status === 'Sucesso' && r.hash)
+        .forEach(r => imageCache.setCache(r.hash!, r));
 
       toast({
         title: "Reprocessamento concluído!",
@@ -452,25 +425,39 @@ const Index: React.FC = () => {
                         {results.length} fotos já processadas
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        Adicione mais fotos e continue processando. Baixe tudo no final.
+                        Adicione mais fotos e continue processando. Cache: {imageCache.getCacheStats().total} itens ({imageCache.getCacheStats().size})
                       </p>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setResults([]);
-                      setProcessedFiles(new Set());
-                      setFiles([]);
-                      setTreeData([]);
-                      toast({ title: "Sessão limpa", description: "Todos os resultados foram removidos." });
-                    }}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <X className="w-4 h-4 mr-1" />
-                    Limpar tudo
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        imageCache.clearCache();
+                        toast({ title: "Cache limpo", description: "O cache de imagens foi removido." });
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Database className="w-4 h-4 mr-1" />
+                      Limpar cache
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setResults([]);
+                        setProcessedFiles(new Set());
+                        setFiles([]);
+                        setTreeData([]);
+                        toast({ title: "Sessão limpa", description: "Todos os resultados foram removidos." });
+                      }}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      Limpar tudo
+                    </Button>
+                  </div>
                 </div>
               )}
 

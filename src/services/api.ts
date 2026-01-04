@@ -20,6 +20,7 @@ export interface ProcessingResult {
   confidence?: number;
   data_detectada?: string;
   ocr_text?: string;
+  hash?: string;
 }
 
 export interface TreeNode {
@@ -52,7 +53,6 @@ const fileToBase64 = (file: File): Promise<string> => {
     reader.readAsDataURL(file);
     reader.onload = () => {
       const result = reader.result as string;
-      // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
       const base64 = result.split(',')[1];
       resolve(base64);
     };
@@ -60,8 +60,15 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
+// Hash file for caching
+export const hashFile = async (file: File): Promise<string> => {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+};
+
 // Build destination path based on classification
-// Structure: EMPRESA/FOTOS/FRENTE_SERVICO/DISCIPLINA/SERVICO/MES_ANO/DIA_MES
 const buildDestPath = (
   empresa: string,
   portico: string,
@@ -70,11 +77,9 @@ const buildDestPath = (
   dataStr: string | null,
   organizeByDate: boolean
 ): string => {
-  // Base structure: EMPRESA/FOTOS/FRENTE_SERVICO/DISCIPLINA/SERVICO
   let path = `${empresa}/FOTOS/${portico}/${disciplina}/${servico}`;
   
   if (organizeByDate && dataStr) {
-    // Parse date DD/MM/YYYY
     const match = dataStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
     if (match) {
       const day = match[1];
@@ -90,26 +95,25 @@ const buildDestPath = (
   return path;
 };
 
-// Delay helper
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const getHttpStatusFromInvokeError = (err: unknown): number | undefined => {
-  const anyErr = err as any;
+  const anyErr = err as Record<string, unknown>;
   return (
-    anyErr?.status ??
-    anyErr?.context?.status ??
-    anyErr?.context?.statusCode ??
-    anyErr?.cause?.status ??
-    anyErr?.cause?.statusCode
+    (anyErr?.status as number) ??
+    ((anyErr?.context as Record<string, unknown>)?.status as number) ??
+    ((anyErr?.context as Record<string, unknown>)?.statusCode as number) ??
+    ((anyErr?.cause as Record<string, unknown>)?.status as number) ??
+    ((anyErr?.cause as Record<string, unknown>)?.statusCode as number)
   );
 };
 
 const getMessageFromInvokeError = (err: unknown): string => {
-  const anyErr = err as any;
+  const anyErr = err as Record<string, unknown>;
   return (
-    anyErr?.message ||
-    anyErr?.error_description ||
-    anyErr?.error ||
+    (anyErr?.message as string) ||
+    (anyErr?.error_description as string) ||
+    (anyErr?.error as string) ||
     (typeof anyErr === 'string' ? anyErr : '') ||
     'Falha na análise'
   );
@@ -128,9 +132,10 @@ const isCreditLimitError = (err: unknown) => {
 };
 
 export const api = {
-  // Analyze image with AI (edge function handles retries internally)
+  // Analyze single image with AI
   async analyzeImage(file: File, defaultPortico?: string, empresa?: string): Promise<ProcessingResult> {
     const empresaNome = empresa || 'EMPRESA';
+    const hash = await hashFile(file);
     
     try {
       const imageBase64 = await fileToBase64(file);
@@ -147,16 +152,15 @@ export const api = {
         if (isCreditLimitError(error)) {
           throw new Error('Limite de créditos atingido (402).');
         }
-
         if (isRateLimitError(error)) {
           throw new Error('Limite de requisições atingido (429). Tente novamente em alguns instantes.');
         }
-
         throw new Error(getMessageFromInvokeError(error));
       }
 
       return {
         filename: file.name,
+        hash,
         status: 'Sucesso',
         portico: data.portico,
         disciplina: data.disciplina,
@@ -175,6 +179,7 @@ export const api = {
 
       return {
         filename: file.name,
+        hash,
         status: `Erro${finalStatus ? ` (${finalStatus})` : ''}: ${finalMsg}`,
         method: 'ia_forcada',
         confidence: 0,
@@ -182,49 +187,229 @@ export const api = {
     }
   },
 
-  // Process multiple photos
+  // Analyze batch of images
+  async analyzeBatch(
+    files: { file: File; hash: string; base64: string }[],
+    defaultPortico?: string,
+    empresa?: string
+  ): Promise<{ results: ProcessingResult[]; errors: { hash: string; error: string }[] }> {
+    const empresaNome = empresa || 'EMPRESA';
+
+    try {
+      const images = files.map(f => ({
+        imageBase64: f.base64,
+        filename: f.file.name,
+        hash: f.hash,
+      }));
+
+      const { data, error } = await supabase.functions.invoke('analyze-batch', {
+        body: {
+          images,
+          defaultPortico,
+        },
+      });
+
+      if (error) {
+        if (isCreditLimitError(error)) {
+          throw new Error('Limite de créditos atingido (402).');
+        }
+        if (isRateLimitError(error)) {
+          throw new Error('Limite de requisições atingido (429).');
+        }
+        throw new Error(getMessageFromInvokeError(error));
+      }
+
+      const results: ProcessingResult[] = (data.results || []).map((r: { hash: string; result: Record<string, unknown> }) => {
+        const originalFile = files.find(f => f.hash === r.hash);
+        return {
+          filename: originalFile?.file.name || 'unknown',
+          hash: r.hash,
+          status: 'Sucesso',
+          portico: r.result.portico as string,
+          disciplina: r.result.disciplina as string,
+          service: r.result.servico as string,
+          empresa: empresaNome,
+          data_detectada: r.result.data as string | undefined,
+          tecnico: r.result.analise_tecnica as string,
+          confidence: r.result.confidence as number,
+          method: 'ia_forcada' as const,
+          ocr_text: r.result.ocr_text as string,
+          dest: buildDestPath(
+            empresaNome,
+            r.result.portico as string,
+            r.result.disciplina as string,
+            r.result.servico as string,
+            r.result.data as string | null,
+            true
+          ),
+        };
+      });
+
+      const errors: { hash: string; error: string }[] = data.errors || [];
+
+      return { results, errors };
+    } catch (error) {
+      console.error('Batch analysis error:', error);
+      throw error;
+    }
+  },
+
+  // Process multiple photos with caching and batching
   async processPhotos(
     files: File[], 
     config: ProcessingConfig,
-    onProgress?: (current: number, total: number, filename: string) => void
+    onProgress?: (current: number, total: number, filename: string) => void,
+    cache?: {
+      getCached: (hash: string) => ProcessingResult | null;
+      setCache: (hash: string, result: ProcessingResult) => void;
+      setCacheBulk: (entries: { hash: string; result: ProcessingResult }[]) => void;
+    }
   ): Promise<ProcessingResult[]> {
     const results: ProcessingResult[] = [];
     const empresaNome = config.empresa || 'EMPRESA';
     
+    // Step 1: Hash all files and check cache
+    const filesToProcess: { file: File; hash: string; base64?: string }[] = [];
+    const cachedResults: ProcessingResult[] = [];
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      onProgress?.(i + 1, files.length, file.name);
+      const hash = await hashFile(file);
       
-      try {
-        const result = await this.analyzeImage(file, config.default_portico, empresaNome);
-        
-        // Update dest based on organize_by_date setting
-        if (result.status === 'Sucesso' && result.portico && result.disciplina && result.service) {
-          result.dest = buildDestPath(
-            empresaNome,
-            result.portico,
-            result.disciplina,
-            result.service,
-            result.data_detectada || null,
-            config.organize_by_date
-          );
+      if (cache) {
+        const cached = cache.getCached(hash);
+        if (cached) {
+          // Update filename in case it changed
+          cachedResults.push({ ...cached, filename: file.name });
+          onProgress?.(i + 1, files.length, `${file.name} (cache)`);
+          continue;
         }
-        
-        results.push(result);
-      } catch (error) {
-        results.push({
+      }
+      
+      filesToProcess.push({ file, hash });
+    }
+
+    console.log(`Cache hits: ${cachedResults.length}, to process: ${filesToProcess.length}`);
+    results.push(...cachedResults);
+
+    if (filesToProcess.length === 0) {
+      return results;
+    }
+
+    // Step 2: If IA is disabled, use simple classification
+    if (!config.ia_priority) {
+      for (const { file, hash } of filesToProcess) {
+        const result: ProcessingResult = {
           filename: file.name,
-          status: `Erro: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          method: 'ia_forcada',
-          confidence: 0,
-        });
+          hash,
+          status: 'Sucesso',
+          portico: config.default_portico || 'NAO_IDENTIFICADO',
+          disciplina: 'GERAL',
+          service: 'REGISTRO',
+          empresa: empresaNome,
+          method: 'heuristica',
+          confidence: 0.5,
+          dest: `${empresaNome}/FOTOS/${config.default_portico || 'NAO_IDENTIFICADO'}/GERAL/REGISTRO`,
+        };
+        results.push(result);
+        cache?.setCache(hash, result);
+      }
+      return results;
+    }
+
+    // Step 3: Convert files to base64 for batch processing
+    const filesWithBase64: { file: File; hash: string; base64: string }[] = [];
+    for (const item of filesToProcess) {
+      const base64 = await fileToBase64(item.file);
+      filesWithBase64.push({ ...item, base64 });
+    }
+
+    // Step 4: Process in batches of up to 5
+    const BATCH_SIZE = 5;
+    let processedCount = cachedResults.length;
+
+    for (let i = 0; i < filesWithBase64.length; i += BATCH_SIZE) {
+      const batch = filesWithBase64.slice(i, i + BATCH_SIZE);
+      
+      onProgress?.(processedCount + 1, files.length, `Lote ${Math.floor(i / BATCH_SIZE) + 1}...`);
+
+      try {
+        const { results: batchResults, errors } = await this.analyzeBatch(
+          batch,
+          config.default_portico,
+          empresaNome
+        );
+
+        // Apply organize_by_date setting
+        for (const result of batchResults) {
+          if (!config.organize_by_date && result.dest) {
+            const parts = result.dest.split('/');
+            result.dest = parts.slice(0, 5).join('/');
+          }
+          results.push(result);
+          if (cache && result.hash) {
+            cache.setCache(result.hash, result);
+          }
+        }
+
+        // Handle errors
+        for (const err of errors) {
+          const originalFile = batch.find(f => f.hash === err.hash);
+          results.push({
+            filename: originalFile?.file.name || 'unknown',
+            hash: err.hash,
+            status: `Erro: ${err.error}`,
+            method: 'ia_forcada',
+            confidence: 0,
+          });
+        }
+
+        processedCount += batch.length;
+        onProgress?.(processedCount, files.length, batch[batch.length - 1].file.name);
+
+        // Delay between batches to avoid rate limits
+        if (i + BATCH_SIZE < filesWithBase64.length) {
+          await delay(2000);
+        }
+      } catch (error) {
+        console.error('Batch error, falling back to individual processing:', error);
+        
+        // Fallback: process individually
+        for (const item of batch) {
+          try {
+            const result = await this.analyzeImage(item.file, config.default_portico, empresaNome);
+            
+            if (!config.organize_by_date && result.dest) {
+              const parts = result.dest.split('/');
+              result.dest = parts.slice(0, 5).join('/');
+            }
+            
+            results.push(result);
+            if (cache && result.hash) {
+              cache.setCache(result.hash, result);
+            }
+            
+            processedCount++;
+            onProgress?.(processedCount, files.length, item.file.name);
+            await delay(3000);
+          } catch (fileError) {
+            results.push({
+              filename: item.file.name,
+              hash: item.hash,
+              status: `Erro: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`,
+              method: 'ia_forcada',
+              confidence: 0,
+            });
+            processedCount++;
+          }
+        }
       }
     }
     
     return results;
   },
 
-  // Health check - always returns true now that we have Cloud
+  // Health check
   async healthCheck(): Promise<boolean> {
     return true;
   },

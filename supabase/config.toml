@@ -2,3 +2,6 @@ project_id = "nrwhfikwgrlibpmurfin"
 
 [functions.analyze-image]
 verify_jwt = false
+
+[functions.analyze-batch]
+verify_jwt = false
