@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import logoObraphoto from '@/assets/logo-obraphoto.png';
+import VersionButton from './VersionButton';
 
 interface GnomeSidebarProps {
   activeTab: string;
@@ -85,7 +86,7 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
       </nav>
 
       {/* AI Status Card */}
-      <div className="p-4">
+      <div className="p-4 space-y-3">
         <div className="gnome-card p-4 bg-gradient-to-br from-primary/10 to-accent/10">
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="w-4 h-4 text-primary" />
@@ -98,6 +99,11 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
             <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
             <span className="text-xs text-success font-medium">Online</span>
           </div>
+        </div>
+        
+        {/* Version Button */}
+        <div className="flex justify-center">
+          <VersionButton />
         </div>
       </div>
     </aside>
