@@ -4,7 +4,7 @@ import {
   Play, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree, Folder,
   User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet,
-  Plus, X, Database, Clock
+  Plus, X, Database, Clock, FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ import ProcessingProgress from '@/components/ProcessingProgress';
 import PhotoPreviewModal from '@/components/PhotoPreviewModal';
 import ResultsFilters, { ResultFilters } from '@/components/ResultsFilters';
 import StatisticsCard from '@/components/StatisticsCard';
+import DetailedReport from '@/components/DetailedReport';
 import { exportToExcelXML } from '@/utils/exportExcel';
 import { useImageCache } from '@/hooks/useImageCache';
 import { useTrialSession } from '@/hooks/useTrialSession';
@@ -64,6 +65,9 @@ const Index: React.FC = () => {
     result: ProcessingResult | null;
     imageUrl?: string;
   }>({ isOpen: false, result: null });
+  
+  // Detailed report modal
+  const [showDetailedReport, setShowDetailedReport] = useState(false);
   
   // Filters
   const [filters, setFilters] = useState<ResultFilters>({
@@ -593,6 +597,15 @@ const Index: React.FC = () => {
                     <div className="flex gap-3">
                       <Button
                         variant="outline"
+                        onClick={() => setShowDetailedReport(true)}
+                        disabled={isProcessing}
+                        className="rounded-xl border-primary/50 text-primary hover:bg-primary/10"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Relatório Detalhado
+                      </Button>
+                      <Button
+                        variant="outline"
                         onClick={() => exportToExcelXML(results, `obraphoto_${new Date().toISOString().split('T')[0]}.xls`)}
                         disabled={isProcessing}
                         className="rounded-xl"
@@ -798,6 +811,16 @@ const Index: React.FC = () => {
         imageUrl={previewModal.imageUrl}
         onUpdateResult={handleUpdateResult}
       />
+
+      {/* Detailed Report Modal */}
+      {showDetailedReport && (
+        <DetailedReport
+          results={results}
+          fileUrls={fileUrls}
+          empresa={empresa}
+          onClose={() => setShowDetailedReport(false)}
+        />
+      )}
     </div>
   );
 };
