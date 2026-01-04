@@ -185,17 +185,17 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
 
                         {/* Details */}
                         <div className="flex-1 p-4">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              {getStatusIcon(result.status)}
-                              <h4 className="font-semibold text-foreground print:text-black truncate max-w-xs">
-                                {result.filename}
-                              </h4>
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                {getStatusIcon(result.status)}
+                                <h4 className="font-semibold text-foreground print:text-black">
+                                  Foto {idx + 1}
+                                </h4>
+                              </div>
+                              <span className={`px-2 py-1 rounded text-sm font-medium ${getConfidenceColor(result.confidence)}`}>
+                                {((result.confidence || 0) * 100).toFixed(0)}% confiança
+                              </span>
                             </div>
-                            <span className={`px-2 py-1 rounded text-sm font-medium ${getConfidenceColor(result.confidence)}`}>
-                              {((result.confidence || 0) * 100).toFixed(0)}% confiança
-                            </span>
-                          </div>
 
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3 text-sm">
                             <div>
