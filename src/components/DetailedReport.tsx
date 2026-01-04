@@ -87,7 +87,7 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
 
       {/* Report Content */}
       <ScrollArea className="flex-1 print:overflow-visible">
-        <div ref={reportRef} className="p-6 max-w-5xl mx-auto print:max-w-none print:p-4">
+        <div ref={reportRef} className="print-report p-6 max-w-5xl mx-auto print:max-w-none print:p-4">
           
           {/* Report Header */}
           <div className="text-center mb-8 pb-6 border-b-2 border-primary print:border-black">
@@ -254,8 +254,18 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
       {/* Print Styles */}
       <style>{`
         @media print {
-          body * {
+          body {
             visibility: hidden;
+          }
+          .print-report,
+          .print-report * {
+            visibility: visible !important;
+          }
+          .print-report {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
           }
           .print\\:hidden {
             display: none !important;
@@ -266,9 +276,14 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
           }
           .print\\:break-inside-avoid {
             break-inside: avoid;
+            page-break-inside: avoid;
           }
           [data-radix-scroll-area-viewport] {
             overflow: visible !important;
+            height: auto !important;
+          }
+          img {
+            max-width: 100% !important;
             height: auto !important;
           }
         }
