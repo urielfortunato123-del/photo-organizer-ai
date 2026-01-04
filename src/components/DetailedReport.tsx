@@ -233,14 +233,26 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
             margin: 10mm;
           }
           
-          /* Hide everything except our report */
-          body > *:not(.print-container) {
+          /* Ensure root prints correctly */
+          html, body, #root {
+            height: auto !important;
+            overflow: visible !important;
+            background: white !important;
+          }
+
+          /* Hide everything except our report (inside #root) */
+          #root > *:not(.print-container) {
             display: none !important;
           }
-          
+
+          /* Make sure the report container itself is shown */
+          .print-container {
+            display: block !important;
+          }
+
           /* Reset container positioning */
           .print-container,
-          .print-container > * {
+          .print-container * {
             position: static !important;
             overflow: visible !important;
             height: auto !important;
