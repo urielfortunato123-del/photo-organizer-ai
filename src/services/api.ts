@@ -263,7 +263,8 @@ export const api = {
       getCached: (hash: string) => ProcessingResult | null;
       setCache: (hash: string, result: ProcessingResult) => void;
       setCacheBulk: (entries: { hash: string; result: ProcessingResult }[]) => void;
-    }
+    },
+    onBatchComplete?: (batchResults: ProcessingResult[]) => void
   ): Promise<ProcessingResult[]> {
     const results: ProcessingResult[] = [];
     const empresaNome = config.empresa || 'EMPRESA';
@@ -291,6 +292,11 @@ export const api = {
 
     console.log(`Cache hits: ${cachedResults.length}, to process: ${filesToProcess.length}`);
     results.push(...cachedResults);
+    
+    // Notify about cached results immediately
+    if (cachedResults.length > 0 && onBatchComplete) {
+      onBatchComplete(cachedResults);
+    }
 
     if (filesToProcess.length === 0) {
       return results;
@@ -341,27 +347,42 @@ export const api = {
         );
 
         // Apply organize_by_date setting
+        const processedBatchResults: ProcessingResult[] = [];
         for (const result of batchResults) {
           if (!config.organize_by_date && result.dest) {
             const parts = result.dest.split('/');
             result.dest = parts.slice(0, 5).join('/');
           }
           results.push(result);
+          processedBatchResults.push(result);
           if (cache && result.hash) {
             cache.setCache(result.hash, result);
           }
         }
+        
+        // Notify about new results immediately
+        if (processedBatchResults.length > 0 && onBatchComplete) {
+          onBatchComplete(processedBatchResults);
+        }
 
         // Handle errors
+        const errorResults: ProcessingResult[] = [];
         for (const err of errors) {
           const originalFile = batch.find(f => f.hash === err.hash);
-          results.push({
+          const errorResult: ProcessingResult = {
             filename: originalFile?.file.name || 'unknown',
             hash: err.hash,
             status: `Erro: ${err.error}`,
             method: 'ia_forcada',
             confidence: 0,
-          });
+          };
+          results.push(errorResult);
+          errorResults.push(errorResult);
+        }
+        
+        // Notify about error results
+        if (errorResults.length > 0 && onBatchComplete) {
+          onBatchComplete(errorResults);
         }
 
         processedCount += batch.length;
@@ -389,17 +410,29 @@ export const api = {
               cache.setCache(result.hash, result);
             }
             
+            // Notify about each individual result
+            if (onBatchComplete) {
+              onBatchComplete([result]);
+            }
+            
             processedCount++;
             onProgress?.(processedCount, files.length, item.file.name);
             await delay(3000);
           } catch (fileError) {
-            results.push({
+            const errorResult: ProcessingResult = {
               filename: item.file.name,
               hash: item.hash,
               status: `Erro: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`,
               method: 'ia_forcada',
               confidence: 0,
-            });
+            };
+            results.push(errorResult);
+            
+            // Notify about error result too
+            if (onBatchComplete) {
+              onBatchComplete([errorResult]);
+            }
+            
             processedCount++;
           }
         }
