@@ -1,15 +1,22 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Upload, 
   Table as TableIcon, 
   FolderTree, 
-  Settings,
-  Home,
-  Sparkles
+  HelpCircle,
+  Sparkles,
+  LogIn,
+  LogOut,
+  User,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import logoObraphoto from '@/assets/logo-obraphoto.png';
 import VersionButton from './VersionButton';
+import { useAuth } from '@/hooks/useAuth';
+import { useTrialSession } from '@/hooks/useTrialSession';
 
 interface GnomeSidebarProps {
   activeTab: string;
@@ -22,6 +29,10 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
   onTabChange,
   resultsCount 
 }) => {
+  const navigate = useNavigate();
+  const { user, profile, isAuthenticated, signOut } = useAuth();
+  const { isTrialActive, formatRemainingTime, sessionsUsedToday, maxSessionsPerDay } = useTrialSession();
+
   const menuItems = [
     { 
       id: 'upload', 
@@ -61,6 +72,38 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
         </div>
       </div>
 
+      {/* User Info */}
+      {isAuthenticated ? (
+        <div className="p-4 border-b border-border/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+              <User className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">
+                {profile?.full_name || user?.email?.split('@')[0]}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {profile?.empresa || 'Usuário'}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : isTrialActive ? (
+        <div className="p-4 border-b border-border/50 bg-warning/10">
+          <div className="flex items-center gap-2 text-warning">
+            <Clock className="w-4 h-4" />
+            <span className="text-sm font-medium">Degustação</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Tempo restante: <span className="font-mono text-warning">{formatRemainingTime()}</span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Sessões hoje: {sessionsUsedToday}/{maxSessionsPerDay}
+          </p>
+        </div>
+      ) : null}
+
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1">
         {menuItems.map((item) => (
@@ -83,6 +126,17 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
             )}
           </button>
         ))}
+
+        {/* How to Use Link */}
+        <button
+          onClick={() => navigate('/como-usar')}
+          className="gnome-sidebar-item w-full text-left mt-4"
+        >
+          <HelpCircle className="w-5 h-5" />
+          <div className="flex-1">
+            <span className="block font-medium">Como Usar</span>
+          </div>
+        </button>
       </nav>
 
       {/* AI Status Card */}
@@ -100,6 +154,29 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
             <span className="text-xs text-success font-medium">Online</span>
           </div>
         </div>
+
+        {/* Auth Button */}
+        {isAuthenticated ? (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full"
+            onClick={signOut}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Sair
+          </Button>
+        ) : (
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="w-full"
+            onClick={() => navigate('/auth')}
+          >
+            <LogIn className="w-4 h-4 mr-2" />
+            Entrar / Cadastrar
+          </Button>
+        )}
         
         {/* Version Button */}
         <div className="flex justify-center">
