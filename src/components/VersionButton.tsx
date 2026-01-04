@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Sparkles, X } from 'lucide-react';
+import { RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 // Versão atual do aplicativo
 export const APP_VERSION = '1.2.0';
@@ -60,9 +61,21 @@ const VersionButton: React.FC<VersionButtonProps> = ({ className }) => {
     if (!lastSeenVersion) {
       // First visit - show changelog
       setHasUpdate(true);
+      toast.info('Bem-vindo ao ObraPhoto!', {
+        description: `Versão ${APP_VERSION} - Clique no botão de versão para ver as novidades.`,
+        duration: 5000,
+      });
     } else if (lastSeenVersion !== APP_VERSION) {
       // New version available
       setHasUpdate(true);
+      toast.success('Nova versão disponível!', {
+        description: `ObraPhoto atualizado para v${APP_VERSION}. Clique para ver as novidades.`,
+        duration: 6000,
+        action: {
+          label: 'Ver novidades',
+          onClick: () => handleOpenChangelog(),
+        },
+      });
     }
   }, []);
 
