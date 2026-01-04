@@ -1,6 +1,5 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useTrialSession } from "@/hooks/useTrialSession";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -8,7 +7,6 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { user, isLoading: authLoading } = useAuth();
-  const { isTrialActive } = useTrialSession();
 
   // Show loading while checking auth state
   if (authLoading) {
@@ -19,8 +17,8 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  // If not logged in and no active trial, redirect to auth
-  if (!user && !isTrialActive) {
+  // If not logged in, redirect to auth
+  if (!user) {
     return <Navigate to="/auth" replace />;
   }
 

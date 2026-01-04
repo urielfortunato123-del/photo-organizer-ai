@@ -402,17 +402,10 @@ const Auth: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Trial button */}
+        {/* Info about trial */}
         <div className="text-center">
-          <Button 
-            variant="outline" 
-            className="w-full"
-            onClick={() => navigate('/?trial=true')}
-          >
-            Experimentar gratuitamente (30 min)
-          </Button>
-          <p className="text-xs text-muted-foreground mt-2">
-            2 sessões de degustação por dia, sem cadastro
+          <p className="text-xs text-muted-foreground">
+            Ao se cadastrar, você recebe 2 sessões de degustação por dia (máx. 4 por semana) de 30 minutos cada.
           </p>
         </div>
       </div>
