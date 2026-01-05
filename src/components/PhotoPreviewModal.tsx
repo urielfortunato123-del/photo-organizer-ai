@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles } from 'lucide-react';
+import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { ProcessingResult, MONTH_NAMES } from '@/services/api';
 import { cn } from '@/lib/utils';
 
@@ -316,6 +317,85 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
                 <div>
                   <p className="text-xs text-muted-foreground">Data</p>
                   <p className="font-mono text-sm font-medium">{result.data_detectada || '-'}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Location info */}
+            {(result.rodovia || result.km_inicio || result.gps_lat) && (
+              <div className="glass-card p-3 space-y-2">
+                <h4 className="font-semibold text-foreground flex items-center gap-2 text-sm">
+                  <MapPin className="w-4 h-4 text-primary" />
+                  Localização
+                </h4>
+                <div className="grid sm:grid-cols-3 gap-3">
+                  {result.rodovia && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Rodovia</p>
+                      <p className="font-mono text-sm font-medium text-primary">{result.rodovia}</p>
+                    </div>
+                  )}
+                  {result.km_inicio && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">KM</p>
+                      <p className="font-mono text-sm font-medium">
+                        {result.km_inicio}{result.km_fim ? ` - ${result.km_fim}` : ''}
+                      </p>
+                    </div>
+                  )}
+                  {result.sentido && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Sentido</p>
+                      <p className="font-mono text-sm font-medium flex items-center gap-1">
+                        <Navigation className="w-3 h-3" />
+                        {result.sentido}
+                      </p>
+                    </div>
+                  )}
+                  {result.gps_lat && result.gps_lon && (
+                    <div className="sm:col-span-2">
+                      <p className="text-xs text-muted-foreground">GPS</p>
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {result.gps_lat.toFixed(6)}, {result.gps_lon.toFixed(6)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Alertas */}
+            {result.alertas && Object.values(result.alertas).some(Boolean) && (
+              <div className="glass-card p-3 space-y-2">
+                <h4 className="font-semibold text-foreground flex items-center gap-2 text-sm">
+                  <AlertTriangle className="w-4 h-4 text-warning" />
+                  Alertas
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {result.alertas.sem_placa && (
+                    <Badge variant="outline" className="border-warning/50 text-warning bg-warning/5">
+                      <AlertTriangle className="w-3 h-3 mr-1" />
+                      Sem placa de identificação
+                    </Badge>
+                  )}
+                  {result.alertas.texto_ilegivel && (
+                    <Badge variant="outline" className="border-destructive/50 text-destructive bg-destructive/5">
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                      Texto ilegível
+                    </Badge>
+                  )}
+                  {result.alertas.evidencia_fraca && (
+                    <Badge variant="outline" className="border-warning/50 text-warning bg-warning/5">
+                      <AlertTriangle className="w-3 h-3 mr-1" />
+                      Evidência fraca para auditoria
+                    </Badge>
+                  )}
+                  {result.alertas.km_inconsistente && (
+                    <Badge variant="outline" className="border-destructive/50 text-destructive bg-destructive/5">
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                      KM inconsistente
+                    </Badge>
+                  )}
                 </div>
               </div>
             )}
