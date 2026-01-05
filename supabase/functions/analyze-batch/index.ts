@@ -16,6 +16,7 @@ interface ImageRequest {
 interface BatchRequest {
   images: ImageRequest[];
   defaultPortico?: string;
+  economicMode?: boolean; // Use cheaper model (gemini-2.5-flash-lite)
 }
 
 async function fetchWithRetry(
@@ -128,11 +129,15 @@ function normalizeConfidence(value: number | string | undefined | null): number 
 async function analyzeImage(
   image: ImageRequest,
   apiKey: string,
-  defaultPortico?: string
+  defaultPortico?: string,
+  economicMode?: boolean
 ): Promise<{ hash: string; result: Record<string, unknown> }> {
   const prompt = getPromptForImage(defaultPortico);
+  
+  // Use cheaper model in economic mode (roughly 2x cheaper)
+  const model = economicMode ? 'google/gemini-2.5-flash-lite' : 'google/gemini-2.5-flash';
 
-  console.log(`Analyzing image: ${image.filename}`);
+  console.log(`Analyzing image: ${image.filename} (model: ${model})`);
 
   const response = await fetchWithRetry('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -141,7 +146,7 @@ async function analyzeImage(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model,
       messages: [
         {
           role: 'user',
@@ -156,7 +161,7 @@ async function analyzeImage(
           ]
         }
       ],
-      max_tokens: 800,
+      max_tokens: economicMode ? 500 : 800, // Less tokens in economic mode
     }),
   }, 3, 2000);
 
@@ -217,7 +222,7 @@ serve(async (req) => {
   }
 
   try {
-    const { images, defaultPortico }: BatchRequest = await req.json();
+    const { images, defaultPortico, economicMode }: BatchRequest = await req.json();
     
     if (!images || !Array.isArray(images) || images.length === 0) {
       return new Response(
@@ -239,7 +244,7 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    console.log(`Processing batch of ${images.length} images`);
+    console.log(`Processing batch of ${images.length} images (economic: ${economicMode || false})`);
 
     const results: { hash: string; result: Record<string, unknown> }[] = [];
     const errors: { hash: string; error: string }[] = [];
@@ -249,7 +254,7 @@ serve(async (req) => {
       const image = images[i];
       
       try {
-        const analyzed = await analyzeImage(image, LOVABLE_API_KEY, defaultPortico);
+        const analyzed = await analyzeImage(image, LOVABLE_API_KEY, defaultPortico, economicMode);
         results.push(analyzed);
         
         // Small delay between requests to avoid rate limits

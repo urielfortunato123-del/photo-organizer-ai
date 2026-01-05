@@ -5,6 +5,7 @@ export interface ProcessingConfig {
   empresa?: string;
   organize_by_date: boolean;
   ia_priority: boolean;
+  economicMode?: boolean; // Use cheaper model (2x more photos per $)
 }
 
 export interface ProcessingResult {
@@ -133,7 +134,7 @@ const isCreditLimitError = (err: unknown) => {
 
 export const api = {
   // Analyze single image with AI
-  async analyzeImage(file: File, defaultPortico?: string, empresa?: string): Promise<ProcessingResult> {
+  async analyzeImage(file: File, defaultPortico?: string, empresa?: string, economicMode?: boolean): Promise<ProcessingResult> {
     const empresaNome = empresa || 'EMPRESA';
     const hash = await hashFile(file);
     
@@ -145,6 +146,7 @@ export const api = {
           imageBase64,
           filename: file.name,
           defaultPortico,
+          economicMode,
         },
       });
 
@@ -191,7 +193,8 @@ export const api = {
   async analyzeBatch(
     files: { file: File; hash: string; base64: string }[],
     defaultPortico?: string,
-    empresa?: string
+    empresa?: string,
+    economicMode?: boolean
   ): Promise<{ results: ProcessingResult[]; errors: { hash: string; error: string }[] }> {
     const empresaNome = empresa || 'EMPRESA';
 
@@ -206,6 +209,7 @@ export const api = {
         body: {
           images,
           defaultPortico,
+          economicMode,
         },
       });
 
@@ -374,7 +378,8 @@ export const api = {
         const { results: batchResults, errors } = await this.analyzeBatch(
           batch,
           config.default_portico,
-          empresaNome
+          empresaNome,
+          config.economicMode
         );
 
         // Apply organize_by_date setting
@@ -467,7 +472,7 @@ export const api = {
           if (creditErrorOccurred && stopOnCreditError) break;
           
           try {
-            const result = await this.analyzeImage(item.file, config.default_portico, empresaNome);
+            const result = await this.analyzeImage(item.file, config.default_portico, empresaNome, config.economicMode);
             
             if (!config.organize_by_date && result.dest) {
               const parts = result.dest.split('/');

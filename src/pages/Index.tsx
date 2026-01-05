@@ -64,6 +64,7 @@ const Index: React.FC = () => {
   const [empresa, setEmpresa] = useState('HABITECHENE');
   const [organizeByDate, setOrganizeByDate] = useState(true);
   const [iaPriority, setIaPriority] = useState(true);
+  const [economicMode, setEconomicMode] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState<ProcessingResult[]>([]);
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
@@ -163,11 +164,18 @@ const Index: React.FC = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingProcessFiles, setPendingProcessFiles] = useState<File[]>([]);
 
-  // Estimate cost based on file count (~$0.005-0.01 per image)
-  const estimateCost = (count: number) => {
-    const minCost = count * 0.005;
-    const maxCost = count * 0.01;
+  // Estimate cost based on file count
+  // Economic mode: ~$0.0025-0.005 per image
+  // Standard mode: ~$0.005-0.01 per image
+  const estimateCost = (count: number, isEconomic: boolean) => {
+    const minCost = count * (isEconomic ? 0.0025 : 0.005);
+    const maxCost = count * (isEconomic ? 0.005 : 0.01);
     return `$${minCost.toFixed(2)} - $${maxCost.toFixed(2)}`;
+  };
+
+  // Estimate photos per $20
+  const estimatePhotosPerBudget = (isEconomic: boolean) => {
+    return isEconomic ? '4.000-8.000' : '2.000-4.000';
   };
 
   const handleProcess = async () => {
@@ -207,6 +215,7 @@ const Index: React.FC = () => {
       empresa: empresa,
       organize_by_date: organizeByDate,
       ia_priority: iaPriority,
+      economicMode: economicMode,
     };
 
     try {
@@ -346,6 +355,7 @@ const Index: React.FC = () => {
       empresa: empresa,
       organize_by_date: organizeByDate,
       ia_priority: true,
+      economicMode: economicMode,
     };
 
     try {
@@ -681,6 +691,8 @@ const Index: React.FC = () => {
                     onOrganizeByDateChange={setOrganizeByDate}
                     iaPriority={iaPriority}
                     onIaPriorityChange={setIaPriority}
+                    economicMode={economicMode}
+                    onEconomicModeChange={setEconomicMode}
                   />
                 </div>
               </div>
@@ -963,10 +975,11 @@ const Index: React.FC = () => {
                 </p>
                 <div className="bg-secondary/50 p-3 rounded-lg space-y-2">
                   <p className="text-sm">
-                    <strong>Custo estimado:</strong> {estimateCost(pendingProcessFiles.length)}
+                    <strong>Custo estimado:</strong> {estimateCost(pendingProcessFiles.length, economicMode)}
+                    {economicMode && <span className="ml-2 text-green-500">(Modo Econômico)</span>}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Com $20 você pode processar aproximadamente 2.000-4.000 fotos.
+                    Com $20 você pode processar aproximadamente {estimatePhotosPerBudget(economicMode)} fotos.
                   </p>
                 </div>
                 <p className="text-sm text-muted-foreground">
