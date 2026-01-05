@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,9 +22,8 @@ async function fetchWithRetry(
     try {
       const response = await fetch(url, options);
       
-      // If rate limited, wait and retry
       if (response.status === 429 && attempt < maxRetries - 1) {
-        const waitTime = baseDelay * Math.pow(2, attempt); // 2s, 4s, 8s
+        const waitTime = baseDelay * Math.pow(2, attempt);
         console.log(`Rate limited, waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
         await delay(waitTime);
         continue;
@@ -44,7 +44,6 @@ async function fetchWithRetry(
   throw lastError || new Error('All retry attempts failed');
 }
 
-// Interface para dados OCR pré-processados pelo cliente
 interface PreProcessedOCR {
   rawText?: string;
   rodovia?: string;
@@ -56,15 +55,129 @@ interface PreProcessedOCR {
   contrato?: string;
   hasPlaca?: boolean;
   confidence?: number;
-  contratada?: string; // Usado para armazenar a frente/pórtico identificado pelo OCR
+  contratada?: string;
+}
+
+interface ObraConhecimento {
+  id: string;
+  codigo_normalizado: string;
+  nome_exibicao: string;
+  tipo: string;
+  variacoes: string[];
+  rodovia?: string;
+  km_inicio?: number;
+  km_fim?: number;
+  contratada?: string;
+  vezes_identificado?: number;
+}
+
+interface Sinonimo {
+  termo_original: string;
+  termo_normalizado: string;
+}
+
+// Busca no banco de conhecimento para identificar a obra
+async function buscarObraNoBanco(
+  texto: string, 
+  supabaseUrl: string, 
+  supabaseKey: string
+): Promise<ObraConhecimento | null> {
+  if (!texto || texto.length < 3) return null;
+  
+  const textoLower = texto.toLowerCase();
+  console.log(`Buscando no banco de conhecimento: "${textoLower.substring(0, 100)}..."`);
+  
+  try {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    // Busca todas as obras ativas
+    const { data: obras, error } = await supabase
+      .from('obras_conhecimento')
+      .select('*')
+      .eq('ativo', true);
+    
+    if (error) {
+      console.error('Erro ao buscar obras:', error);
+      return null;
+    }
+    
+    if (!obras || obras.length === 0) return null;
+    
+    // Procura match nas variações
+    for (const obra of obras as ObraConhecimento[]) {
+      const variacoes = obra.variacoes || [];
+      for (const variacao of variacoes) {
+        if (textoLower.includes(variacao.toLowerCase())) {
+          console.log(`Match encontrado: "${variacao}" → ${obra.codigo_normalizado}`);
+          
+          // Incrementa contador de identificações
+          await supabase
+            .from('obras_conhecimento')
+            .update({ vezes_identificado: (obra.vezes_identificado || 0) + 1 })
+            .eq('id', obra.id);
+          
+          return obra;
+        }
+      }
+    }
+    
+    // Busca também por sinônimos
+    const { data: sinonimos } = await supabase
+      .from('obras_sinonimos')
+      .select('termo_original, termo_normalizado')
+      .eq('categoria', 'tipo_obra');
+    
+    if (sinonimos) {
+      for (const sin of sinonimos as Sinonimo[]) {
+        if (textoLower.includes(sin.termo_original.toLowerCase())) {
+          // Encontrou sinônimo, busca obra correspondente
+          const obraMatch = (obras as ObraConhecimento[]).find((o: ObraConhecimento) => 
+            o.codigo_normalizado.startsWith(sin.termo_normalizado)
+          );
+          if (obraMatch) {
+            console.log(`Match via sinônimo: "${sin.termo_original}" → ${obraMatch.codigo_normalizado}`);
+            return obraMatch;
+          }
+        }
+      }
+    }
+    
+    return null;
+  } catch (err) {
+    console.error('Erro na busca de conhecimento:', err);
+    return null;
+  }
+}
+
+// Gera lista de obras conhecidas para o prompt da IA
+async function getObrasConhecidasParaPrompt(supabaseUrl: string, supabaseKey: string): Promise<string> {
+  try {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    const { data: obras } = await supabase
+      .from('obras_conhecimento')
+      .select('codigo_normalizado, nome_exibicao, tipo')
+      .eq('ativo', true)
+      .order('vezes_identificado', { ascending: false })
+      .limit(30);
+    
+    if (!obras || obras.length === 0) return '';
+    
+    const lista = obras.map((o: { codigo_normalizado: string; nome_exibicao: string }) => 
+      `${o.nome_exibicao} → ${o.codigo_normalizado}`
+    ).join(', ');
+    return `\n## OBRAS CONHECIDAS (use esses códigos exatos):\n${lista}`;
+  } catch {
+    return '';
+  }
 }
 
 function getPrompt(
   defaultPortico?: string, 
   exifData?: { date?: string; gps?: { lat: number; lon: number } },
-  ocrData?: PreProcessedOCR
+  ocrData?: PreProcessedOCR,
+  obrasConhecidas?: string
 ): string {
-  // Se temos dados OCR do cliente, usamos prompt MUITO mais simples
   if (ocrData && (ocrData.rawText || ocrData.hasPlaca)) {
     const frenteIdentificada = ocrData.contratada || defaultPortico || 'NAO_IDENTIFICADO';
     return `Você é um engenheiro civil. Classifique esta foto de obra com base nos dados já extraídos.
@@ -78,96 +191,54 @@ ${ocrData.data ? `Data detectada: ${ocrData.data}` : ''}
 ${ocrData.contratada ? `Frente de serviço identificada: ${ocrData.contratada}` : ''}
 ${exifData?.date ? `Data EXIF: ${exifData.date}` : ''}
 ${exifData?.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : ''}
+${obrasConhecidas || ''}
 
 ## TAREFA (APENAS CLASSIFICAÇÃO VISUAL)
-Olhe a imagem e classifique:
-
-1. **FRENTE (portico)**: Use a frente já identificada se disponível.
-   Exemplos: P-10, CORTINA_01, BSO_04, FREE_FLOW_P11, FREE_FLOW_P17, HABITECHNE
-   Procure textos como "obra free flow p17" ou nomes de empresas na legenda da foto.
-   Use "${frenteIdentificada}" se já identificado.
-
+1. **FRENTE (portico)**: Use "${frenteIdentificada}" se já identificado.
 2. **DISCIPLINA**: FUNDACAO | ESTRUTURA | PORTICO_FREE_FLOW | CONTENCAO | TERRAPLENAGEM | DRENAGEM | PAVIMENTACAO | SINALIZACAO | BARREIRAS | ACABAMENTO | REVESTIMENTO | ALVENARIA | HIDRAULICA | ELETRICA | SEGURANCA | PAISAGISMO | MANUTENCAO | DEMOLICAO | OAC_OAE | OUTROS
-
 3. **SERVIÇO**: Específico da disciplina
-
 4. **DESCRIÇÃO**: O que você vê (1-2 frases)
 
 ## RESPOSTA JSON
 \`\`\`json
-{
-  "portico": "${frenteIdentificada}",
-  "disciplina": "FUNDACAO",
-  "servico": "ARMADURA",
-  "analise_tecnica": "Descrição curta",
-  "confidence": 0.85
-}
+{"portico":"${frenteIdentificada}","disciplina":"FUNDACAO","servico":"ARMADURA","analise_tecnica":"Descrição curta","confidence":0.85}
 \`\`\`
 
 Responda APENAS com JSON.`;
   }
 
-  // Prompt completo quando não há OCR do cliente (fallback) - IA faz OCR visual
   const exifInfo = exifData ? `
 ## DADOS EXIF: ${exifData.date ? `Data: ${exifData.date}` : 'Sem data'} | ${exifData.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : 'Sem GPS'}
 ` : '';
 
   return `Você é um engenheiro civil especialista em obras rodoviárias.
 ${exifInfo}
+${obrasConhecidas || ''}
+
 ## TAREFA PRINCIPAL: Leia a LEGENDA da foto e extraia as informações.
 
 ## 1. LEITURA DE LEGENDA (MUITO IMPORTANTE!)
-As fotos de obra geralmente têm legendas com informações sobrepostas na imagem.
-LEIA CUIDADOSAMENTE todo texto visível, especialmente:
-- Texto na parte inferior ou cantos da foto (legendas automáticas)
-- Nomes de obras: "obra free flow p17", "habitechne", "cortina 01", "BSO 04"
-- Rodovia e KM: "SP 264 KM 131", "SP264_km131+100", "BR-116 km 45"
-- Data e hora: "24 de nov. de 2025 11:13:03", "10/09/2025 15:40"
-- Coordenadas GPS: "23.722440, -47.638785"
-- Nomes de empresas: "motiva", "núcleo", "habitechne"
-
-## 2. IDENTIFICAÇÃO DA FRENTE DE SERVIÇO (portico)
-A FRENTE é o identificador da obra. Procure por:
+Procure texto na imagem:
 - "obra free flow p17" → portico: "FREE_FLOW_P17"
-- "obra free flow p11" → portico: "FREE_FLOW_P11"  
 - "habitechne" → portico: "HABITECHNE"
 - "cortina 01" → portico: "CORTINA_01"
 - "BSO 04" → portico: "BSO_04"
-- "P-10" ou "p10" → portico: "P_10"
 
-Se encontrar o nome da obra na legenda, USE-O como portico!
-Use "${defaultPortico || 'NAO_IDENTIFICADO'}" APENAS se não encontrar nenhuma identificação.
-
-## 3. CLASSIFICAÇÃO VISUAL
-- DISCIPLINA: FUNDACAO | ESTRUTURA | PORTICO_FREE_FLOW | CONTENCAO | TERRAPLENAGEM | DRENAGEM | PAVIMENTACAO | SINALIZACAO | BARREIRAS | ACABAMENTO | REVESTIMENTO | ALVENARIA | HIDRAULICA | ELETRICA | SEGURANCA | PAISAGISMO | MANUTENCAO | DEMOLICAO | OAC_OAE | OUTROS
-- SERVIÇO: Específico do que vê na foto (ex: ARMADURA, CONCRETAGEM, ESCAVACAO)
+## 2. CLASSIFICAÇÃO
+- portico: USE O NOME DA OBRA da legenda! (ou "${defaultPortico || 'NAO_IDENTIFICADO'}" se não encontrar)
+- disciplina: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
+- servico: Específico
+- data: DD/MM/YYYY
 
 ## RESPOSTA JSON
 \`\`\`json
-{
-  "portico": "FREE_FLOW_P17",
-  "disciplina": "FUNDACAO",
-  "servico": "ARMADURA",
-  "data": "24/11/2025",
-  "rodovia": "SP_264",
-  "km_inicio": "131+100",
-  "sentido": "",
-  "analise_tecnica": "Armadura de fundação em execução",
-  "confidence": 0.90,
-  "ocr_text": "24 de nov. de 2025 11:13:03 - obra free flow p17 SP264_km131+100",
-  "alertas": {
-    "sem_placa": false,
-    "texto_ilegivel": false,
-    "evidencia_fraca": false
-  }
-}
+{"portico":"FREE_FLOW_P17","disciplina":"FUNDACAO","servico":"ARMADURA","data":"24/11/2025","rodovia":"SP_264","km_inicio":"131+100","sentido":"","analise_tecnica":"","confidence":0.90,"ocr_text":"obra free flow p17","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
 \`\`\`
 
 Responda APENAS com JSON válido.`;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -187,14 +258,35 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    // Se temos OCR pré-processado, usamos modelo mais barato ainda
-    const hasPreOCR = ocrData && (ocrData.rawText || ocrData.hasPlaca);
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Buscar obra no banco de conhecimento usando texto OCR
+    const ocrInput = ocrData as PreProcessedOCR | undefined;
+    let obraIdentificada: ObraConhecimento | null = null;
+    
+    if (ocrInput?.rawText) {
+      obraIdentificada = await buscarObraNoBanco(ocrInput.rawText, supabaseUrl, supabaseKey);
+    }
+
+    // Se encontrou no banco, usa o código normalizado
+    if (obraIdentificada) {
+      console.log(`Obra identificada no banco: ${obraIdentificada.codigo_normalizado}`);
+      if (ocrInput) {
+        ocrInput.contratada = obraIdentificada.codigo_normalizado;
+      }
+    }
+
+    // Buscar lista de obras conhecidas para incluir no prompt
+    const obrasConhecidas = await getObrasConhecidasParaPrompt(supabaseUrl, supabaseKey);
+
+    const hasPreOCR = ocrInput && (ocrInput.rawText || ocrInput.hasPlaca);
     const model = hasPreOCR ? 'google/gemini-2.5-flash-lite' : (economicMode ? 'google/gemini-2.5-flash-lite' : 'google/gemini-2.5-flash');
     const maxTokens = hasPreOCR ? 300 : (economicMode ? 600 : 1200);
     
-    console.log(`Analyzing image: ${filename} (model: ${model}, hasPreOCR: ${hasPreOCR})`);
+    console.log(`Analyzing image: ${filename} (model: ${model}, hasPreOCR: ${hasPreOCR}, obraDB: ${obraIdentificada?.codigo_normalizado || 'nenhuma'})`);
 
-    const prompt = getPrompt(defaultPortico, exifData, ocrData as PreProcessedOCR);
+    const prompt = getPrompt(defaultPortico, exifData, ocrInput, obrasConhecidas);
 
     const response = await fetchWithRetry('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -250,7 +342,6 @@ serve(async (req) => {
     
     console.log('AI Response:', content);
 
-    // Parse the JSON response
     let result;
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -272,29 +363,26 @@ serve(async (req) => {
       };
     }
 
-    // Merge OCR data from client with AI result
-    const ocrInput = ocrData as PreProcessedOCR | undefined;
-    
-    // Prioriza pórtico do OCR (contratada) > IA > default
+    // Prioriza: banco de conhecimento > OCR contratada > IA > default
+    const porticoFromDB = obraIdentificada?.codigo_normalizado || '';
     const porticoFromOCR = ocrInput?.contratada ? normalizeField(ocrInput.contratada, '') : '';
-    const porticoFinal = porticoFromOCR || normalizeField(result.portico, defaultPortico || 'NAO_IDENTIFICADO');
+    const porticoFinal = porticoFromDB || porticoFromOCR || normalizeField(result.portico, defaultPortico || 'NAO_IDENTIFICADO');
     
     const normalizedResult = {
       portico: porticoFinal,
       disciplina: normalizeField(result.disciplina, 'OUTROS'),
       servico: normalizeField(result.servico, 'NAO_IDENTIFICADO'),
-      // Prioriza dados do OCR cliente, depois IA, depois EXIF
       data: normalizeDate(ocrInput?.data || result.data || exifData?.date),
-      rodovia: normalizeField(ocrInput?.rodovia || result.rodovia, ''),
+      rodovia: normalizeField(ocrInput?.rodovia || obraIdentificada?.rodovia || result.rodovia, ''),
       km_inicio: ocrInput?.km_inicio || result.km_inicio || null,
       km_fim: ocrInput?.km_fim || result.km_fim || null,
       sentido: normalizeField(ocrInput?.sentido || result.sentido, ''),
       tipo_documento: result.tipo_documento || 'FOTO',
       analise_tecnica: result.analise_tecnica || '',
       confidence: normalizeConfidence(result.confidence),
-      // OCR text: prioriza cliente
       ocr_text: ocrInput?.rawText || result.ocr_text || '',
-      method: hasPreOCR ? 'ocr_ia' : 'ia_forcada',
+      method: porticoFromDB ? 'banco_conhecimento' : (hasPreOCR ? 'ocr_ia' : 'ia_forcada'),
+      obra_id: obraIdentificada?.id || null,
       alertas: {
         sem_placa: ocrInput?.hasPlaca === false || result.alertas?.sem_placa || false,
         texto_ilegivel: result.alertas?.texto_ilegivel || false,
@@ -320,7 +408,6 @@ serve(async (req) => {
   }
 });
 
-// Helper functions
 function normalizeField(value: string | undefined | null, defaultValue: string): string {
   if (!value || typeof value !== 'string') return defaultValue;
   return value.toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
