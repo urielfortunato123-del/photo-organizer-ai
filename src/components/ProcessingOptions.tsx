@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, MapPin, Calendar, Brain, Building2, Zap } from 'lucide-react';
+import { Settings, MapPin, Calendar, Brain, Building2, Zap, ScanText } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,8 @@ interface ProcessingOptionsProps {
   onIaPriorityChange: (value: boolean) => void;
   economicMode?: boolean;
   onEconomicModeChange?: (value: boolean) => void;
+  useLocalOCR?: boolean;
+  onUseLocalOCRChange?: (value: boolean) => void;
 }
 
 const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
@@ -28,6 +30,8 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
   onIaPriorityChange,
   economicMode = false,
   onEconomicModeChange,
+  useLocalOCR = true,
+  onUseLocalOCRChange,
 }) => {
   return (
     <div className="glass-card p-6 space-y-6">
@@ -115,6 +119,27 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
             onCheckedChange={onIaPriorityChange}
           />
         </div>
+
+        {/* OCR Local - only show when AI is enabled */}
+        {iaPriority && onUseLocalOCRChange && (
+          <div className="flex items-center justify-between p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                <ScanText className="w-4 h-4 text-blue-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">OCR Local</p>
+                <p className="text-xs text-muted-foreground">
+                  Extrai texto antes da IA (60% mais barato)
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={useLocalOCR}
+              onCheckedChange={onUseLocalOCRChange}
+            />
+          </div>
+        )}
 
         {/* Economic Mode - only show when AI is enabled */}
         {iaPriority && onEconomicModeChange && (

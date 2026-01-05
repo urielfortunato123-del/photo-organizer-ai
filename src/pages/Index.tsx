@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import JSZip from 'jszip';
 import { 
   Play, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree, Folder,
   User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet,
-  Plus, X, Database, Clock, FileText, AlertTriangle
+  Plus, X, Database, Clock, FileText, AlertTriangle, Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,17 +33,20 @@ import { exportToExcelXML } from '@/utils/exportExcel';
 import { useImageCache } from '@/hooks/useImageCache';
 import { useTrialSession } from '@/hooks/useTrialSession';
 import { useAuth } from '@/hooks/useAuth';
+import { useOCR, extractStructuredData } from '@/hooks/useOCR';
 import { 
   api, 
   ProcessingResult, 
   TreeNode,
-  buildTreeFromResults 
+  buildTreeFromResults,
+  PreProcessedOCR
 } from '@/services/api';
 
 const Index: React.FC = () => {
   const imageCache = useImageCache();
   const { toast } = useToast();
   const { profile } = useAuth();
+  const { extractText, terminate: terminateOCR } = useOCR();
   
   // Cooldown for reprocess button (30 seconds)
   const [reprocessCooldown, setReprocessCooldown] = useState(0);
@@ -65,6 +68,7 @@ const Index: React.FC = () => {
   const [organizeByDate, setOrganizeByDate] = useState(true);
   const [iaPriority, setIaPriority] = useState(true);
   const [economicMode, setEconomicMode] = useState(false);
+  const [useLocalOCR, setUseLocalOCR] = useState(true); // OCR local ativado por padrão
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState<ProcessingResult[]>([]);
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
@@ -165,16 +169,21 @@ const Index: React.FC = () => {
   const [pendingProcessFiles, setPendingProcessFiles] = useState<File[]>([]);
 
   // Estimate cost based on file count
-  // Economic mode: ~$0.0025-0.005 per image
-  // Standard mode: ~$0.005-0.01 per image
-  const estimateCost = (count: number, isEconomic: boolean) => {
-    const minCost = count * (isEconomic ? 0.0025 : 0.005);
-    const maxCost = count * (isEconomic ? 0.005 : 0.01);
+  // OCR local reduz custo em ~60-70% por usar prompts menores
+  // Economic mode: ~$0.001-0.002 per image (com OCR local)
+  // Standard mode: ~$0.002-0.004 per image (com OCR local)
+  const estimateCost = (count: number, isEconomic: boolean, hasOCR: boolean) => {
+    const factor = hasOCR ? 0.4 : 1; // OCR local reduz 60%
+    const minCost = count * (isEconomic ? 0.0025 : 0.005) * factor;
+    const maxCost = count * (isEconomic ? 0.005 : 0.01) * factor;
     return `$${minCost.toFixed(2)} - $${maxCost.toFixed(2)}`;
   };
 
   // Estimate photos per $20
-  const estimatePhotosPerBudget = (isEconomic: boolean) => {
+  const estimatePhotosPerBudget = (isEconomic: boolean, hasOCR: boolean) => {
+    if (hasOCR) {
+      return isEconomic ? '10.000-20.000' : '5.000-10.000';
+    }
     return isEconomic ? '4.000-8.000' : '2.000-4.000';
   };
 
@@ -216,10 +225,30 @@ const Index: React.FC = () => {
       organize_by_date: organizeByDate,
       ia_priority: iaPriority,
       economicMode: economicMode,
+      useLocalOCR: useLocalOCR,
     };
 
+    // Função de extração OCR local
+    const ocrExtractor = useLocalOCR ? async (file: File): Promise<PreProcessedOCR | null> => {
+      try {
+        const result = await extractText(file);
+        return {
+          rawText: result.rawText,
+          rodovia: result.rodovia,
+          km_inicio: result.km_inicio,
+          km_fim: result.km_fim,
+          sentido: result.sentido,
+          data: result.data,
+          hora: result.hora,
+          hasPlaca: result.hasPlaca,
+          confidence: result.confidence,
+        };
+      } catch {
+        return null;
+      }
+    } : undefined;
+
     try {
-      // Use the optimized processPhotos with cache and batching
       const newResults = await api.processPhotos(
         filesToProcess,
         config,
@@ -231,20 +260,18 @@ const Index: React.FC = () => {
           setCache: imageCache.setCache,
           setCacheBulk: imageCache.setCacheBulk,
         },
-        // Callback for batch completion - update results in real-time
         (batchResults) => {
           setResults(prev => [...prev, ...batchResults]);
           batchResults.forEach(r => {
             setProcessedFiles(prev => new Set([...prev, r.filename]));
           });
-          // Switch to results tab when first results arrive
           setActiveTab('results');
         },
-        // Options for credit protection
         {
-          maxFiles: 100, // Max 100 files per batch
-          stopOnCreditError: true, // Stop immediately on 402
-        }
+          maxFiles: 100,
+          stopOnCreditError: true,
+        },
+        ocrExtractor // Passa extrator OCR local
       );
 
       // Final update for processed files
@@ -693,6 +720,8 @@ const Index: React.FC = () => {
                     onIaPriorityChange={setIaPriority}
                     economicMode={economicMode}
                     onEconomicModeChange={setEconomicMode}
+                    useLocalOCR={useLocalOCR}
+                    onUseLocalOCRChange={setUseLocalOCR}
                   />
                 </div>
               </div>
@@ -975,11 +1004,12 @@ const Index: React.FC = () => {
                 </p>
                 <div className="bg-secondary/50 p-3 rounded-lg space-y-2">
                   <p className="text-sm">
-                    <strong>Custo estimado:</strong> {estimateCost(pendingProcessFiles.length, economicMode)}
+                    <strong>Custo estimado:</strong> {estimateCost(pendingProcessFiles.length, economicMode, useLocalOCR)}
                     {economicMode && <span className="ml-2 text-green-500">(Modo Econômico)</span>}
+                    {useLocalOCR && <span className="ml-2 text-blue-500">(OCR Local)</span>}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Com $20 você pode processar aproximadamente {estimatePhotosPerBudget(economicMode)} fotos.
+                    Com $20 você pode processar aproximadamente {estimatePhotosPerBudget(economicMode, useLocalOCR)} fotos.
                   </p>
                 </div>
                 <p className="text-sm text-muted-foreground">
