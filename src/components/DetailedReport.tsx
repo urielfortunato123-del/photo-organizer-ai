@@ -41,8 +41,8 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
     document.title = originalTitle;
   };
 
-  // Get only successful results with images
-  const successResults = results.filter(r => r.status === 'Sucesso');
+  // Use all results regardless of status
+  const allResults = results;
 
   return (
     <div className="print-container fixed inset-0 z-50 bg-background/95 backdrop-blur-sm overflow-hidden flex flex-col">
@@ -52,7 +52,7 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
           <FileText className="w-6 h-6 text-primary" />
           <div>
             <h1 className="text-xl font-bold text-foreground">Relatório Fotográfico</h1>
-            <p className="text-sm text-muted-foreground">{successResults.length} fotos</p>
+            <p className="text-sm text-muted-foreground">{allResults.length} fotos</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -184,7 +184,7 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
 
           {/* Photo Grid - 2 per row */}
           <div className="grid grid-cols-2 gap-4">
-            {successResults.map((result, idx) => {
+            {allResults.map((result, idx) => {
               const imageUrl = fileUrls.get(result.filename);
               const caption = result.service 
                 ? `${result.service}${result.portico ? ` - ${result.portico}` : ''}`
