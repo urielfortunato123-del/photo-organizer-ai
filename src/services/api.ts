@@ -1,11 +1,13 @@
 import { supabase } from '@/integrations/supabase/client';
+import { extractStructuredData } from '@/hooks/useOCR';
 
 export interface ProcessingConfig {
   default_portico?: string;
   empresa?: string;
   organize_by_date: boolean;
   ia_priority: boolean;
-  economicMode?: boolean; // Use cheaper model (2x more photos per $)
+  economicMode?: boolean;
+  useLocalOCR?: boolean; // Nova opção para usar OCR local
 }
 
 export interface ProcessingResult {
@@ -17,12 +19,12 @@ export interface ProcessingResult {
   dest?: string;
   status: string;
   tecnico?: string;
-  method?: 'heuristica' | 'ia_fallback' | 'ia_forcada';
+  method?: 'heuristica' | 'ia_fallback' | 'ia_forcada' | 'ocr_ia';
   confidence?: number;
   data_detectada?: string;
   ocr_text?: string;
   hash?: string;
-  // Novos campos para OCR avançado
+  // Campos para OCR avançado
   rodovia?: string;
   km_inicio?: string;
   km_fim?: string;
@@ -40,6 +42,19 @@ export interface ProcessingResult {
     evidencia_fraca?: boolean;
     km_inconsistente?: boolean;
   };
+}
+
+// Interface para dados OCR pré-processados
+export interface PreProcessedOCR {
+  rawText?: string;
+  rodovia?: string;
+  km_inicio?: string;
+  km_fim?: string;
+  sentido?: string;
+  data?: string;
+  hora?: string;
+  hasPlaca?: boolean;
+  confidence?: number;
 }
 
 export interface TreeNode {
@@ -214,9 +229,9 @@ export const api = {
     }
   },
 
-  // Analyze batch of images
+  // Analyze batch of images with optional pre-processed OCR
   async analyzeBatch(
-    files: { file: File; hash: string; base64: string }[],
+    files: { file: File; hash: string; base64: string; ocrData?: PreProcessedOCR }[],
     defaultPortico?: string,
     empresa?: string,
     economicMode?: boolean
@@ -228,6 +243,7 @@ export const api = {
         imageBase64: f.base64,
         filename: f.file.name,
         hash: f.hash,
+        ocrData: f.ocrData, // Envia dados OCR pré-processados
       }));
 
       const { data, error } = await supabase.functions.invoke('analyze-batch', {
@@ -261,11 +277,11 @@ export const api = {
           data_detectada: r.result.data as string | undefined,
           tecnico: r.result.analise_tecnica as string,
           confidence: r.result.confidence as number,
-          method: 'ia_forcada' as const,
+          method: (r.result.method as ProcessingResult['method']) || 'ia_forcada',
           ocr_text: r.result.ocr_text as string,
-          // Novos campos OCR avançado
           rodovia: r.result.rodovia as string | undefined,
           km_inicio: r.result.km_inicio as string | undefined,
+          km_fim: r.result.km_fim as string | undefined,
           sentido: r.result.sentido as string | undefined,
           alertas: r.result.alertas as ProcessingResult['alertas'],
           dest: buildDestPath(
@@ -288,7 +304,7 @@ export const api = {
     }
   },
 
-  // Process multiple photos with caching and batching
+  // Process multiple photos with caching, batching, and optional local OCR
   // Now includes credit protection: stops immediately on 402 errors
   async processPhotos(
     files: File[], 
@@ -301,23 +317,25 @@ export const api = {
     },
     onBatchComplete?: (batchResults: ProcessingResult[]) => void,
     options?: {
-      maxFiles?: number; // Limit max files per batch
-      stopOnCreditError?: boolean; // Stop immediately on 402
-    }
+      maxFiles?: number;
+      stopOnCreditError?: boolean;
+    },
+    ocrExtractor?: (file: File) => Promise<PreProcessedOCR | null>
   ): Promise<ProcessingResult[]> {
     const results: ProcessingResult[] = [];
     const empresaNome = config.empresa || 'EMPRESA';
-    const maxFiles = options?.maxFiles || 50; // Default max 50 files
+    const maxFiles = options?.maxFiles || 50;
     const stopOnCreditError = options?.stopOnCreditError ?? true;
+    const useLocalOCR = config.useLocalOCR ?? true; // Default: usar OCR local
     
-    // Limit files to prevent excessive credit usage
+    // Limit files
     const limitedFiles = files.slice(0, maxFiles);
     if (files.length > maxFiles) {
       console.warn(`Limiting processing to ${maxFiles} files (${files.length} requested)`);
     }
     
     // Step 1: Hash all files and check cache
-    const filesToProcess: { file: File; hash: string; base64?: string }[] = [];
+    const filesToProcess: { file: File; hash: string }[] = [];
     const cachedResults: ProcessingResult[] = [];
 
     for (let i = 0; i < limitedFiles.length; i++) {
@@ -327,7 +345,6 @@ export const api = {
       if (cache) {
         const cached = cache.getCached(hash);
         if (cached) {
-          // Update filename in case it changed
           cachedResults.push({ ...cached, filename: file.name });
           onProgress?.(i + 1, limitedFiles.length, `${file.name} (cache)`);
           continue;
@@ -340,7 +357,6 @@ export const api = {
     console.log(`Cache hits: ${cachedResults.length}, to process: ${filesToProcess.length}`);
     results.push(...cachedResults);
     
-    // Notify about cached results immediately
     if (cachedResults.length > 0 && onBatchComplete) {
       onBatchComplete(cachedResults);
     }
@@ -370,11 +386,37 @@ export const api = {
       return results;
     }
 
-    // Step 3: Convert files to base64 for batch processing
-    const filesWithBase64: { file: File; hash: string; base64: string }[] = [];
-    for (const item of filesToProcess) {
-      const base64 = await fileToBase64(item.file);
-      filesWithBase64.push({ ...item, base64 });
+    // Step 3: Convert files to base64 AND run local OCR in parallel
+    const filesWithData: { file: File; hash: string; base64: string; ocrData?: PreProcessedOCR }[] = [];
+    
+    onProgress?.(cachedResults.length, limitedFiles.length, 'Preparando imagens e OCR...');
+    
+    // Process in small batches to show progress
+    const OCR_BATCH = 3;
+    for (let i = 0; i < filesToProcess.length; i += OCR_BATCH) {
+      const batch = filesToProcess.slice(i, i + OCR_BATCH);
+      
+      const batchData = await Promise.all(batch.map(async (item) => {
+        const base64 = await fileToBase64(item.file);
+        
+        let ocrData: PreProcessedOCR | undefined;
+        if (useLocalOCR && ocrExtractor) {
+          try {
+            const extracted = await ocrExtractor(item.file);
+            if (extracted) {
+              ocrData = extracted;
+              console.log(`OCR local ${item.file.name}:`, extracted.hasPlaca ? 'placa detectada' : 'sem placa', extracted.rodovia || '');
+            }
+          } catch (e) {
+            console.warn(`OCR falhou para ${item.file.name}:`, e);
+          }
+        }
+        
+        return { ...item, base64, ocrData };
+      }));
+      
+      filesWithData.push(...batchData);
+      onProgress?.(cachedResults.length + i + batch.length, limitedFiles.length, `OCR ${Math.min(i + OCR_BATCH, filesToProcess.length)}/${filesToProcess.length}...`);
     }
 
     // Step 4: Process in batches of up to 5
@@ -382,13 +424,12 @@ export const api = {
     let processedCount = cachedResults.length;
     let creditErrorOccurred = false;
 
-    for (let i = 0; i < filesWithBase64.length; i += BATCH_SIZE) {
+    for (let i = 0; i < filesWithData.length; i += BATCH_SIZE) {
       // Stop if credit error occurred
       if (creditErrorOccurred && stopOnCreditError) {
         console.log('Stopping processing due to credit limit error');
-        // Mark remaining files as skipped
-        for (let j = i; j < filesWithBase64.length; j++) {
-          const item = filesWithBase64[j];
+        for (let j = i; j < filesWithData.length; j++) {
+          const item = filesWithData[j];
           results.push({
             filename: item.file.name,
             hash: item.hash,
@@ -400,7 +441,7 @@ export const api = {
         break;
       }
 
-      const batch = filesWithBase64.slice(i, i + BATCH_SIZE);
+      const batch = filesWithData.slice(i, i + BATCH_SIZE);
       
       onProgress?.(processedCount + 1, limitedFiles.length, `Lote ${Math.floor(i / BATCH_SIZE) + 1}...`);
 
@@ -426,7 +467,6 @@ export const api = {
           }
         }
         
-        // Notify about new results immediately
         if (processedBatchResults.length > 0 && onBatchComplete) {
           onBatchComplete(processedBatchResults);
         }
@@ -436,7 +476,6 @@ export const api = {
         for (const err of errors) {
           const originalFile = batch.find(f => f.hash === err.hash);
           
-          // Check if it's a credit error
           if (err.error.includes('402') || err.error.includes('crédito')) {
             creditErrorOccurred = true;
           }
@@ -452,7 +491,6 @@ export const api = {
           errorResults.push(errorResult);
         }
         
-        // Notify about error results
         if (errorResults.length > 0 && onBatchComplete) {
           onBatchComplete(errorResults);
         }
@@ -460,8 +498,7 @@ export const api = {
         processedCount += batch.length;
         onProgress?.(processedCount, limitedFiles.length, batch[batch.length - 1].file.name);
 
-        // Delay between batches to avoid rate limits (increased for safety)
-        if (i + BATCH_SIZE < filesWithBase64.length) {
+        if (i + BATCH_SIZE < filesWithData.length) {
           await delay(3000);
         }
       } catch (error) {

@@ -7,6 +7,17 @@ const corsHeaders = {
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+interface PreProcessedOCR {
+  rawText?: string;
+  rodovia?: string;
+  km_inicio?: string;
+  km_fim?: string;
+  sentido?: string;
+  data?: string;
+  hora?: string;
+  hasPlaca?: boolean;
+}
+
 interface ImageRequest {
   imageBase64: string;
   filename: string;
@@ -15,6 +26,7 @@ interface ImageRequest {
     date?: string;
     gps?: { lat: number; lon: number };
   };
+  ocrData?: PreProcessedOCR;
 }
 
 interface BatchRequest {
@@ -57,69 +69,54 @@ async function fetchWithRetry(
   throw lastError || new Error('All retry attempts failed');
 }
 
-function getPromptForImage(defaultPortico?: string, exifData?: { date?: string; gps?: { lat: number; lon: number } }): string {
-  const exifInfo = exifData ? `
-## DADOS EXIF: ${exifData.date ? `Data: ${exifData.date}` : 'Sem data'} | ${exifData.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : 'Sem GPS'}
-` : '';
+function getPromptForImage(
+  defaultPortico?: string, 
+  exifData?: { date?: string; gps?: { lat: number; lon: number } },
+  ocrData?: PreProcessedOCR
+): string {
+  // Se temos dados OCR do cliente, usamos prompt MUITO mais simples
+  if (ocrData && (ocrData.rawText || ocrData.hasPlaca)) {
+    return `Você é um engenheiro civil. Classifique esta foto de obra rapidamente.
 
-  return `Você é um engenheiro civil sênior especialista em obras de infraestrutura rodoviária.
-${exifInfo}
-## TAREFA: Analise esta foto com foco em OCR e classificação.
+## DADOS EXTRAÍDOS
+${ocrData.rawText ? `Texto: "${ocrData.rawText.substring(0, 200)}"` : ''}
+${ocrData.rodovia ? `Rodovia: ${ocrData.rodovia}` : ''}
+${ocrData.km_inicio ? `KM: ${ocrData.km_inicio}` : ''}
+${ocrData.data ? `Data: ${ocrData.data}` : ''}
+${exifData?.date ? `EXIF: ${exifData.date}` : ''}
 
-## 1. LEITURA DE TEXTO (OCR) - PRIORIDADE
-Transcreva TODO texto visível:
-- Placas de obra: rodovia, KM, sentido, empresa, contrato
-- Datas e horários
-- Identificadores: P-10, Cortina 01, BSO 04
-- Documentos: RDA, BM, FLS, Notas
+## CLASSIFIQUE
+- portico: P-10, CORTINA_01, BSO_04 (ou "${defaultPortico || 'NAO_IDENTIFICADO'}")
+- disciplina: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
+- servico: específico
+- analise_tecnica: 1 frase
+- confidence: 0-1
 
-## 2. IDENTIFICAÇÃO VISUAL
-Descreva: equipamentos, materiais, atividade, estruturas.
-
-## 3. CLASSIFICAÇÃO
-
-### FRENTE (portico): P-10, CORTINA_01, BSO_04, VIADUTO_KM_200
-Use "${defaultPortico || 'NAO_IDENTIFICADO'}" se não identificar.
-
-### RODOVIA E KM
-- rodovia: "SP_270" ou nome
-- km_inicio: "94+050"
-- sentido: "LESTE" / "OESTE"
-
-### DISCIPLINA
-FUNDACAO | ESTRUTURA | PORTICO_FREE_FLOW | CONTENCAO | TERRAPLENAGEM | DRENAGEM | PAVIMENTACAO | SINALIZACAO | BARREIRAS | ACABAMENTO | REVESTIMENTO | ALVENARIA | HIDRAULICA | ELETRICA | SEGURANCA | PAISAGISMO | MANUTENCAO | DEMOLICAO | OAC_OAE | ESQUADRIAS | IMPERMEABILIZACAO | MOBILIZACAO | ENSAIOS | LOUCAS_METAIS | OUTROS
-
-### SERVIÇO: Específico da disciplina
-
-### DATA: DD/MM/YYYY
-
-### ALERTAS
-- sem_placa: true/false
-- texto_ilegivel: true/false
-- evidencia_fraca: true/false
-
-## RESPOSTA JSON
+JSON apenas:
 \`\`\`json
-{
-  "portico": "P_11",
-  "disciplina": "CONTENCAO",
-  "servico": "PROTENSAO_TIRANTE",
-  "data": "29/08/2025",
-  "rodovia": "SP_270",
-  "km_inicio": "94+050",
-  "sentido": "LESTE",
-  "analise_tecnica": "Descrição",
-  "confidence": 0.85,
-  "ocr_text": "Texto encontrado",
-  "alertas": {
-    "sem_placa": false,
-    "texto_ilegivel": false,
-    "evidencia_fraca": false
+{"portico":"","disciplina":"","servico":"","analise_tecnica":"","confidence":0.8}
+\`\`\``;
   }
-}
-\`\`\`
 
-Responda APENAS com JSON válido.`;
+  // Prompt completo quando não há OCR
+  const exifInfo = exifData ? `EXIF: ${exifData.date || 'sem data'} | ${exifData.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : 'sem GPS'}` : '';
+
+  return `Engenheiro civil: analise foto de obra.
+${exifInfo}
+
+1. OCR: transcreva texto (placas, datas, KM)
+2. CLASSIFIQUE:
+- portico: P-10, CORTINA_01, BSO_04 (ou "${defaultPortico || 'NAO_IDENTIFICADO'}")
+- rodovia/km_inicio/sentido
+- disciplina: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
+- servico: específico
+- data: DD/MM/YYYY
+- alertas: sem_placa, texto_ilegivel, evidencia_fraca
+
+JSON:
+\`\`\`json
+{"portico":"","disciplina":"","servico":"","data":"","rodovia":"","km_inicio":"","sentido":"","analise_tecnica":"","confidence":0.8,"ocr_text":"","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
+\`\`\``;
 }
 
 function normalizeField(value: string | undefined | null, defaultValue: string): string {
@@ -159,12 +156,14 @@ async function analyzeImage(
   defaultPortico?: string,
   economicMode?: boolean
 ): Promise<{ hash: string; result: Record<string, unknown> }> {
-  const prompt = getPromptForImage(defaultPortico, image.exifData);
+  const hasPreOCR = image.ocrData && (image.ocrData.rawText || image.ocrData.hasPlaca);
+  const prompt = getPromptForImage(defaultPortico, image.exifData, image.ocrData);
   
-  // Use cheaper model in economic mode (roughly 2x cheaper)
-  const model = economicMode ? 'google/gemini-2.5-flash-lite' : 'google/gemini-2.5-flash';
+  // Modelo mais barato se temos OCR pré-processado
+  const model = hasPreOCR ? 'google/gemini-2.5-flash-lite' : (economicMode ? 'google/gemini-2.5-flash-lite' : 'google/gemini-2.5-flash');
+  const maxTokens = hasPreOCR ? 200 : (economicMode ? 400 : 600);
 
-  console.log(`Analyzing image: ${image.filename} (model: ${model})`);
+  console.log(`Analyzing: ${image.filename} (model: ${model}, hasPreOCR: ${hasPreOCR})`);
 
   const response = await fetchWithRetry('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -188,7 +187,7 @@ async function analyzeImage(
           ]
         }
       ],
-      max_tokens: economicMode ? 500 : 800, // Less tokens in economic mode
+      max_tokens: maxTokens,
     }),
   }, 3, 2000);
 
@@ -229,20 +228,24 @@ async function analyzeImage(
     };
   }
 
+  // Merge OCR data from client with AI result
+  const ocrInput = image.ocrData;
   const normalized = {
     portico: normalizeField(result.portico, defaultPortico || 'NAO_IDENTIFICADO'),
     disciplina: normalizeField(result.disciplina, 'OUTROS'),
     servico: normalizeField(result.servico, 'NAO_IDENTIFICADO'),
-    data: normalizeDate(result.data),
-    rodovia: normalizeField(result.rodovia, ''),
-    km_inicio: result.km_inicio || null,
-    sentido: normalizeField(result.sentido, ''),
+    // Prioriza OCR cliente > IA > EXIF
+    data: normalizeDate(ocrInput?.data || result.data || image.exifData?.date),
+    rodovia: normalizeField(ocrInput?.rodovia || result.rodovia, ''),
+    km_inicio: ocrInput?.km_inicio || result.km_inicio || null,
+    km_fim: ocrInput?.km_fim || result.km_fim || null,
+    sentido: normalizeField(ocrInput?.sentido || result.sentido, ''),
     analise_tecnica: result.analise_tecnica || '',
     confidence: normalizeConfidence(result.confidence),
-    ocr_text: result.ocr_text || '',
-    method: 'ia_forcada',
+    ocr_text: ocrInput?.rawText || result.ocr_text || '',
+    method: hasPreOCR ? 'ocr_ia' : 'ia_forcada',
     alertas: {
-      sem_placa: result.alertas?.sem_placa || false,
+      sem_placa: ocrInput?.hasPlaca === false || result.alertas?.sem_placa || false,
       texto_ilegivel: result.alertas?.texto_ilegivel || false,
       evidencia_fraca: result.alertas?.evidencia_fraca || false,
     }

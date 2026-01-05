@@ -44,148 +44,92 @@ async function fetchWithRetry(
   throw lastError || new Error('All retry attempts failed');
 }
 
-function getPrompt(defaultPortico?: string, exifData?: { date?: string; gps?: { lat: number; lon: number } }): string {
+// Interface para dados OCR pré-processados pelo cliente
+interface PreProcessedOCR {
+  rawText?: string;
+  rodovia?: string;
+  km_inicio?: string;
+  km_fim?: string;
+  sentido?: string;
+  data?: string;
+  hora?: string;
+  contrato?: string;
+  hasPlaca?: boolean;
+  confidence?: number;
+}
+
+function getPrompt(
+  defaultPortico?: string, 
+  exifData?: { date?: string; gps?: { lat: number; lon: number } },
+  ocrData?: PreProcessedOCR
+): string {
+  // Se temos dados OCR do cliente, usamos prompt MUITO mais simples
+  if (ocrData && (ocrData.rawText || ocrData.hasPlaca)) {
+    return `Você é um engenheiro civil. Classifique esta foto de obra com base nos dados já extraídos.
+
+## DADOS JÁ EXTRAÍDOS (OCR + EXIF)
+${ocrData.rawText ? `Texto OCR: "${ocrData.rawText}"` : ''}
+${ocrData.rodovia ? `Rodovia: ${ocrData.rodovia}` : ''}
+${ocrData.km_inicio ? `KM: ${ocrData.km_inicio}${ocrData.km_fim ? ' a ' + ocrData.km_fim : ''}` : ''}
+${ocrData.sentido ? `Sentido: ${ocrData.sentido}` : ''}
+${ocrData.data ? `Data detectada: ${ocrData.data}` : ''}
+${exifData?.date ? `Data EXIF: ${exifData.date}` : ''}
+${exifData?.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : ''}
+
+## TAREFA (APENAS CLASSIFICAÇÃO VISUAL)
+Olhe a imagem e classifique:
+
+1. **FRENTE (portico)**: P-10, CORTINA_01, BSO_04, FREE_FLOW_P11
+   Use "${defaultPortico || 'NAO_IDENTIFICADO'}" se não identificar.
+
+2. **DISCIPLINA**: FUNDACAO | ESTRUTURA | PORTICO_FREE_FLOW | CONTENCAO | TERRAPLENAGEM | DRENAGEM | PAVIMENTACAO | SINALIZACAO | BARREIRAS | ACABAMENTO | REVESTIMENTO | ALVENARIA | HIDRAULICA | ELETRICA | SEGURANCA | PAISAGISMO | MANUTENCAO | DEMOLICAO | OAC_OAE | OUTROS
+
+3. **SERVIÇO**: Específico da disciplina
+
+4. **DESCRIÇÃO**: O que você vê (1-2 frases)
+
+## RESPOSTA JSON
+\`\`\`json
+{
+  "portico": "P_11",
+  "disciplina": "CONTENCAO",
+  "servico": "PROTENSAO_TIRANTE",
+  "analise_tecnica": "Descrição curta",
+  "confidence": 0.85
+}
+\`\`\`
+
+Responda APENAS com JSON.`;
+  }
+
+  // Prompt completo quando não há OCR do cliente (fallback)
   const exifInfo = exifData ? `
-## DADOS EXIF EXTRAÍDOS (usar como referência)
-${exifData.date ? `- Data/Hora do dispositivo: ${exifData.date}` : '- Data EXIF: não disponível'}
-${exifData.gps ? `- GPS: ${exifData.gps.lat.toFixed(6)}, ${exifData.gps.lon.toFixed(6)}` : '- GPS: não disponível'}
+## DADOS EXIF: ${exifData.date ? `Data: ${exifData.date}` : 'Sem data'} | ${exifData.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : 'Sem GPS'}
 ` : '';
 
-  return `Você é um engenheiro civil sênior especialista em obras de infraestrutura rodoviária, pontes, viadutos e construção civil.
-
+  return `Você é um engenheiro civil especialista em obras rodoviárias.
 ${exifInfo}
+## TAREFA: Analise esta foto com foco em OCR e classificação.
 
-## TAREFA PRINCIPAL
-Analise esta foto de obra com foco em:
-1. **LEITURA DE TEXTO (OCR)** - Prioridade máxima
-2. **CLASSIFICAÇÃO TÉCNICA**
-3. **ALERTAS DE QUALIDADE**
+## 1. LEITURA DE TEXTO (OCR)
+Transcreva TODO texto visível:
+- Placas: rodovia, KM, sentido, empresa
+- Datas e horários
+- Identificadores: P-10, Cortina 01, BSO 04
 
-## PASSO 1: LEITURA DE TEXTO (OCR) - CRÍTICO
-Procure e transcreva TODO texto visível na foto:
+## 2. CLASSIFICAÇÃO
+- FRENTE (portico): P-10, CORTINA_01, BSO_04. Use "${defaultPortico || 'NAO_IDENTIFICADO'}" se não identificar.
+- RODOVIA: SP_270, BR_116
+- KM: 94+050
+- DISCIPLINA: FUNDACAO | ESTRUTURA | PORTICO_FREE_FLOW | CONTENCAO | TERRAPLENAGEM | DRENAGEM | PAVIMENTACAO | SINALIZACAO | BARREIRAS | ACABAMENTO | REVESTIMENTO | ALVENARIA | HIDRAULICA | ELETRICA | SEGURANCA | PAISAGISMO | MANUTENCAO | DEMOLICAO | OAC_OAE | OUTROS
+- SERVIÇO: Específico
 
-### PLACAS DE OBRA (procure ativamente)
-- Nome da obra / contratante
-- Rodovia (ex: SP-270, BR-116, Raposo Tavares)
-- KM inicial e final (ex: km 94+050, km 101+410)
-- Sentido (Leste/Oeste, Norte/Sul, Capital/Interior)
-- Nome da contratada / empreiteira
-- Número do contrato
-- Fiscal / responsável
+## ALERTAS
+- sem_placa: true/false
+- texto_ilegivel: true/false
+- evidencia_fraca: true/false
 
-### DATAS E HORÁRIOS
-- Datas impressas na foto (qualquer formato)
-- Horários visíveis
-- Marcas d'água de data
-
-### IDENTIFICADORES
-- Número de estruturas (P-10, P 11, Cortina 01, BSO 04)
-- Códigos de atividade
-- Numeração de equipamentos
-
-### DOCUMENTOS FOTOGRAFADOS
-Se a foto mostra um documento, identifique:
-- Tipo: RDA, BM, FLS, Nota Fiscal, Ordem de Serviço
-- Números, datas e valores visíveis
-- Assinaturas (presença visual)
-
-## PASSO 2: IDENTIFICAÇÃO VISUAL
-Descreva o que você VÊ na imagem:
-- Equipamentos (escavadeira, caminhão, guindaste, betoneira, etc.)
-- Materiais (concreto, ferro, madeira, tubos, terra, asfalto, etc.)
-- Atividade em execução
-- Estruturas identificáveis
-- Condições de trabalho (EPI, equipe, clima)
-
-## PASSO 3: CLASSIFICAÇÃO
-
-### FRENTE DE SERVIÇO (portico)
-Identifique o local/estrutura principal. Exemplos:
-- Pórticos Free Flow: P-10, P_11, P 12, PORTICO_13, FREE_FLOW_P14
-- Cortinas: CORTINA_01, CORTINA_ATIRANTADA_KM_167
-- Praças: PRACA_PEDAGIO_01, PRACA_05
-- BSO: BSO_04, BASE_OPERACIONAL_KM79
-- Estruturas: VIADUTO_KM_200, PASSARELA_02, PONTE_01
-- Outros: GUARITA_01, CANTEIRO_OBRAS
-- Use "${defaultPortico || 'NAO_IDENTIFICADO'}" se não conseguir identificar
-
-### RODOVIA E KM
-Extraia da placa ou contexto:
-- rodovia: "SP-270" ou "RAPOSO_TAVARES"
-- km_inicio: "94+050"
-- km_fim: "101+410" (se houver)
-- sentido: "LESTE" ou "OESTE" ou "CAPITAL" ou "INTERIOR"
-
-### DISCIPLINA (escolha UMA das opções abaixo)
-| Disciplina | Quando usar |
-|------------|-------------|
-| FUNDACAO | Estacas, blocos, sapatas, tubulões, perfuração de solo |
-| ESTRUTURA | Pilares, vigas, lajes, formas, armação, concretagem estrutural |
-| PORTICO_FREE_FLOW | Montagem/içamento de pórticos, instalação RFID, estrutura de Free Flow |
-| CONTENCAO | Cortinas atirantadas, tirantes, protensão, solo grampeado, muros |
-| TERRAPLENAGEM | Escavação, aterro, corte, compactação, carga/transporte de terra |
-| DRENAGEM | Bueiros, bocas de lobo, sarjetas, canaletas, descidas d'água |
-| PAVIMENTACAO | Asfalto, CBUQ, base, sub-base, fresagem, imprimação, pavimento |
-| SINALIZACAO | Placas, pintura de solo, defensas, tachas, balizadores |
-| BARREIRAS | Barreiras New Jersey, barreiras de concreto |
-| ACABAMENTO | Pintura (interna/externa), texturas, verniz, selador, forro |
-| REVESTIMENTO | Reboco, chapisco, cerâmica, piso, contrapiso |
-| ALVENARIA | Paredes de bloco/tijolo, muros, vergas |
-| HIDRAULICA | Tubulações de água/esgoto, caixas d'água, bombas, instalações |
-| ELETRICA | Eletrodutos, cabeamento, quadros, iluminação, postes |
-| SEGURANCA | Cercas, alambrados, câmeras CFTV, guaritas, controle acesso |
-| PAISAGISMO | Grama, plantio, jardim, hidrossemeadura, biomanta |
-| MANUTENCAO | Limpeza, roçagem, capina, reparos gerais, manutenção BSO |
-| DEMOLICAO | Demolição, remoção de estruturas, corte de concreto |
-| OAC_OAE | Obras de arte correntes (bueiros maiores) e especiais (pontes, viadutos) |
-| ESQUADRIAS | Portas, janelas, portões, grades, guarda-corpos |
-| IMPERMEABILIZACAO | Mantas, impermeabilizantes, juntas |
-| MOBILIZACAO | Canteiro de obras, instalações provisórias |
-| ENSAIOS | Testes, ensaios de campo, prova de carga |
-| LOUCAS_METAIS | Vasos sanitários, pias, cubas, metais sanitários |
-| OUTROS | APENAS se não se encaixar em nenhuma outra categoria |
-
-### SERVIÇO (específico dentro da disciplina)
-Exemplos por disciplina:
-- FUNDACAO: ESTACA_RAIZ, BLOCO_COROAMENTO, CONCRETAGEM_BLOCO
-- ESTRUTURA: ARMACAO, CONCRETAGEM, FORMA, DESFORMA, PILAR
-- PORTICO_FREE_FLOW: MONTAGEM_PORTICO, ICAMENTO_PORTICO, INSTALACAO_RFID
-- CONTENCAO: PROTENSAO_TIRANTE, CORTINA_ATIRANTADA, INJECAO_CIMENTO
-- TERRAPLENAGEM: ESCAVACAO, ATERRO, COMPACTACAO, CARGA_TRANSPORTE
-- DRENAGEM: BUEIRO, BOCA_LOBO, DESCIDA_DAGUA, GABIAO
-- PAVIMENTACAO: CBUQ, IMPRIMACAO, BASE, FRESAGEM
-- ACABAMENTO: PINTURA_EXTERNA, PINTURA_INTERNA, TEXTURA
-- SEGURANCA: ALAMBRADO, CERCA, CAMERA, CFTV
-- PAISAGISMO: PLANTIO_GRAMA, HIDROSSEMEADURA
-- MANUTENCAO: REFORMA_BSO, LIMPEZA, ROCAGEM
-
-### DATA
-Formato: DD/MM/YYYY
-Prioridade: 1) Data na foto, 2) Data EXIF, 3) null
-
-### TIPO DE DOCUMENTO (se aplicável)
-Se a foto mostra um documento, classifique:
-- tipo_documento: "RDA" | "BM" | "FLS" | "NOTA_FISCAL" | "ORDEM_SERVICO" | "FOTO"
-
-## REGRAS CRÍTICAS
-
-1. **OCR é prioridade**: Extraia TODO texto visível, mesmo parcial
-2. **Rodovia e KM**: Críticos para organização - procure ativamente
-3. **Equipamentos NÃO definem disciplina sozinhos**
-4. **Confiança baseada em evidências**:
-   - OCR claro com placa legível: 0.90-0.98
-   - OCR parcial + contexto visual: 0.75-0.90
-   - Apenas análise visual clara: 0.60-0.75
-   - Incerteza ou foto ruim: 0.40-0.60
-
-## ALERTAS (identificar problemas)
-Marque se detectar:
-- "sem_placa": true se não há placa de identificação
-- "texto_ilegivel": true se texto está borrado/escuro
-- "evidencia_fraca": true se foto tem pouca informação
-- "km_inconsistente": true se KM parece incorreto
-
-## FORMATO DA RESPOSTA (JSON OBRIGATÓRIO)
+## RESPOSTA JSON
 \`\`\`json
 {
   "portico": "P_11",
@@ -194,22 +138,19 @@ Marque se detectar:
   "data": "29/08/2025",
   "rodovia": "SP_270",
   "km_inicio": "94+050",
-  "km_fim": null,
   "sentido": "LESTE",
-  "tipo_documento": "FOTO",
-  "analise_tecnica": "Descrição detalhada do que você vê",
-  "confidence": 0.92,
-  "ocr_text": "Todo texto encontrado na imagem transcrito aqui",
+  "analise_tecnica": "Descrição",
+  "confidence": 0.85,
+  "ocr_text": "Texto encontrado",
   "alertas": {
     "sem_placa": false,
     "texto_ilegivel": false,
-    "evidencia_fraca": false,
-    "km_inconsistente": false
+    "evidencia_fraca": false
   }
 }
 \`\`\`
 
-Responda APENAS com o JSON, sem texto adicional.`;
+Responda APENAS com JSON válido.`;
 }
 
 serve(async (req) => {
@@ -219,7 +160,7 @@ serve(async (req) => {
   }
 
   try {
-    const { imageBase64, filename, defaultPortico, economicMode, exifData } = await req.json();
+    const { imageBase64, filename, defaultPortico, economicMode, exifData, ocrData } = await req.json();
     
     if (!imageBase64) {
       return new Response(
@@ -233,11 +174,14 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    // Use cheaper model in economic mode (roughly 2x cheaper)
-    const model = economicMode ? 'google/gemini-2.5-flash-lite' : 'google/gemini-2.5-flash';
-    console.log(`Analyzing image: ${filename} (model: ${model}, economic: ${economicMode || false})`);
+    // Se temos OCR pré-processado, usamos modelo mais barato ainda
+    const hasPreOCR = ocrData && (ocrData.rawText || ocrData.hasPlaca);
+    const model = hasPreOCR ? 'google/gemini-2.5-flash-lite' : (economicMode ? 'google/gemini-2.5-flash-lite' : 'google/gemini-2.5-flash');
+    const maxTokens = hasPreOCR ? 300 : (economicMode ? 600 : 1200);
+    
+    console.log(`Analyzing image: ${filename} (model: ${model}, hasPreOCR: ${hasPreOCR})`);
 
-    const prompt = getPrompt(defaultPortico, exifData);
+    const prompt = getPrompt(defaultPortico, exifData, ocrData as PreProcessedOCR);
 
     const response = await fetchWithRetry('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -261,7 +205,7 @@ serve(async (req) => {
             ]
           }
         ],
-        max_tokens: economicMode ? 600 : 1200,
+        max_tokens: maxTokens,
       }),
     }, 3, 2000);
 
@@ -315,23 +259,26 @@ serve(async (req) => {
       };
     }
 
-    // Normalize and validate the result
+    // Merge OCR data from client with AI result
+    const ocrInput = ocrData as PreProcessedOCR | undefined;
     const normalizedResult = {
       portico: normalizeField(result.portico, defaultPortico || 'NAO_IDENTIFICADO'),
       disciplina: normalizeField(result.disciplina, 'OUTROS'),
       servico: normalizeField(result.servico, 'NAO_IDENTIFICADO'),
-      data: normalizeDate(result.data),
-      rodovia: normalizeField(result.rodovia, ''),
-      km_inicio: result.km_inicio || null,
-      km_fim: result.km_fim || null,
-      sentido: normalizeField(result.sentido, ''),
+      // Prioriza dados do OCR cliente, depois IA, depois EXIF
+      data: normalizeDate(ocrInput?.data || result.data || exifData?.date),
+      rodovia: normalizeField(ocrInput?.rodovia || result.rodovia, ''),
+      km_inicio: ocrInput?.km_inicio || result.km_inicio || null,
+      km_fim: ocrInput?.km_fim || result.km_fim || null,
+      sentido: normalizeField(ocrInput?.sentido || result.sentido, ''),
       tipo_documento: result.tipo_documento || 'FOTO',
       analise_tecnica: result.analise_tecnica || '',
       confidence: normalizeConfidence(result.confidence),
-      ocr_text: result.ocr_text || '',
-      method: 'ia_forcada',
+      // OCR text: prioriza cliente
+      ocr_text: ocrInput?.rawText || result.ocr_text || '',
+      method: hasPreOCR ? 'ocr_ia' : 'ia_forcada',
       alertas: {
-        sem_placa: result.alertas?.sem_placa || false,
+        sem_placa: ocrInput?.hasPlaca === false || result.alertas?.sem_placa || false,
         texto_ilegivel: result.alertas?.texto_ilegivel || false,
         evidencia_fraca: result.alertas?.evidencia_fraca || false,
         km_inconsistente: result.alertas?.km_inconsistente || false,
