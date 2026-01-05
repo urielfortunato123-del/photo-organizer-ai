@@ -55,6 +55,7 @@ export interface PreProcessedOCR {
   hora?: string;
   hasPlaca?: boolean;
   confidence?: number;
+  contratada?: string; // Usado para armazenar a frente/pórtico identificado pelo OCR
 }
 
 export interface TreeNode {
