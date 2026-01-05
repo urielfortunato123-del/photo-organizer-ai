@@ -175,37 +175,41 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
     <div className="space-y-4">
       {/* Folder Selection - Main Feature */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Button
-          onClick={handleSelectFolder}
-          disabled={isScanning || isPreviewIframe}
-          variant="outline"
-          className="h-auto py-6 flex flex-col gap-2 border-dashed border-2 border-primary/50 hover:border-primary hover:bg-primary/5 transition-all disabled:opacity-60"
-        >
-          {isScanning ? (
-            <>
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="text-sm font-medium">Escaneando...</span>
-              <span className="text-xs text-muted-foreground">
-                {scanStats.folders} pastas | {scanStats.images} imagens
-              </span>
-              {scanStats.current && (
-                <span className="text-xs text-muted-foreground/70 truncate max-w-full">
-                  📁 {scanStats.current}
+        <div className="space-y-2">
+          <Button
+            onClick={handleSelectFolder}
+            disabled={isScanning}
+            variant="outline"
+            className="w-full h-auto py-6 flex flex-col gap-2 border-dashed border-2 border-primary/50 hover:border-primary hover:bg-primary/5 transition-all"
+          >
+            {isScanning ? (
+              <>
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="text-sm font-medium">Escaneando...</span>
+                <span className="text-xs text-muted-foreground">
+                  {scanStats.folders} pastas | {scanStats.images} imagens
                 </span>
-              )}
-            </>
-          ) : (
-            <>
-              <FolderTree className="h-8 w-8 text-primary" />
-              <span className="text-sm font-medium">Selecionar Pasta</span>
-              <span className="text-xs text-muted-foreground">
-                {isPreviewIframe
-                  ? 'No preview, o navegador bloqueia seleção de pastas — publique/abra em uma aba.'
-                  : 'Lê todas as subpastas automaticamente'}
-              </span>
-            </>
+                {scanStats.current && (
+                  <span className="text-xs text-muted-foreground/70 truncate max-w-full">
+                    📁 {scanStats.current}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <FolderTree className="h-8 w-8 text-primary" />
+                <span className="text-sm font-medium">Selecionar Pasta</span>
+                <span className="text-xs text-muted-foreground">Lê todas as subpastas automaticamente</span>
+              </>
+            )}
+          </Button>
+
+          {isPreviewIframe && (
+            <p className="text-xs text-muted-foreground text-center">
+              No preview, o navegador bloqueia seleção de pastas. Publique/abra em uma aba ou use o método alternativo.
+            </p>
           )}
-        </Button>
+        </div>
 
         {/* Fallback folder input */}
         <div className="relative">
