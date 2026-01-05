@@ -4,9 +4,19 @@ import {
   Play, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree, Folder,
   User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet,
-  Plus, X, Database, Clock, FileText
+  Plus, X, Database, Clock, FileText, AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import GnomeSidebar from '@/components/GnomeSidebar';
 import UploadZone from '@/components/UploadZone';
@@ -149,6 +159,17 @@ const Index: React.FC = () => {
     return () => clearInterval(timer);
   }, [reprocessCooldown]);
 
+  // State for confirmation dialog
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingProcessFiles, setPendingProcessFiles] = useState<File[]>([]);
+
+  // Estimate cost based on file count (~$0.005-0.01 per image)
+  const estimateCost = (count: number) => {
+    const minCost = count * 0.005;
+    const maxCost = count * 0.01;
+    return `$${minCost.toFixed(2)} - $${maxCost.toFixed(2)}`;
+  };
+
   const handleProcess = async () => {
     // Filter out already processed files
     const newFiles = files.filter(f => !processedFiles.has(f.name));
@@ -164,9 +185,22 @@ const Index: React.FC = () => {
       return;
     }
 
+    // If more than 10 files, show confirmation dialog
+    if (newFiles.length > 10) {
+      setPendingProcessFiles(newFiles);
+      setShowConfirmDialog(true);
+      return;
+    }
+
+    // Otherwise process directly
+    await executeProcessing(newFiles);
+  };
+
+  const executeProcessing = async (filesToProcess: File[]) => {
+    setShowConfirmDialog(false);
     setIsProcessing(true);
     setProcessingStartTime(Date.now());
-    setProcessingProgress({ current: 0, total: newFiles.length, currentFile: 'Preparando...' });
+    setProcessingProgress({ current: 0, total: filesToProcess.length, currentFile: 'Preparando...' });
 
     const config = {
       default_portico: defaultPortico,
@@ -178,7 +212,7 @@ const Index: React.FC = () => {
     try {
       // Use the optimized processPhotos with cache and batching
       const newResults = await api.processPhotos(
-        newFiles,
+        filesToProcess,
         config,
         (current, total, filename) => {
           setProcessingProgress({ current, total, currentFile: filename });
@@ -196,6 +230,11 @@ const Index: React.FC = () => {
           });
           // Switch to results tab when first results arrive
           setActiveTab('results');
+        },
+        // Options for credit protection
+        {
+          maxFiles: 100, // Max 100 files per batch
+          stopOnCreditError: true, // Stop immediately on 402
         }
       );
 
@@ -206,22 +245,34 @@ const Index: React.FC = () => {
 
       const cacheStats = imageCache.getCacheStats();
       const cachedCount = newResults.filter(r => r.status === 'Sucesso').length;
+      const creditErrors = newResults.filter(r => r.status.includes('402') || r.status.includes('crédito')).length;
       
-      toast({
-        title: "Lote processado!",
-        description: `${cachedCount} de ${newFiles.length} fotos analisadas. Cache: ${cacheStats.total} itens.`,
-      });
+      if (creditErrors > 0) {
+        toast({
+          title: "Processamento interrompido",
+          description: `Limite de créditos atingido. ${cachedCount} fotos processadas antes do erro.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Lote processado!",
+          description: `${cachedCount} de ${filesToProcess.length} fotos analisadas. Cache: ${cacheStats.total} itens.`,
+        });
+      }
     } catch (error) {
       console.error('Processing error:', error);
+      const errorMsg = error instanceof Error ? error.message : "Erro desconhecido";
+      
       toast({
-        title: "Erro no processamento",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        title: errorMsg.includes('crédito') ? "Limite de créditos" : "Erro no processamento",
+        description: errorMsg,
         variant: "destructive",
       });
     } finally {
       setIsProcessing(false);
       setProcessingProgress({ current: 0, total: 0, currentFile: '' });
       setProcessingStartTime(undefined);
+      setPendingProcessFiles([]);
     }
   };
 
@@ -896,6 +947,45 @@ const Index: React.FC = () => {
           onClose={() => setShowDetailedReport(false)}
         />
       )}
+
+      {/* Confirmation Dialog for Large Batches */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-500" />
+              Confirmar Processamento
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Você está prestes a processar <strong>{pendingProcessFiles.length} fotos</strong>.
+                </p>
+                <div className="bg-secondary/50 p-3 rounded-lg space-y-2">
+                  <p className="text-sm">
+                    <strong>Custo estimado:</strong> {estimateCost(pendingProcessFiles.length)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Com $20 você pode processar aproximadamente 2.000-4.000 fotos.
+                  </p>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  O processamento será interrompido automaticamente se os créditos acabarem.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => executeProcessing(pendingProcessFiles)}
+              className="bg-primary"
+            >
+              Processar {pendingProcessFiles.length} fotos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

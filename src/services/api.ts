@@ -255,6 +255,7 @@ export const api = {
   },
 
   // Process multiple photos with caching and batching
+  // Now includes credit protection: stops immediately on 402 errors
   async processPhotos(
     files: File[], 
     config: ProcessingConfig,
@@ -264,17 +265,29 @@ export const api = {
       setCache: (hash: string, result: ProcessingResult) => void;
       setCacheBulk: (entries: { hash: string; result: ProcessingResult }[]) => void;
     },
-    onBatchComplete?: (batchResults: ProcessingResult[]) => void
+    onBatchComplete?: (batchResults: ProcessingResult[]) => void,
+    options?: {
+      maxFiles?: number; // Limit max files per batch
+      stopOnCreditError?: boolean; // Stop immediately on 402
+    }
   ): Promise<ProcessingResult[]> {
     const results: ProcessingResult[] = [];
     const empresaNome = config.empresa || 'EMPRESA';
+    const maxFiles = options?.maxFiles || 50; // Default max 50 files
+    const stopOnCreditError = options?.stopOnCreditError ?? true;
+    
+    // Limit files to prevent excessive credit usage
+    const limitedFiles = files.slice(0, maxFiles);
+    if (files.length > maxFiles) {
+      console.warn(`Limiting processing to ${maxFiles} files (${files.length} requested)`);
+    }
     
     // Step 1: Hash all files and check cache
     const filesToProcess: { file: File; hash: string; base64?: string }[] = [];
     const cachedResults: ProcessingResult[] = [];
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    for (let i = 0; i < limitedFiles.length; i++) {
+      const file = limitedFiles[i];
       const hash = await hashFile(file);
       
       if (cache) {
@@ -282,7 +295,7 @@ export const api = {
         if (cached) {
           // Update filename in case it changed
           cachedResults.push({ ...cached, filename: file.name });
-          onProgress?.(i + 1, files.length, `${file.name} (cache)`);
+          onProgress?.(i + 1, limitedFiles.length, `${file.name} (cache)`);
           continue;
         }
       }
@@ -333,11 +346,29 @@ export const api = {
     // Step 4: Process in batches of up to 5
     const BATCH_SIZE = 5;
     let processedCount = cachedResults.length;
+    let creditErrorOccurred = false;
 
     for (let i = 0; i < filesWithBase64.length; i += BATCH_SIZE) {
+      // Stop if credit error occurred
+      if (creditErrorOccurred && stopOnCreditError) {
+        console.log('Stopping processing due to credit limit error');
+        // Mark remaining files as skipped
+        for (let j = i; j < filesWithBase64.length; j++) {
+          const item = filesWithBase64[j];
+          results.push({
+            filename: item.file.name,
+            hash: item.hash,
+            status: 'Ignorado: Processamento interrompido (limite de créditos)',
+            method: 'ia_forcada',
+            confidence: 0,
+          });
+        }
+        break;
+      }
+
       const batch = filesWithBase64.slice(i, i + BATCH_SIZE);
       
-      onProgress?.(processedCount + 1, files.length, `Lote ${Math.floor(i / BATCH_SIZE) + 1}...`);
+      onProgress?.(processedCount + 1, limitedFiles.length, `Lote ${Math.floor(i / BATCH_SIZE) + 1}...`);
 
       try {
         const { results: batchResults, errors } = await this.analyzeBatch(
@@ -369,6 +400,12 @@ export const api = {
         const errorResults: ProcessingResult[] = [];
         for (const err of errors) {
           const originalFile = batch.find(f => f.hash === err.hash);
+          
+          // Check if it's a credit error
+          if (err.error.includes('402') || err.error.includes('crédito')) {
+            creditErrorOccurred = true;
+          }
+          
           const errorResult: ProcessingResult = {
             filename: originalFile?.file.name || 'unknown',
             hash: err.hash,
@@ -386,17 +423,49 @@ export const api = {
         }
 
         processedCount += batch.length;
-        onProgress?.(processedCount, files.length, batch[batch.length - 1].file.name);
+        onProgress?.(processedCount, limitedFiles.length, batch[batch.length - 1].file.name);
 
-        // Delay between batches to avoid rate limits
+        // Delay between batches to avoid rate limits (increased for safety)
         if (i + BATCH_SIZE < filesWithBase64.length) {
-          await delay(2000);
+          await delay(3000);
         }
       } catch (error) {
-        console.error('Batch error, falling back to individual processing:', error);
+        console.error('Batch error:', error);
         
-        // Fallback: process individually
+        // Check if it's a credit limit error
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes('402') || errorMsg.toLowerCase().includes('crédito')) {
+          creditErrorOccurred = true;
+          
+          // Mark current batch as failed
+          for (const item of batch) {
+            results.push({
+              filename: item.file.name,
+              hash: item.hash,
+              status: 'Erro: Limite de créditos atingido (402)',
+              method: 'ia_forcada',
+              confidence: 0,
+            });
+          }
+          
+          if (onBatchComplete) {
+            onBatchComplete(batch.map(item => ({
+              filename: item.file.name,
+              hash: item.hash,
+              status: 'Erro: Limite de créditos atingido (402)',
+              method: 'ia_forcada',
+              confidence: 0,
+            })));
+          }
+          
+          // Throw to stop processing
+          throw new Error('Limite de créditos atingido. Processamento interrompido para proteger seus créditos.');
+        }
+        
+        // Fallback: process individually for non-credit errors
         for (const item of batch) {
+          if (creditErrorOccurred && stopOnCreditError) break;
+          
           try {
             const result = await this.analyzeImage(item.file, config.default_portico, empresaNome);
             
@@ -416,13 +485,20 @@ export const api = {
             }
             
             processedCount++;
-            onProgress?.(processedCount, files.length, item.file.name);
-            await delay(3000);
+            onProgress?.(processedCount, limitedFiles.length, item.file.name);
+            await delay(4000); // Longer delay for individual processing
           } catch (fileError) {
+            const fileErrorMsg = fileError instanceof Error ? fileError.message : String(fileError);
+            
+            // Check for credit error
+            if (fileErrorMsg.includes('402') || fileErrorMsg.toLowerCase().includes('crédito')) {
+              creditErrorOccurred = true;
+            }
+            
             const errorResult: ProcessingResult = {
               filename: item.file.name,
               hash: item.hash,
-              status: `Erro: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`,
+              status: `Erro: ${fileErrorMsg}`,
               method: 'ia_forcada',
               confidence: 0,
             };
