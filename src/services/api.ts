@@ -106,6 +106,7 @@ export const hashFile = async (file: File): Promise<string> => {
 };
 
 // Build destination path based on classification
+// Format: EMPRESA/FOTOS/PORTICO/DISCIPLINA/SERVICO/MES/DIA_MES
 const buildDestPath = (
   empresa: string,
   portico: string,
@@ -117,15 +118,16 @@ const buildDestPath = (
   let path = `${empresa}/FOTOS/${portico}/${disciplina}/${servico}`;
   
   if (organizeByDate && dataStr) {
+    // Try DD/MM/YYYY format first
     const match = dataStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
     if (match) {
       const day = match[1];
       const month = parseInt(match[2], 10);
-      const year = match[3];
+      // Format: MES_NOME (e.g., 10_OUTUBRO)
       const monthName = MONTH_NAMES[month] || `${month.toString().padStart(2, '0')}_MES`;
-      const monthYear = `${monthName}_${year}`;
+      // Format: DIA_MES (e.g., 12_10)
       const dayMonth = `${day}_${month.toString().padStart(2, '0')}`;
-      path += `/${monthYear}/${dayMonth}`;
+      path += `/${monthName}/${dayMonth}`;
     }
   }
   
