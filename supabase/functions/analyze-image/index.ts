@@ -44,31 +44,8 @@ async function fetchWithRetry(
   throw lastError || new Error('All retry attempts failed');
 }
 
-serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const { imageBase64, filename, defaultPortico } = await req.json();
-    
-    if (!imageBase64) {
-      return new Response(
-        JSON.stringify({ error: 'Image base64 data is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
-
-    console.log(`Analyzing image: ${filename}`);
-
-    // Prompt otimizado para maior precisão
-    const prompt = `Você é um engenheiro civil sênior especialista em obras de infraestrutura rodoviária, pontes, viadutos e construção civil.
+function getPrompt(defaultPortico?: string): string {
+  return `Você é um engenheiro civil sênior especialista em obras de infraestrutura rodoviária, pontes, viadutos e construção civil.
 
 ## TAREFA PRINCIPAL
 Analise esta foto de obra e classifique com precisão máxima.
@@ -143,11 +120,6 @@ Exemplos por disciplina:
 
 ### DATA
 Formato: DD/MM/YYYY
-Procure datas em:
-- Marcas d'água em fotos
-- Placas de identificação
-- Legendas escritas
-- Metadados visíveis
 
 ## REGRAS CRÍTICAS DE CLASSIFICAÇÃO
 
@@ -156,21 +128,9 @@ Procure datas em:
    - Escavadeira + ROCHA para fundação = FUNDACAO
    - Caminhão betoneira = depende do destino do concreto
 
-2. **Priorize o SERVIÇO sendo executado, não apenas o equipamento:**
-   - Trabalhador pintando parede = ACABAMENTO/PINTURA
-   - Trabalhador lançando concreto em bloco = FUNDACAO/CONCRETAGEM_BLOCO
-   - Trabalhador lançando concreto em pilar = ESTRUTURA/CONCRETAGEM
+2. **Priorize o SERVIÇO sendo executado, não apenas o equipamento**
 
-3. **Se houver pórtico Free Flow visível:**
-   - Durante montagem/içamento = PORTICO_FREE_FLOW
-   - Trabalhos no entorno (terraplenagem, fundação) = disciplina correspondente
-
-4. **Cortinas e contenções:**
-   - Tirantes sendo protendidos = CONTENCAO/PROTENSAO_TIRANTE
-   - Escavação para cortina = CONTENCAO ou FUNDACAO dependendo do contexto
-   - Injeção de cimento em tirantes = CONTENCAO/INJECAO_CIMENTO
-
-5. **Confiança:**
+3. **Confiança:**
    - Se baseado em texto/OCR legível: 0.85-0.95
    - Se baseado apenas em análise visual clara: 0.70-0.85
    - Se houver dúvida na classificação: 0.50-0.70
@@ -182,17 +142,41 @@ Procure datas em:
   "disciplina": "CONTENCAO",
   "servico": "PROTENSAO_TIRANTE",
   "data": "29/08/2025",
-  "analise_tecnica": "Foto mostra equipamento de protensão (macaco hidráulico) posicionado em tirante de cortina atirantada. Manômetro visível indicando pressão de serviço. Trabalhadores utilizando EPIs. Estrutura de contenção com altura aproximada de 6m. Placa indica 'Cortina P-11 Km 167'.",
+  "analise_tecnica": "Descrição do que você vê",
   "confidence": 0.92,
-  "ocr_text": "CORTINA P-11 KM 167 - 29/08/2025"
+  "ocr_text": "Texto encontrado"
 }
 \`\`\`
 
-IMPORTANTE: 
-- Responda APENAS com o JSON, sem texto adicional
-- Use MAIÚSCULAS para todos os campos exceto analise_tecnica
-- Use _ (underscore) no lugar de espaços
-- O campo analise_tecnica deve descrever detalhadamente o que você VÊ na foto`;
+Responda APENAS com o JSON, sem texto adicional.`;
+}
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { imageBase64, filename, defaultPortico, economicMode } = await req.json();
+    
+    if (!imageBase64) {
+      return new Response(
+        JSON.stringify({ error: 'Image base64 data is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
+    }
+
+    // Use cheaper model in economic mode (roughly 2x cheaper)
+    const model = economicMode ? 'google/gemini-2.5-flash-lite' : 'google/gemini-2.5-flash';
+    console.log(`Analyzing image: ${filename} (model: ${model}, economic: ${economicMode || false})`);
+
+    const prompt = getPrompt(defaultPortico);
 
     const response = await fetchWithRetry('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -201,7 +185,7 @@ IMPORTANTE:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model,
         messages: [
           {
             role: 'user',
@@ -216,9 +200,9 @@ IMPORTANTE:
             ]
           }
         ],
-        max_tokens: 1500,
+        max_tokens: economicMode ? 600 : 1200,
       }),
-    }, 3, 2000); // 3 retries, starting with 2s delay
+    }, 3, 2000);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -251,7 +235,6 @@ IMPORTANTE:
     // Parse the JSON response
     let result;
     try {
-      // Try to extract JSON from the response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         result = JSON.parse(jsonMatch[0]);
@@ -309,25 +292,15 @@ function normalizeField(value: string | undefined | null, defaultValue: string):
 function normalizeDate(value: string | undefined | null): string | null {
   if (!value || typeof value !== 'string') return null;
   
-  // Try to parse different date formats
-  // DD/MM/YYYY
   const match1 = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (match1) {
     const [, day, month, year] = match1;
     return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
   }
   
-  // YYYY-MM-DD
   const match2 = value.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (match2) {
     const [, year, month, day] = match2;
-    return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
-  }
-  
-  // DD-MM-YYYY
-  const match3 = value.match(/(\d{1,2})-(\d{1,2})-(\d{4})/);
-  if (match3) {
-    const [, day, month, year] = match3;
     return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
   }
   
@@ -338,7 +311,6 @@ function normalizeConfidence(value: number | string | undefined | null): number 
   if (value === undefined || value === null) return 0.7;
   const num = typeof value === 'string' ? parseFloat(value) : value;
   if (isNaN(num)) return 0.7;
-  // Ensure it's between 0 and 1
   if (num > 1) return num / 100;
   return Math.min(Math.max(num, 0), 1);
 }

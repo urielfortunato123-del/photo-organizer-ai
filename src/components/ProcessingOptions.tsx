@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, MapPin, Calendar, Brain, Building2 } from 'lucide-react';
+import { Settings, MapPin, Calendar, Brain, Building2, Zap } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,8 @@ interface ProcessingOptionsProps {
   onOrganizeByDateChange: (value: boolean) => void;
   iaPriority: boolean;
   onIaPriorityChange: (value: boolean) => void;
+  economicMode?: boolean;
+  onEconomicModeChange?: (value: boolean) => void;
 }
 
 const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
@@ -24,6 +26,8 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
   onOrganizeByDateChange,
   iaPriority,
   onIaPriorityChange,
+  economicMode = false,
+  onEconomicModeChange,
 }) => {
   return (
     <div className="glass-card p-6 space-y-6">
@@ -111,6 +115,27 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
             onCheckedChange={onIaPriorityChange}
           />
         </div>
+
+        {/* Economic Mode - only show when AI is enabled */}
+        {iaPriority && onEconomicModeChange && (
+          <div className="flex items-center justify-between p-4 rounded-xl bg-green-500/10 border border-green-500/20">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-green-500/20 flex items-center justify-center">
+                <Zap className="w-4 h-4 text-green-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Modo Econômico</p>
+                <p className="text-xs text-muted-foreground">
+                  2x mais fotos por $ (modelo mais leve)
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={economicMode}
+              onCheckedChange={onEconomicModeChange}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
