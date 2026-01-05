@@ -11,12 +11,16 @@ interface ImageRequest {
   imageBase64: string;
   filename: string;
   hash: string;
+  exifData?: {
+    date?: string;
+    gps?: { lat: number; lon: number };
+  };
 }
 
 interface BatchRequest {
   images: ImageRequest[];
   defaultPortico?: string;
-  economicMode?: boolean; // Use cheaper model (gemini-2.5-flash-lite)
+  economicMode?: boolean;
 }
 
 async function fetchWithRetry(
@@ -53,31 +57,46 @@ async function fetchWithRetry(
   throw lastError || new Error('All retry attempts failed');
 }
 
-function getPromptForImage(defaultPortico?: string): string {
+function getPromptForImage(defaultPortico?: string, exifData?: { date?: string; gps?: { lat: number; lon: number } }): string {
+  const exifInfo = exifData ? `
+## DADOS EXIF: ${exifData.date ? `Data: ${exifData.date}` : 'Sem data'} | ${exifData.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : 'Sem GPS'}
+` : '';
+
   return `Você é um engenheiro civil sênior especialista em obras de infraestrutura rodoviária.
+${exifInfo}
+## TAREFA: Analise esta foto com foco em OCR e classificação.
 
-## TAREFA: Analise esta foto e classifique.
+## 1. LEITURA DE TEXTO (OCR) - PRIORIDADE
+Transcreva TODO texto visível:
+- Placas de obra: rodovia, KM, sentido, empresa, contrato
+- Datas e horários
+- Identificadores: P-10, Cortina 01, BSO 04
+- Documentos: RDA, BM, FLS, Notas
 
-## IDENTIFICAÇÃO VISUAL
-Descreva o que você VÊ: equipamentos, materiais, atividade, estruturas.
+## 2. IDENTIFICAÇÃO VISUAL
+Descreva: equipamentos, materiais, atividade, estruturas.
 
-## LEITURA DE TEXTO (OCR)
-Procure texto visível: placas, datas, números de estruturas.
+## 3. CLASSIFICAÇÃO
 
-## CLASSIFICAÇÃO
-
-### FRENTE DE SERVIÇO (portico)
-Exemplos: P-10, CORTINA_01, PRACA_PEDAGIO_01, VIADUTO_KM_200
+### FRENTE (portico): P-10, CORTINA_01, BSO_04, VIADUTO_KM_200
 Use "${defaultPortico || 'NAO_IDENTIFICADO'}" se não identificar.
 
+### RODOVIA E KM
+- rodovia: "SP_270" ou nome
+- km_inicio: "94+050"
+- sentido: "LESTE" / "OESTE"
+
 ### DISCIPLINA
-FUNDACAO | ESTRUTURA | PORTICO_FREE_FLOW | CONTENCAO | TERRAPLENAGEM | DRENAGEM | PAVIMENTACAO | SINALIZACAO | BARREIRAS | ACABAMENTO | REVESTIMENTO | ALVENARIA | HIDRAULICA | ELETRICA | SEGURANCA | PAISAGISMO | MANUTENCAO | DEMOLICAO | OAC/OAE | ESQUADRIAS | IMPERMEABILIZACAO | MOBILIZACAO | ENSAIOS | LOUCAS_METAIS | OUTROS
+FUNDACAO | ESTRUTURA | PORTICO_FREE_FLOW | CONTENCAO | TERRAPLENAGEM | DRENAGEM | PAVIMENTACAO | SINALIZACAO | BARREIRAS | ACABAMENTO | REVESTIMENTO | ALVENARIA | HIDRAULICA | ELETRICA | SEGURANCA | PAISAGISMO | MANUTENCAO | DEMOLICAO | OAC_OAE | ESQUADRIAS | IMPERMEABILIZACAO | MOBILIZACAO | ENSAIOS | LOUCAS_METAIS | OUTROS
 
-### SERVIÇO
-Específico da disciplina (ex: ESCAVACAO, ARMACAO, CONCRETAGEM, MONTAGEM_PORTICO)
+### SERVIÇO: Específico da disciplina
 
-### DATA
-Formato: DD/MM/YYYY
+### DATA: DD/MM/YYYY
+
+### ALERTAS
+- sem_placa: true/false
+- texto_ilegivel: true/false
+- evidencia_fraca: true/false
 
 ## RESPOSTA JSON
 \`\`\`json
@@ -86,9 +105,17 @@ Formato: DD/MM/YYYY
   "disciplina": "CONTENCAO",
   "servico": "PROTENSAO_TIRANTE",
   "data": "29/08/2025",
-  "analise_tecnica": "Descrição do que você vê",
+  "rodovia": "SP_270",
+  "km_inicio": "94+050",
+  "sentido": "LESTE",
+  "analise_tecnica": "Descrição",
   "confidence": 0.85,
-  "ocr_text": "Texto encontrado"
+  "ocr_text": "Texto encontrado",
+  "alertas": {
+    "sem_placa": false,
+    "texto_ilegivel": false,
+    "evidencia_fraca": false
+  }
 }
 \`\`\`
 
@@ -132,7 +159,7 @@ async function analyzeImage(
   defaultPortico?: string,
   economicMode?: boolean
 ): Promise<{ hash: string; result: Record<string, unknown> }> {
-  const prompt = getPromptForImage(defaultPortico);
+  const prompt = getPromptForImage(defaultPortico, image.exifData);
   
   // Use cheaper model in economic mode (roughly 2x cheaper)
   const model = economicMode ? 'google/gemini-2.5-flash-lite' : 'google/gemini-2.5-flash';
@@ -207,10 +234,18 @@ async function analyzeImage(
     disciplina: normalizeField(result.disciplina, 'OUTROS'),
     servico: normalizeField(result.servico, 'NAO_IDENTIFICADO'),
     data: normalizeDate(result.data),
+    rodovia: normalizeField(result.rodovia, ''),
+    km_inicio: result.km_inicio || null,
+    sentido: normalizeField(result.sentido, ''),
     analise_tecnica: result.analise_tecnica || '',
     confidence: normalizeConfidence(result.confidence),
     ocr_text: result.ocr_text || '',
-    method: 'ia_forcada'
+    method: 'ia_forcada',
+    alertas: {
+      sem_placa: result.alertas?.sem_placa || false,
+      texto_ilegivel: result.alertas?.texto_ilegivel || false,
+      evidencia_fraca: result.alertas?.evidencia_fraca || false,
+    }
   };
 
   return { hash: image.hash, result: normalized };

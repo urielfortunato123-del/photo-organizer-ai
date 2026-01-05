@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { CheckCircle2, XCircle, Loader2, FileImage, FolderOpen, Brain, Cpu, BarChart3, Eye } from 'lucide-react';
+import React from 'react';
+import { CheckCircle2, XCircle, Loader2, FileImage, BarChart3, Eye, Cpu, MapPin, Route } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { ProcessingResult } from '@/services/api';
+import AlertBadge from '@/components/AlertBadge';
 
 interface ResultsTableProps {
   results: ProcessingResult[];
@@ -80,15 +81,16 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
       <div className="overflow-x-auto scrollbar-thin">
         <Table>
           <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
+          <TableRow className="border-border hover:bg-transparent">
               <TableHead className="text-muted-foreground font-semibold w-16">Preview</TableHead>
               <TableHead className="text-muted-foreground font-semibold w-20">Status</TableHead>
               <TableHead className="text-muted-foreground font-semibold">Arquivo</TableHead>
               <TableHead className="text-muted-foreground font-semibold">Frente</TableHead>
+              <TableHead className="text-muted-foreground font-semibold">Rodovia/KM</TableHead>
               <TableHead className="text-muted-foreground font-semibold">Disciplina</TableHead>
               <TableHead className="text-muted-foreground font-semibold">Serviço</TableHead>
               <TableHead className="text-muted-foreground font-semibold">Data</TableHead>
-              <TableHead className="text-muted-foreground font-semibold">Método</TableHead>
+              <TableHead className="text-muted-foreground font-semibold w-16">Alertas</TableHead>
               <TableHead className="text-muted-foreground font-semibold">Confiança</TableHead>
               <TableHead className="text-muted-foreground font-semibold w-20">Ações</TableHead>
             </TableRow>
@@ -157,6 +159,32 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   </TableCell>
                   
                   <TableCell>
+                    {result.rodovia || result.km_inicio ? (
+                      <div className="flex items-center gap-1 text-xs">
+                        {result.rodovia && (
+                          <span className="font-mono text-primary">{result.rodovia}</span>
+                        )}
+                        {result.km_inicio && (
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <span className="flex items-center gap-0.5 text-muted-foreground">
+                                <MapPin className="w-3 h-3" />
+                                {result.km_inicio}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              KM: {result.km_inicio}{result.km_fim ? ` - ${result.km_fim}` : ''}
+                              {result.sentido && <span className="ml-1">({result.sentido})</span>}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">-</span>
+                    )}
+                  </TableCell>
+                  
+                  <TableCell>
                     <span className="text-sm text-foreground">
                       {result.disciplina || '-'}
                     </span>
@@ -175,21 +203,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   </TableCell>
                   
                   <TableCell>
-                    {result.method ? (
-                      <span className={cn(
-                        result.method === 'heuristica' ? 'method-heuristica' : 'method-ia',
-                        'flex items-center gap-1 w-fit'
-                      )}>
-                        {result.method === 'heuristica' ? (
-                          <BarChart3 className="w-3 h-3" />
-                        ) : (
-                          <Cpu className="w-3 h-3" />
-                        )}
-                        {getMethodLabel(result.method)}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
+                    <AlertBadge alertas={result.alertas} compact />
                   </TableCell>
                   
                   <TableCell>

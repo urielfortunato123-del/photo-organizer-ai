@@ -22,6 +22,24 @@ export interface ProcessingResult {
   data_detectada?: string;
   ocr_text?: string;
   hash?: string;
+  // Novos campos para OCR avançado
+  rodovia?: string;
+  km_inicio?: string;
+  km_fim?: string;
+  sentido?: string;
+  tipo_documento?: string;
+  // EXIF data
+  exif_date?: string;
+  gps_lat?: number;
+  gps_lon?: number;
+  device?: string;
+  // Alertas
+  alertas?: {
+    sem_placa?: boolean;
+    texto_ilegivel?: boolean;
+    evidencia_fraca?: boolean;
+    km_inconsistente?: boolean;
+  };
 }
 
 export interface TreeNode {
@@ -173,6 +191,13 @@ export const api = {
         confidence: data.confidence,
         method: 'ia_forcada',
         ocr_text: data.ocr_text,
+        // Novos campos OCR avançado
+        rodovia: data.rodovia || undefined,
+        km_inicio: data.km_inicio || undefined,
+        km_fim: data.km_fim || undefined,
+        sentido: data.sentido || undefined,
+        tipo_documento: data.tipo_documento || 'FOTO',
+        alertas: data.alertas,
         dest: buildDestPath(empresaNome, data.portico, data.disciplina, data.servico, data.data, true),
       };
     } catch (error) {
@@ -238,6 +263,11 @@ export const api = {
           confidence: r.result.confidence as number,
           method: 'ia_forcada' as const,
           ocr_text: r.result.ocr_text as string,
+          // Novos campos OCR avançado
+          rodovia: r.result.rodovia as string | undefined,
+          km_inicio: r.result.km_inicio as string | undefined,
+          sentido: r.result.sentido as string | undefined,
+          alertas: r.result.alertas as ProcessingResult['alertas'],
           dest: buildDestPath(
             empresaNome,
             r.result.portico as string,
