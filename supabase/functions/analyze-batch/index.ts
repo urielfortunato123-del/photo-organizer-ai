@@ -75,19 +75,21 @@ function getPromptForImage(
   exifData?: { date?: string; gps?: { lat: number; lon: number } },
   ocrData?: PreProcessedOCR
 ): string {
-  // Se temos dados OCR do cliente, usamos prompt MUITO mais simples
+  // Se temos dados OCR do cliente, usamos prompt mais simples
   if (ocrData && (ocrData.rawText || ocrData.hasPlaca)) {
-    return `Você é um engenheiro civil. Classifique esta foto de obra rapidamente.
+    const frenteIdentificada = ocrData.contratada || defaultPortico || 'NAO_IDENTIFICADO';
+    return `Engenheiro civil: classifique esta foto de obra.
 
 ## DADOS EXTRAÍDOS
 ${ocrData.rawText ? `Texto: "${ocrData.rawText.substring(0, 200)}"` : ''}
 ${ocrData.rodovia ? `Rodovia: ${ocrData.rodovia}` : ''}
 ${ocrData.km_inicio ? `KM: ${ocrData.km_inicio}` : ''}
 ${ocrData.data ? `Data: ${ocrData.data}` : ''}
+${ocrData.contratada ? `Frente identificada: ${ocrData.contratada}` : ''}
 ${exifData?.date ? `EXIF: ${exifData.date}` : ''}
 
 ## CLASSIFIQUE
-- portico: P-10, CORTINA_01, BSO_04 (ou "${defaultPortico || 'NAO_IDENTIFICADO'}")
+- portico: Use "${frenteIdentificada}" se já identificado, ou extraia da legenda (ex: "obra free flow p17" → FREE_FLOW_P17)
 - disciplina: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
 - servico: específico
 - analise_tecnica: 1 frase
@@ -95,19 +97,26 @@ ${exifData?.date ? `EXIF: ${exifData.date}` : ''}
 
 JSON apenas:
 \`\`\`json
-{"portico":"","disciplina":"","servico":"","analise_tecnica":"","confidence":0.8}
+{"portico":"${frenteIdentificada}","disciplina":"","servico":"","analise_tecnica":"","confidence":0.8}
 \`\`\``;
   }
 
-  // Prompt completo quando não há OCR
+  // Prompt completo quando não há OCR - IA faz OCR visual
   const exifInfo = exifData ? `EXIF: ${exifData.date || 'sem data'} | ${exifData.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : 'sem GPS'}` : '';
 
-  return `Engenheiro civil: analise foto de obra.
+  return `Engenheiro civil: analise foto de obra com FOCO NA LEGENDA.
 ${exifInfo}
 
-1. OCR: transcreva texto (placas, datas, KM)
-2. CLASSIFIQUE:
-- portico: P-10, CORTINA_01, BSO_04 (ou "${defaultPortico || 'NAO_IDENTIFICADO'}")
+## LEIA A LEGENDA DA FOTO (MUITO IMPORTANTE!)
+Procure texto sobreposto na imagem, especialmente na parte inferior:
+- Nome da obra: "obra free flow p17" → portico: FREE_FLOW_P17
+- "habitechne" → portico: HABITECHNE
+- "cortina 01" → portico: CORTINA_01
+- Rodovia: "SP 264 KM 131", "SP264_km131+100"
+- Data: "24 de nov. de 2025 11:13:03"
+
+## CLASSIFIQUE:
+- portico: USE O NOME DA OBRA da legenda! (ou "${defaultPortico || 'NAO_IDENTIFICADO'}" se não encontrar)
 - rodovia/km_inicio/sentido
 - disciplina: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
 - servico: específico
@@ -116,7 +125,7 @@ ${exifInfo}
 
 JSON:
 \`\`\`json
-{"portico":"","disciplina":"","servico":"","data":"","rodovia":"","km_inicio":"","sentido":"","analise_tecnica":"","confidence":0.8,"ocr_text":"","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
+{"portico":"FREE_FLOW_P17","disciplina":"FUNDACAO","servico":"ARMADURA","data":"24/11/2025","rodovia":"SP_264","km_inicio":"131+100","sentido":"","analise_tecnica":"","confidence":0.9,"ocr_text":"obra free flow p17 SP264","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
 \`\`\``;
 }
 
