@@ -56,6 +56,7 @@ interface PreProcessedOCR {
   contrato?: string;
   hasPlaca?: boolean;
   confidence?: number;
+  contratada?: string; // Usado para armazenar a frente/pórtico identificado pelo OCR
 }
 
 function getPrompt(
@@ -65,6 +66,7 @@ function getPrompt(
 ): string {
   // Se temos dados OCR do cliente, usamos prompt MUITO mais simples
   if (ocrData && (ocrData.rawText || ocrData.hasPlaca)) {
+    const frenteIdentificada = ocrData.contratada || defaultPortico || 'NAO_IDENTIFICADO';
     return `Você é um engenheiro civil. Classifique esta foto de obra com base nos dados já extraídos.
 
 ## DADOS JÁ EXTRAÍDOS (OCR + EXIF)
@@ -73,14 +75,17 @@ ${ocrData.rodovia ? `Rodovia: ${ocrData.rodovia}` : ''}
 ${ocrData.km_inicio ? `KM: ${ocrData.km_inicio}${ocrData.km_fim ? ' a ' + ocrData.km_fim : ''}` : ''}
 ${ocrData.sentido ? `Sentido: ${ocrData.sentido}` : ''}
 ${ocrData.data ? `Data detectada: ${ocrData.data}` : ''}
+${ocrData.contratada ? `Frente de serviço identificada: ${ocrData.contratada}` : ''}
 ${exifData?.date ? `Data EXIF: ${exifData.date}` : ''}
 ${exifData?.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : ''}
 
 ## TAREFA (APENAS CLASSIFICAÇÃO VISUAL)
 Olhe a imagem e classifique:
 
-1. **FRENTE (portico)**: P-10, CORTINA_01, BSO_04, FREE_FLOW_P11
-   Use "${defaultPortico || 'NAO_IDENTIFICADO'}" se não identificar.
+1. **FRENTE (portico)**: Use a frente já identificada se disponível.
+   Exemplos: P-10, CORTINA_01, BSO_04, FREE_FLOW_P11, FREE_FLOW_P17, HABITECHNE
+   Procure textos como "obra free flow p17" ou nomes de empresas na legenda da foto.
+   Use "${frenteIdentificada}" se já identificado.
 
 2. **DISCIPLINA**: FUNDACAO | ESTRUTURA | PORTICO_FREE_FLOW | CONTENCAO | TERRAPLENAGEM | DRENAGEM | PAVIMENTACAO | SINALIZACAO | BARREIRAS | ACABAMENTO | REVESTIMENTO | ALVENARIA | HIDRAULICA | ELETRICA | SEGURANCA | PAISAGISMO | MANUTENCAO | DEMOLICAO | OAC_OAE | OUTROS
 
@@ -91,9 +96,9 @@ Olhe a imagem e classifique:
 ## RESPOSTA JSON
 \`\`\`json
 {
-  "portico": "P_11",
-  "disciplina": "CONTENCAO",
-  "servico": "PROTENSAO_TIRANTE",
+  "portico": "${frenteIdentificada}",
+  "disciplina": "FUNDACAO",
+  "servico": "ARMADURA",
   "analise_tecnica": "Descrição curta",
   "confidence": 0.85
 }
@@ -261,8 +266,13 @@ serve(async (req) => {
 
     // Merge OCR data from client with AI result
     const ocrInput = ocrData as PreProcessedOCR | undefined;
+    
+    // Prioriza pórtico do OCR (contratada) > IA > default
+    const porticoFromOCR = ocrInput?.contratada ? normalizeField(ocrInput.contratada, '') : '';
+    const porticoFinal = porticoFromOCR || normalizeField(result.portico, defaultPortico || 'NAO_IDENTIFICADO');
+    
     const normalizedResult = {
-      portico: normalizeField(result.portico, defaultPortico || 'NAO_IDENTIFICADO'),
+      portico: porticoFinal,
       disciplina: normalizeField(result.disciplina, 'OUTROS'),
       servico: normalizeField(result.servico, 'NAO_IDENTIFICADO'),
       // Prioriza dados do OCR cliente, depois IA, depois EXIF

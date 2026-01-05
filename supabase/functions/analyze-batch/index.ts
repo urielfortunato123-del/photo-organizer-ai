@@ -16,6 +16,7 @@ interface PreProcessedOCR {
   data?: string;
   hora?: string;
   hasPlaca?: boolean;
+  contratada?: string; // Usado para armazenar a frente/pórtico identificado pelo OCR
 }
 
 interface ImageRequest {
@@ -230,8 +231,13 @@ async function analyzeImage(
 
   // Merge OCR data from client with AI result
   const ocrInput = image.ocrData;
+  
+  // Prioriza pórtico do OCR (contratada) > IA > default
+  const porticoFromOCR = ocrInput?.contratada ? normalizeField(ocrInput.contratada, '') : '';
+  const porticoFinal = porticoFromOCR || normalizeField(result.portico, defaultPortico || 'NAO_IDENTIFICADO');
+  
   const normalized = {
-    portico: normalizeField(result.portico, defaultPortico || 'NAO_IDENTIFICADO'),
+    portico: porticoFinal,
     disciplina: normalizeField(result.disciplina, 'OUTROS'),
     servico: normalizeField(result.servico, 'NAO_IDENTIFICADO'),
     // Prioriza OCR cliente > IA > EXIF
