@@ -107,46 +107,54 @@ Olhe a imagem e classifique:
 Responda APENAS com JSON.`;
   }
 
-  // Prompt completo quando não há OCR do cliente (fallback)
+  // Prompt completo quando não há OCR do cliente (fallback) - IA faz OCR visual
   const exifInfo = exifData ? `
 ## DADOS EXIF: ${exifData.date ? `Data: ${exifData.date}` : 'Sem data'} | ${exifData.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : 'Sem GPS'}
 ` : '';
 
   return `Você é um engenheiro civil especialista em obras rodoviárias.
 ${exifInfo}
-## TAREFA: Analise esta foto com foco em OCR e classificação.
+## TAREFA PRINCIPAL: Leia a LEGENDA da foto e extraia as informações.
 
-## 1. LEITURA DE TEXTO (OCR)
-Transcreva TODO texto visível:
-- Placas: rodovia, KM, sentido, empresa
-- Datas e horários
-- Identificadores: P-10, Cortina 01, BSO 04
+## 1. LEITURA DE LEGENDA (MUITO IMPORTANTE!)
+As fotos de obra geralmente têm legendas com informações sobrepostas na imagem.
+LEIA CUIDADOSAMENTE todo texto visível, especialmente:
+- Texto na parte inferior ou cantos da foto (legendas automáticas)
+- Nomes de obras: "obra free flow p17", "habitechne", "cortina 01", "BSO 04"
+- Rodovia e KM: "SP 264 KM 131", "SP264_km131+100", "BR-116 km 45"
+- Data e hora: "24 de nov. de 2025 11:13:03", "10/09/2025 15:40"
+- Coordenadas GPS: "23.722440, -47.638785"
+- Nomes de empresas: "motiva", "núcleo", "habitechne"
 
-## 2. CLASSIFICAÇÃO
-- FRENTE (portico): P-10, CORTINA_01, BSO_04. Use "${defaultPortico || 'NAO_IDENTIFICADO'}" se não identificar.
-- RODOVIA: SP_270, BR_116
-- KM: 94+050
+## 2. IDENTIFICAÇÃO DA FRENTE DE SERVIÇO (portico)
+A FRENTE é o identificador da obra. Procure por:
+- "obra free flow p17" → portico: "FREE_FLOW_P17"
+- "obra free flow p11" → portico: "FREE_FLOW_P11"  
+- "habitechne" → portico: "HABITECHNE"
+- "cortina 01" → portico: "CORTINA_01"
+- "BSO 04" → portico: "BSO_04"
+- "P-10" ou "p10" → portico: "P_10"
+
+Se encontrar o nome da obra na legenda, USE-O como portico!
+Use "${defaultPortico || 'NAO_IDENTIFICADO'}" APENAS se não encontrar nenhuma identificação.
+
+## 3. CLASSIFICAÇÃO VISUAL
 - DISCIPLINA: FUNDACAO | ESTRUTURA | PORTICO_FREE_FLOW | CONTENCAO | TERRAPLENAGEM | DRENAGEM | PAVIMENTACAO | SINALIZACAO | BARREIRAS | ACABAMENTO | REVESTIMENTO | ALVENARIA | HIDRAULICA | ELETRICA | SEGURANCA | PAISAGISMO | MANUTENCAO | DEMOLICAO | OAC_OAE | OUTROS
-- SERVIÇO: Específico
-
-## ALERTAS
-- sem_placa: true/false
-- texto_ilegivel: true/false
-- evidencia_fraca: true/false
+- SERVIÇO: Específico do que vê na foto (ex: ARMADURA, CONCRETAGEM, ESCAVACAO)
 
 ## RESPOSTA JSON
 \`\`\`json
 {
-  "portico": "P_11",
-  "disciplina": "CONTENCAO",
-  "servico": "PROTENSAO_TIRANTE",
-  "data": "29/08/2025",
-  "rodovia": "SP_270",
-  "km_inicio": "94+050",
-  "sentido": "LESTE",
-  "analise_tecnica": "Descrição",
-  "confidence": 0.85,
-  "ocr_text": "Texto encontrado",
+  "portico": "FREE_FLOW_P17",
+  "disciplina": "FUNDACAO",
+  "servico": "ARMADURA",
+  "data": "24/11/2025",
+  "rodovia": "SP_264",
+  "km_inicio": "131+100",
+  "sentido": "",
+  "analise_tecnica": "Armadura de fundação em execução",
+  "confidence": 0.90,
+  "ocr_text": "24 de nov. de 2025 11:13:03 - obra free flow p17 SP264_km131+100",
   "alertas": {
     "sem_placa": false,
     "texto_ilegivel": false,
