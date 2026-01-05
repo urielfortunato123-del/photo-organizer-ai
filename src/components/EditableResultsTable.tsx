@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -19,6 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { ProcessingResult, MONTH_NAMES } from '@/services/api';
+import { useAprendizadoOCR } from '@/hooks/useAprendizadoOCR';
+import { toast } from 'sonner';
 
 interface EditableResultsTableProps {
   results: ProcessingResult[];
@@ -87,6 +89,8 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<ProcessingResult>>({});
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [originalValues, setOriginalValues] = useState<Partial<ProcessingResult>>({});
+  const { salvarCorrecao } = useAprendizadoOCR();
 
   if (results.length === 0 && !isProcessing) {
     return null;
@@ -94,15 +98,17 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
 
   const handleStartEdit = (result: ProcessingResult) => {
     setEditingRow(result.filename);
-    setEditValues({
+    const currentValues = {
       portico: result.portico || '',
       disciplina: result.disciplina || '',
       service: result.service || '',
       data_detectada: result.data_detectada || '',
-    });
+    };
+    setEditValues(currentValues);
+    setOriginalValues(currentValues);
   };
 
-  const handleSaveEdit = (result: ProcessingResult) => {
+  const handleSaveEdit = async (result: ProcessingResult) => {
     if (onUpdateResult) {
       const newDest = buildDestPath(
         editValues.portico || result.portico || 'NAO_IDENTIFICADO',
@@ -110,6 +116,28 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
         editValues.service || result.service || 'NAO_IDENTIFICADO',
         editValues.data_detectada
       );
+
+      // Detecta se houve correção no pórtico
+      const porticoMudou = editValues.portico && 
+        editValues.portico !== originalValues.portico &&
+        originalValues.portico !== editValues.portico;
+
+      // Salva aprendizado se houver correção
+      if (porticoMudou && result.ocr_text) {
+        const salvo = await salvarCorrecao({
+          textoOCR: result.ocr_text,
+          identificacaoErrada: originalValues.portico || 'NAO_IDENTIFICADO',
+          identificacaoCorreta: editValues.portico,
+          obraId: result.obra_id
+        });
+        
+        if (salvo) {
+          toast.success('Aprendizado salvo!', {
+            description: `Sistema aprendeu: "${result.ocr_text}" → ${editValues.portico}`,
+            icon: <Brain className="w-4 h-4" />
+          });
+        }
+      }
 
       onUpdateResult({
         ...result,
@@ -125,11 +153,13 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
     }
     setEditingRow(null);
     setEditValues({});
+    setOriginalValues({});
   };
 
   const handleCancelEdit = () => {
     setEditingRow(null);
     setEditValues({});
+    setOriginalValues({});
   };
 
   const toggleRowSelection = (filename: string) => {

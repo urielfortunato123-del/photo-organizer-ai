@@ -19,7 +19,7 @@ export interface ProcessingResult {
   dest?: string;
   status: string;
   tecnico?: string;
-  method?: 'heuristica' | 'ia_fallback' | 'ia_forcada' | 'ocr_ia';
+  method?: 'heuristica' | 'ia_fallback' | 'ia_forcada' | 'ocr_ia' | 'banco_conhecimento';
   confidence?: number;
   data_detectada?: string;
   ocr_text?: string;
@@ -35,6 +35,8 @@ export interface ProcessingResult {
   gps_lat?: number;
   gps_lon?: number;
   device?: string;
+  // Banco de conhecimento
+  obra_id?: string;
   // Alertas
   alertas?: {
     sem_placa?: boolean;
@@ -205,8 +207,9 @@ export const api = {
         data_detectada: data.data,
         tecnico: data.analise_tecnica,
         confidence: data.confidence,
-        method: 'ia_forcada',
+        method: data.method || 'ia_forcada',
         ocr_text: data.ocr_text,
+        obra_id: data.obra_id || undefined,
         // Novos campos OCR avançado
         rodovia: data.rodovia || undefined,
         km_inicio: data.km_inicio || undefined,
@@ -280,6 +283,7 @@ export const api = {
           confidence: r.result.confidence as number,
           method: (r.result.method as ProcessingResult['method']) || 'ia_forcada',
           ocr_text: r.result.ocr_text as string,
+          obra_id: r.result.obra_id as string | undefined,
           rodovia: r.result.rodovia as string | undefined,
           km_inicio: r.result.km_inicio as string | undefined,
           km_fim: r.result.km_fim as string | undefined,

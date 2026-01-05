@@ -76,6 +76,42 @@ interface Sinonimo {
   termo_normalizado: string;
 }
 
+// Busca aprendizados anteriores para melhorar identificação
+async function buscarAprendizado(
+  texto: string,
+  supabaseUrl: string,
+  supabaseKey: string
+): Promise<string | null> {
+  if (!texto || texto.length < 3) return null;
+  
+  try {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const textoLower = texto.toLowerCase();
+    
+    // Busca correções aplicadas que contenham texto similar
+    const { data: aprendizados } = await supabase
+      .from('obras_aprendizado')
+      .select('identificacao_correta, texto_ocr')
+      .eq('aplicado', true);
+    
+    if (!aprendizados || aprendizados.length === 0) return null;
+    
+    for (const apr of aprendizados) {
+      const textoApr = apr.texto_ocr.toLowerCase();
+      // Match exato ou parcial significativo
+      if (textoLower.includes(textoApr) || textoApr.includes(textoLower)) {
+        console.log(`Aprendizado encontrado: "${apr.texto_ocr}" → ${apr.identificacao_correta}`);
+        return apr.identificacao_correta;
+      }
+    }
+    
+    return null;
+  } catch (err) {
+    console.error('Erro ao buscar aprendizado:', err);
+    return null;
+  }
+}
+
 // Busca no banco de conhecimento para identificar a obra
 async function buscarObraNoBanco(
   texto: string, 
@@ -264,13 +300,27 @@ serve(async (req) => {
     // Buscar obra no banco de conhecimento usando texto OCR
     const ocrInput = ocrData as PreProcessedOCR | undefined;
     let obraIdentificada: ObraConhecimento | null = null;
+    let aprendizado: string | null = null;
     
     if (ocrInput?.rawText) {
-      obraIdentificada = await buscarObraNoBanco(ocrInput.rawText, supabaseUrl, supabaseKey);
+      // Primeiro busca em aprendizados (correções do usuário)
+      aprendizado = await buscarAprendizado(ocrInput.rawText, supabaseUrl, supabaseKey);
+      
+      // Depois busca no banco de conhecimento
+      if (!aprendizado) {
+        obraIdentificada = await buscarObraNoBanco(ocrInput.rawText, supabaseUrl, supabaseKey);
+      }
     }
 
+    // Se encontrou aprendizado, usa diretamente
+    if (aprendizado) {
+      console.log(`Usando aprendizado: ${aprendizado}`);
+      if (ocrInput) {
+        ocrInput.contratada = aprendizado;
+      }
+    }
     // Se encontrou no banco, usa o código normalizado
-    if (obraIdentificada) {
+    else if (obraIdentificada) {
       console.log(`Obra identificada no banco: ${obraIdentificada.codigo_normalizado}`);
       if (ocrInput) {
         ocrInput.contratada = obraIdentificada.codigo_normalizado;

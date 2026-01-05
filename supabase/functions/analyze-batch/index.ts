@@ -52,6 +52,14 @@ let obrasCache: ObraConhecimento[] = [];
 let obrasCacheTime = 0;
 const CACHE_TTL = 60000;
 
+// Cache de aprendizados
+interface Aprendizado {
+  texto_ocr: string;
+  identificacao_correta: string;
+}
+let aprendizadosCache: Aprendizado[] = [];
+let aprendizadosCacheTime = 0;
+
 async function carregarObras(supabaseUrl: string, supabaseKey: string): Promise<ObraConhecimento[]> {
   const now = Date.now();
   if (obrasCache.length > 0 && (now - obrasCacheTime) < CACHE_TTL) {
@@ -77,6 +85,48 @@ async function carregarObras(supabaseUrl: string, supabaseKey: string): Promise<
     console.error('Erro ao carregar obras:', err);
     return obrasCache;
   }
+}
+
+async function carregarAprendizados(supabaseUrl: string, supabaseKey: string): Promise<Aprendizado[]> {
+  const now = Date.now();
+  if (aprendizadosCache.length > 0 && (now - aprendizadosCacheTime) < CACHE_TTL) {
+    return aprendizadosCache;
+  }
+  
+  try {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { data, error } = await supabase
+      .from('obras_aprendizado')
+      .select('texto_ocr, identificacao_correta')
+      .eq('aplicado', true);
+    
+    if (error) {
+      console.error('Erro ao carregar aprendizados:', error);
+      return aprendizadosCache;
+    }
+    
+    aprendizadosCache = (data || []) as Aprendizado[];
+    aprendizadosCacheTime = now;
+    return aprendizadosCache;
+  } catch (err) {
+    console.error('Erro ao carregar aprendizados:', err);
+    return aprendizadosCache;
+  }
+}
+
+function buscarAprendizado(texto: string, aprendizados: Aprendizado[]): string | null {
+  if (!texto || texto.length < 3) return null;
+  
+  const textoLower = texto.toLowerCase();
+  
+  for (const apr of aprendizados) {
+    const textoApr = apr.texto_ocr.toLowerCase();
+    if (textoLower.includes(textoApr) || textoApr.includes(textoLower)) {
+      return apr.identificacao_correta;
+    }
+  }
+  
+  return null;
 }
 
 function buscarObraNoBanco(texto: string, obras: ObraConhecimento[]): ObraConhecimento | null {
@@ -227,25 +277,40 @@ async function analyzeImage(
   defaultPortico?: string,
   economicMode?: boolean,
   obras?: ObraConhecimento[],
+  aprendizados?: Aprendizado[],
   supabaseUrl?: string,
   supabaseKey?: string
 ): Promise<{ hash: string; result: Record<string, unknown> }> {
-  // Busca obra no banco de conhecimento
+  // Busca primeiro em aprendizados (correções do usuário)
   let obraIdentificada: ObraConhecimento | null = null;
-  if (image.ocrData?.rawText && obras) {
-    obraIdentificada = buscarObraNoBanco(image.ocrData.rawText, obras);
-    if (obraIdentificada) {
-      console.log(`Obra identificada no banco: ${obraIdentificada.codigo_normalizado}`);
-      image.ocrData.contratada = obraIdentificada.codigo_normalizado;
-      
-      // Atualiza contador (fire and forget)
-      if (supabaseUrl && supabaseKey) {
-        const supabase = createClient(supabaseUrl, supabaseKey);
-        supabase
-          .from('obras_conhecimento')
-          .update({ vezes_identificado: (obraIdentificada.vezes_identificado || 0) + 1 })
-          .eq('id', obraIdentificada.id)
-          .then(() => {});
+  let aprendizadoEncontrado: string | null = null;
+  
+  if (image.ocrData?.rawText) {
+    // Primeiro tenta aprendizado
+    if (aprendizados) {
+      aprendizadoEncontrado = buscarAprendizado(image.ocrData.rawText, aprendizados);
+      if (aprendizadoEncontrado) {
+        console.log(`Aprendizado encontrado: ${aprendizadoEncontrado}`);
+        image.ocrData.contratada = aprendizadoEncontrado;
+      }
+    }
+    
+    // Depois tenta banco de conhecimento
+    if (!aprendizadoEncontrado && obras) {
+      obraIdentificada = buscarObraNoBanco(image.ocrData.rawText, obras);
+      if (obraIdentificada) {
+        console.log(`Obra identificada no banco: ${obraIdentificada.codigo_normalizado}`);
+        image.ocrData.contratada = obraIdentificada.codigo_normalizado;
+        
+        // Atualiza contador (fire and forget)
+        if (supabaseUrl && supabaseKey) {
+          const supabase = createClient(supabaseUrl, supabaseKey);
+          supabase
+            .from('obras_conhecimento')
+            .update({ vezes_identificado: (obraIdentificada.vezes_identificado || 0) + 1 })
+            .eq('id', obraIdentificada.id)
+            .then(() => {});
+        }
       }
     }
   }
@@ -387,6 +452,10 @@ serve(async (req) => {
     const obras = await carregarObras(supabaseUrl, supabaseKey);
     console.log(`Carregadas ${obras.length} obras do banco de conhecimento`);
 
+    // Carregar aprendizados (com cache)
+    const aprendizados = await carregarAprendizados(supabaseUrl, supabaseKey);
+    console.log(`Carregados ${aprendizados.length} aprendizados`);
+
     console.log(`Processing batch of ${images.length} images (economic: ${economicMode || false})`);
 
     const results: { hash: string; result: Record<string, unknown> }[] = [];
@@ -396,7 +465,7 @@ serve(async (req) => {
       const image = images[i];
       
       try {
-        const analyzed = await analyzeImage(image, LOVABLE_API_KEY, defaultPortico, economicMode, obras, supabaseUrl, supabaseKey);
+        const analyzed = await analyzeImage(image, LOVABLE_API_KEY, defaultPortico, economicMode, obras, aprendizados, supabaseUrl, supabaseKey);
         results.push(analyzed);
         
         if (i < images.length - 1) {
