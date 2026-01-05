@@ -14,6 +14,193 @@ export type Database = {
   }
   public: {
     Tables: {
+      obras_aprendizado: {
+        Row: {
+          aplicado: boolean | null
+          created_at: string
+          id: string
+          identificacao_correta: string
+          identificacao_errada: string | null
+          obra_id: string | null
+          texto_ocr: string
+          user_id: string | null
+        }
+        Insert: {
+          aplicado?: boolean | null
+          created_at?: string
+          id?: string
+          identificacao_correta: string
+          identificacao_errada?: string | null
+          obra_id?: string | null
+          texto_ocr: string
+          user_id?: string | null
+        }
+        Update: {
+          aplicado?: boolean | null
+          created_at?: string
+          id?: string
+          identificacao_correta?: string
+          identificacao_errada?: string | null
+          obra_id?: string | null
+          texto_ocr?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obras_aprendizado_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras_conhecimento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      obras_conhecimento: {
+        Row: {
+          ativo: boolean | null
+          codigo_normalizado: string
+          confianca: number | null
+          contratada: string | null
+          contrato: string | null
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          especificacoes: Json | null
+          id: string
+          km_fim: number | null
+          km_inicio: number | null
+          latitude: number | null
+          longitude: number | null
+          nome_exibicao: string
+          origem: string | null
+          rodovia: string | null
+          sentido: string | null
+          tipo: string
+          updated_at: string
+          variacoes: string[]
+          vezes_identificado: number | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          codigo_normalizado: string
+          confianca?: number | null
+          contratada?: string | null
+          contrato?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          especificacoes?: Json | null
+          id?: string
+          km_fim?: number | null
+          km_inicio?: number | null
+          latitude?: number | null
+          longitude?: number | null
+          nome_exibicao: string
+          origem?: string | null
+          rodovia?: string | null
+          sentido?: string | null
+          tipo: string
+          updated_at?: string
+          variacoes?: string[]
+          vezes_identificado?: number | null
+        }
+        Update: {
+          ativo?: boolean | null
+          codigo_normalizado?: string
+          confianca?: number | null
+          contratada?: string | null
+          contrato?: string | null
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          especificacoes?: Json | null
+          id?: string
+          km_fim?: number | null
+          km_inicio?: number | null
+          latitude?: number | null
+          longitude?: number | null
+          nome_exibicao?: string
+          origem?: string | null
+          rodovia?: string | null
+          sentido?: string | null
+          tipo?: string
+          updated_at?: string
+          variacoes?: string[]
+          vezes_identificado?: number | null
+        }
+        Relationships: []
+      }
+      obras_documentacao: {
+        Row: {
+          conteudo: string
+          created_at: string
+          fonte: string | null
+          id: string
+          idioma: string | null
+          obra_id: string | null
+          tipo: string | null
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          conteudo: string
+          created_at?: string
+          fonte?: string | null
+          id?: string
+          idioma?: string | null
+          obra_id?: string | null
+          tipo?: string | null
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          conteudo?: string
+          created_at?: string
+          fonte?: string | null
+          id?: string
+          idioma?: string | null
+          obra_id?: string | null
+          tipo?: string | null
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obras_documentacao_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obras_conhecimento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      obras_sinonimos: {
+        Row: {
+          categoria: string
+          created_at: string
+          id: string
+          idioma: string | null
+          termo_normalizado: string
+          termo_original: string
+        }
+        Insert: {
+          categoria: string
+          created_at?: string
+          id?: string
+          idioma?: string | null
+          termo_normalizado: string
+          termo_original: string
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          id?: string
+          idioma?: string | null
+          termo_normalizado?: string
+          termo_original?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

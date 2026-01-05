@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,7 +17,7 @@ interface PreProcessedOCR {
   data?: string;
   hora?: string;
   hasPlaca?: boolean;
-  contratada?: string; // Usado para armazenar a frente/pórtico identificado pelo OCR
+  contratada?: string;
 }
 
 interface ImageRequest {
@@ -34,6 +35,71 @@ interface BatchRequest {
   images: ImageRequest[];
   defaultPortico?: string;
   economicMode?: boolean;
+}
+
+interface ObraConhecimento {
+  id: string;
+  codigo_normalizado: string;
+  nome_exibicao: string;
+  tipo: string;
+  variacoes: string[];
+  rodovia?: string;
+  vezes_identificado?: number;
+}
+
+// Cache de obras
+let obrasCache: ObraConhecimento[] = [];
+let obrasCacheTime = 0;
+const CACHE_TTL = 60000;
+
+async function carregarObras(supabaseUrl: string, supabaseKey: string): Promise<ObraConhecimento[]> {
+  const now = Date.now();
+  if (obrasCache.length > 0 && (now - obrasCacheTime) < CACHE_TTL) {
+    return obrasCache;
+  }
+  
+  try {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { data, error } = await supabase
+      .from('obras_conhecimento')
+      .select('id, codigo_normalizado, nome_exibicao, tipo, variacoes, rodovia, vezes_identificado')
+      .eq('ativo', true);
+    
+    if (error) {
+      console.error('Erro ao carregar obras:', error);
+      return obrasCache;
+    }
+    
+    obrasCache = (data || []) as ObraConhecimento[];
+    obrasCacheTime = now;
+    return obrasCache;
+  } catch (err) {
+    console.error('Erro ao carregar obras:', err);
+    return obrasCache;
+  }
+}
+
+function buscarObraNoBanco(texto: string, obras: ObraConhecimento[]): ObraConhecimento | null {
+  if (!texto || texto.length < 3) return null;
+  
+  const textoLower = texto.toLowerCase();
+  
+  for (const obra of obras) {
+    for (const variacao of obra.variacoes || []) {
+      if (textoLower.includes(variacao.toLowerCase())) {
+        return obra;
+      }
+    }
+  }
+  
+  return null;
+}
+
+function getObrasConhecidasParaPrompt(obras: ObraConhecimento[]): string {
+  if (obras.length === 0) return '';
+  
+  const lista = obras.slice(0, 20).map(o => `${o.nome_exibicao} → ${o.codigo_normalizado}`).join(', ');
+  return `\n## OBRAS CONHECIDAS: ${lista}`;
 }
 
 async function fetchWithRetry(
@@ -73,9 +139,9 @@ async function fetchWithRetry(
 function getPromptForImage(
   defaultPortico?: string, 
   exifData?: { date?: string; gps?: { lat: number; lon: number } },
-  ocrData?: PreProcessedOCR
+  ocrData?: PreProcessedOCR,
+  obrasConhecidas?: string
 ): string {
-  // Se temos dados OCR do cliente, usamos prompt mais simples
   if (ocrData && (ocrData.rawText || ocrData.hasPlaca)) {
     const frenteIdentificada = ocrData.contratada || defaultPortico || 'NAO_IDENTIFICADO';
     return `Engenheiro civil: classifique esta foto de obra.
@@ -87,13 +153,13 @@ ${ocrData.km_inicio ? `KM: ${ocrData.km_inicio}` : ''}
 ${ocrData.data ? `Data: ${ocrData.data}` : ''}
 ${ocrData.contratada ? `Frente identificada: ${ocrData.contratada}` : ''}
 ${exifData?.date ? `EXIF: ${exifData.date}` : ''}
+${obrasConhecidas || ''}
 
 ## CLASSIFIQUE
-- portico: Use "${frenteIdentificada}" se já identificado, ou extraia da legenda (ex: "obra free flow p17" → FREE_FLOW_P17)
+- portico: Use "${frenteIdentificada}" se já identificado
 - disciplina: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
 - servico: específico
 - analise_tecnica: 1 frase
-- confidence: 0-1
 
 JSON apenas:
 \`\`\`json
@@ -101,31 +167,26 @@ JSON apenas:
 \`\`\``;
   }
 
-  // Prompt completo quando não há OCR - IA faz OCR visual
   const exifInfo = exifData ? `EXIF: ${exifData.date || 'sem data'} | ${exifData.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : 'sem GPS'}` : '';
 
   return `Engenheiro civil: analise foto de obra com FOCO NA LEGENDA.
 ${exifInfo}
+${obrasConhecidas || ''}
 
-## LEIA A LEGENDA DA FOTO (MUITO IMPORTANTE!)
-Procure texto sobreposto na imagem, especialmente na parte inferior:
-- Nome da obra: "obra free flow p17" → portico: FREE_FLOW_P17
+## LEIA A LEGENDA DA FOTO
+- "obra free flow p17" → portico: FREE_FLOW_P17
 - "habitechne" → portico: HABITECHNE
 - "cortina 01" → portico: CORTINA_01
-- Rodovia: "SP 264 KM 131", "SP264_km131+100"
-- Data: "24 de nov. de 2025 11:13:03"
 
 ## CLASSIFIQUE:
 - portico: USE O NOME DA OBRA da legenda! (ou "${defaultPortico || 'NAO_IDENTIFICADO'}" se não encontrar)
-- rodovia/km_inicio/sentido
 - disciplina: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
 - servico: específico
 - data: DD/MM/YYYY
-- alertas: sem_placa, texto_ilegivel, evidencia_fraca
 
 JSON:
 \`\`\`json
-{"portico":"FREE_FLOW_P17","disciplina":"FUNDACAO","servico":"ARMADURA","data":"24/11/2025","rodovia":"SP_264","km_inicio":"131+100","sentido":"","analise_tecnica":"","confidence":0.9,"ocr_text":"obra free flow p17 SP264","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
+{"portico":"FREE_FLOW_P17","disciplina":"FUNDACAO","servico":"ARMADURA","data":"24/11/2025","rodovia":"SP_264","km_inicio":"131+100","sentido":"","analise_tecnica":"","confidence":0.9,"ocr_text":"","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
 \`\`\``;
 }
 
@@ -164,16 +225,39 @@ async function analyzeImage(
   image: ImageRequest,
   apiKey: string,
   defaultPortico?: string,
-  economicMode?: boolean
+  economicMode?: boolean,
+  obras?: ObraConhecimento[],
+  supabaseUrl?: string,
+  supabaseKey?: string
 ): Promise<{ hash: string; result: Record<string, unknown> }> {
+  // Busca obra no banco de conhecimento
+  let obraIdentificada: ObraConhecimento | null = null;
+  if (image.ocrData?.rawText && obras) {
+    obraIdentificada = buscarObraNoBanco(image.ocrData.rawText, obras);
+    if (obraIdentificada) {
+      console.log(`Obra identificada no banco: ${obraIdentificada.codigo_normalizado}`);
+      image.ocrData.contratada = obraIdentificada.codigo_normalizado;
+      
+      // Atualiza contador (fire and forget)
+      if (supabaseUrl && supabaseKey) {
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        supabase
+          .from('obras_conhecimento')
+          .update({ vezes_identificado: (obraIdentificada.vezes_identificado || 0) + 1 })
+          .eq('id', obraIdentificada.id)
+          .then(() => {});
+      }
+    }
+  }
+
   const hasPreOCR = image.ocrData && (image.ocrData.rawText || image.ocrData.hasPlaca);
-  const prompt = getPromptForImage(defaultPortico, image.exifData, image.ocrData);
+  const obrasConhecidas = obras ? getObrasConhecidasParaPrompt(obras) : '';
+  const prompt = getPromptForImage(defaultPortico, image.exifData, image.ocrData, obrasConhecidas);
   
-  // Modelo mais barato se temos OCR pré-processado
   const model = hasPreOCR ? 'google/gemini-2.5-flash-lite' : (economicMode ? 'google/gemini-2.5-flash-lite' : 'google/gemini-2.5-flash');
   const maxTokens = hasPreOCR ? 200 : (economicMode ? 400 : 600);
 
-  console.log(`Analyzing: ${image.filename} (model: ${model}, hasPreOCR: ${hasPreOCR})`);
+  console.log(`Analyzing: ${image.filename} (model: ${model}, hasPreOCR: ${hasPreOCR}, obraDB: ${obraIdentificada?.codigo_normalizado || 'nenhuma'})`);
 
   const response = await fetchWithRetry('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -238,27 +322,27 @@ async function analyzeImage(
     };
   }
 
-  // Merge OCR data from client with AI result
   const ocrInput = image.ocrData;
   
-  // Prioriza pórtico do OCR (contratada) > IA > default
+  // Prioriza: banco > OCR > IA > default
+  const porticoFromDB = obraIdentificada?.codigo_normalizado || '';
   const porticoFromOCR = ocrInput?.contratada ? normalizeField(ocrInput.contratada, '') : '';
-  const porticoFinal = porticoFromOCR || normalizeField(result.portico, defaultPortico || 'NAO_IDENTIFICADO');
+  const porticoFinal = porticoFromDB || porticoFromOCR || normalizeField(result.portico, defaultPortico || 'NAO_IDENTIFICADO');
   
   const normalized = {
     portico: porticoFinal,
     disciplina: normalizeField(result.disciplina, 'OUTROS'),
     servico: normalizeField(result.servico, 'NAO_IDENTIFICADO'),
-    // Prioriza OCR cliente > IA > EXIF
     data: normalizeDate(ocrInput?.data || result.data || image.exifData?.date),
-    rodovia: normalizeField(ocrInput?.rodovia || result.rodovia, ''),
+    rodovia: normalizeField(ocrInput?.rodovia || obraIdentificada?.rodovia || result.rodovia, ''),
     km_inicio: ocrInput?.km_inicio || result.km_inicio || null,
     km_fim: ocrInput?.km_fim || result.km_fim || null,
     sentido: normalizeField(ocrInput?.sentido || result.sentido, ''),
     analise_tecnica: result.analise_tecnica || '',
     confidence: normalizeConfidence(result.confidence),
     ocr_text: ocrInput?.rawText || result.ocr_text || '',
-    method: hasPreOCR ? 'ocr_ia' : 'ia_forcada',
+    method: porticoFromDB ? 'banco_conhecimento' : (hasPreOCR ? 'ocr_ia' : 'ia_forcada'),
+    obra_id: obraIdentificada?.id || null,
     alertas: {
       sem_placa: ocrInput?.hasPlaca === false || result.alertas?.sem_placa || false,
       texto_ilegivel: result.alertas?.texto_ilegivel || false,
@@ -284,7 +368,6 @@ serve(async (req) => {
       );
     }
 
-    // Limit batch size to avoid timeouts
     if (images.length > 10) {
       return new Response(
         JSON.stringify({ error: 'Maximum 10 images per batch' }),
@@ -297,20 +380,25 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Carregar obras do banco de conhecimento (com cache)
+    const obras = await carregarObras(supabaseUrl, supabaseKey);
+    console.log(`Carregadas ${obras.length} obras do banco de conhecimento`);
+
     console.log(`Processing batch of ${images.length} images (economic: ${economicMode || false})`);
 
     const results: { hash: string; result: Record<string, unknown> }[] = [];
     const errors: { hash: string; error: string }[] = [];
 
-    // Process sequentially to avoid rate limits
     for (let i = 0; i < images.length; i++) {
       const image = images[i];
       
       try {
-        const analyzed = await analyzeImage(image, LOVABLE_API_KEY, defaultPortico, economicMode);
+        const analyzed = await analyzeImage(image, LOVABLE_API_KEY, defaultPortico, economicMode, obras, supabaseUrl, supabaseKey);
         results.push(analyzed);
         
-        // Small delay between requests to avoid rate limits
         if (i < images.length - 1) {
           await delay(1000);
         }
@@ -320,7 +408,6 @@ serve(async (req) => {
         const errObj = err as { status?: number; message?: string };
         
         if (errObj.status === 429) {
-          // Rate limit hit - return what we have
           return new Response(
             JSON.stringify({
               results,
