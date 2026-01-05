@@ -46,9 +46,9 @@ Faça upload da pasta `dist/` para qualquer serviço de hosting estático:
 
 ---
 
-## Supabase Edge Functions
+## Edge Functions
 
-As Edge Functions são gerenciadas pelo Lovable Cloud e não precisam de deploy manual.
+As Edge Functions são gerenciadas automaticamente e não precisam de deploy manual.
 
 ### Funções Disponíveis:
 - `analyze-image` - Análise de imagens com IA
