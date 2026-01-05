@@ -92,7 +92,20 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
     return foundFiles;
   };
 
+  const isPreviewIframe = (() => {
+    try {
+      return window.self !== window.top;
+    } catch {
+      return true;
+    }
+  })();
+
   const handleSelectFolder = useCallback(async () => {
+    if (isPreviewIframe) {
+      toast.error('No modo de preview, o navegador bloqueia selecionar pastas. Publique/abra o app em uma aba e tente novamente, ou use o método alternativo.');
+      return;
+    }
+
     if (!('showDirectoryPicker' in window)) {
       toast.error('Seu navegador não suporta seleção de pastas. Use Chrome, Edge ou Opera.');
       return;
@@ -115,7 +128,12 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
         onFilesChange([...files, ...allFiles]);
       }
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
+      if (err?.name === 'SecurityError') {
+        toast.error('O navegador bloqueou a seleção de pasta neste modo. Publique/abra o app em uma aba e tente novamente.');
+        return;
+      }
+
+      if (err?.name !== 'AbortError') {
         console.error('Erro ao ler pasta:', err);
         toast.error('Erro ao ler a pasta.');
       }
@@ -123,7 +141,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
       setIsScanning(false);
       setScanStats({ folders: 0, images: 0, current: '' });
     }
-  }, [files, onFilesChange]);
+  }, [files, onFilesChange, isPreviewIframe]);
 
   // Fallback for browsers without showDirectoryPicker
   const handleFolderFallback = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -159,9 +177,9 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Button
           onClick={handleSelectFolder}
-          disabled={isScanning}
+          disabled={isScanning || isPreviewIframe}
           variant="outline"
-          className="h-auto py-6 flex flex-col gap-2 border-dashed border-2 border-primary/50 hover:border-primary hover:bg-primary/5 transition-all"
+          className="h-auto py-6 flex flex-col gap-2 border-dashed border-2 border-primary/50 hover:border-primary hover:bg-primary/5 transition-all disabled:opacity-60"
         >
           {isScanning ? (
             <>
@@ -181,7 +199,9 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
               <FolderTree className="h-8 w-8 text-primary" />
               <span className="text-sm font-medium">Selecionar Pasta</span>
               <span className="text-xs text-muted-foreground">
-                Lê todas as subpastas automaticamente
+                {isPreviewIframe
+                  ? 'No preview, o navegador bloqueia seleção de pastas — publique/abra em uma aba.'
+                  : 'Lê todas as subpastas automaticamente'}
               </span>
             </>
           )}
