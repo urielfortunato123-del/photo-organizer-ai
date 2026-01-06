@@ -46,7 +46,9 @@ const PATTERNS = {
   oae: /\bOAE[\s\-_]*(\d{1,2})?\b/gi,
   pracaPedagio: /\bPRA[CÇ]A[\s\-_]*(DE[\s\-_]*)?(PED[AÁ]GIO)?[\s\-_]*(\d{1,2})?\b/gi,
   freeFlow: /\bFREE[\s\-_]?FLOW[\s\-_]*(P[\-\s]*\d+|[A-Z]?\d+)?\b/gi,
+  cortinaAtirantada: /\bCORTINA[\s\-_]*ATIRANTADA\b/gi,
   cortina: /\bCORTINA[\s\-_]*(\d{1,2})?\b/gi,
+  tirante: /\bTIRANTE[\s\-_]*(T?\d+)?\b/gi,
   
   // === METADADOS ===
   data: /\b(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})\b/g,
@@ -172,7 +174,17 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
     }
   }
   
-  // CORTINA
+  // CORTINA ATIRANTADA (antes de CORTINA simples)
+  if (!result.frenteServico) {
+    const cortinaAtirantadaMatch = PATTERNS.cortinaAtirantada.exec(normalizedText);
+    PATTERNS.cortinaAtirantada.lastIndex = 0;
+    if (cortinaAtirantadaMatch) {
+      result.frenteServico = 'CORTINA_ATIRANTADA';
+      result.hasPlaca = true;
+    }
+  }
+  
+  // CORTINA simples
   if (!result.frenteServico) {
     const cortinaMatch = PATTERNS.cortina.exec(normalizedText);
     PATTERNS.cortina.lastIndex = 0;
