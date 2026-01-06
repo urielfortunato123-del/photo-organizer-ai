@@ -506,6 +506,8 @@ const Index: React.FC = () => {
 
   const [isExporting, setIsExporting] = useState(false);
 
+  const [zipProgress, setZipProgress] = useState({ current: 0, total: 0 });
+
   const handleExportZIP = async () => {
     const successResults = results.filter((r) => r.status === 'Sucesso' && r.dest);
 
@@ -525,30 +527,58 @@ const Index: React.FC = () => {
         .trim();
 
     setIsExporting(true);
+    setZipProgress({ current: 0, total: successResults.length });
 
     try {
       const zip = new JSZip();
+      const BATCH_SIZE = 20; // Processa 20 fotos por vez para não estourar memória
+      
+      for (let i = 0; i < successResults.length; i += BATCH_SIZE) {
+        const batch = successResults.slice(i, i + BATCH_SIZE);
+        
+        // Processa o lote em paralelo
+        await Promise.all(batch.map(async (result, batchIndex) => {
+          const file = files.find((f) => f.name === result.filename);
+          if (!file || !result.dest) return;
 
-      for (const result of successResults) {
-        const file = files.find((f) => f.name === result.filename);
-        if (!file || !result.dest) continue;
+          const arrayBuffer = await file.arrayBuffer();
 
-        const arrayBuffer = await file.arrayBuffer();
+          const destParts = result.dest
+            .split('/')
+            .filter(Boolean)
+            .map(sanitizeZipPart);
+          const safeFilename = sanitizeZipPart(result.filename);
 
-        const destParts = result.dest
-          .split('/')
-          .filter(Boolean)
-          .map(sanitizeZipPart);
-        const safeFilename = sanitizeZipPart(result.filename);
-
-        zip.file(`${destParts.join('/')}/${safeFilename}`, arrayBuffer);
+          zip.file(`${destParts.join('/')}/${safeFilename}`, arrayBuffer);
+          
+          setZipProgress(prev => ({ ...prev, current: i + batchIndex + 1 }));
+        }));
+        
+        // Pequena pausa entre lotes para liberar memória
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
 
-      const zipBlob = await zip.generateAsync({
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 },
-      });
+      // Gera o ZIP com menos compressão (mais rápido, menos memória)
+      const zipBlob = await zip.generateAsync(
+        {
+          type: 'blob',
+          compression: 'DEFLATE',
+          compressionOptions: { level: 1 }, // Menor compressão = mais rápido e estável
+          streamFiles: true, // Streaming para arquivos grandes
+        },
+        (metadata) => {
+          // Callback de progresso da geração
+          setZipProgress(prev => ({ 
+            ...prev, 
+            current: Math.round(successResults.length * (metadata.percent / 100))
+          }));
+        }
+      );
+
+      // Valida se o ZIP foi gerado corretamente
+      if (zipBlob.size < 1000) {
+        throw new Error('ZIP gerado está vazio ou corrompido');
+      }
 
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
@@ -557,11 +587,13 @@ const Index: React.FC = () => {
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      
+      // Aguarda mais tempo antes de revogar para downloads grandes
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
 
       toast({
         title: "ZIP exportado!",
-        description: `${successResults.length} fotos organizadas em pastas. Limpando arquivos...`,
+        description: `${successResults.length} fotos (${(zipBlob.size / 1024 / 1024).toFixed(1)}MB) organizadas em pastas.`,
       });
       
       // Auto-clear after successful download
@@ -576,11 +608,12 @@ const Index: React.FC = () => {
       console.error('Export error:', error);
       toast({
         title: "Erro na exportação",
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        description: error instanceof Error ? error.message : "Erro desconhecido. Tente com menos fotos.",
         variant: "destructive",
       });
     } finally {
       setIsExporting(false);
+      setZipProgress({ current: 0, total: 0 });
     }
   };
 
@@ -847,12 +880,14 @@ const Index: React.FC = () => {
                       <Button
                         onClick={handleExportZIP}
                         disabled={isProcessing || isExporting}
-                        className="gnome-btn-primary"
+                        className="gnome-btn-primary min-w-[140px]"
                       >
                         {isExporting ? (
                           <>
                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            Gerando...
+                            {zipProgress.total > 0 
+                              ? `${zipProgress.current}/${zipProgress.total}` 
+                              : 'Gerando...'}
                           </>
                         ) : (
                           <>
@@ -953,12 +988,14 @@ const Index: React.FC = () => {
                 <Button
                   onClick={handleExportZIP}
                   disabled={isExporting || results.length === 0}
-                  className="gnome-btn-primary"
+                  className="gnome-btn-primary min-w-[140px]"
                 >
                   {isExporting ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Gerando...
+                      {zipProgress.total > 0 
+                        ? `${zipProgress.current}/${zipProgress.total}` 
+                        : 'Gerando...'}
                     </>
                   ) : (
                     <>
