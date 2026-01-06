@@ -561,8 +561,17 @@ const Index: React.FC = () => {
 
       toast({
         title: "ZIP exportado!",
-        description: `${successResults.length} fotos organizadas em pastas.`,
+        description: `${successResults.length} fotos organizadas em pastas. Limpando arquivos...`,
       });
+      
+      // Auto-clear after successful download
+      setFiles([]);
+      setResults([]);
+      setTreeData([]);
+      setProcessedFiles(new Set());
+      clearFiles();
+      resetQueue();
+      
     } catch (error) {
       console.error('Export error:', error);
       toast({
