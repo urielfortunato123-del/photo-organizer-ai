@@ -49,43 +49,57 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
     }
   }, [files, onFilesChange]);
 
-  // Recursive folder reading
+  // Recursive folder reading - collect all entries first to avoid iterator issues
   const readDirectoryRecursively = async (
     dirHandle: any,
     path: string = ''
   ): Promise<File[]> => {
     const foundFiles: File[] = [];
     
-    const entries = dirHandle.entries ? dirHandle.entries() : dirHandle.values();
-    for await (const entry of entries) {
-      const actualEntry = Array.isArray(entry) ? entry[1] : entry;
-      const entryPath = path ? `${path}/${actualEntry.name}` : actualEntry.name;
+    // Collect all entries first to avoid async iterator issues
+    const allEntries: any[] = [];
+    try {
+      for await (const entry of dirHandle.values()) {
+        allEntries.push(entry);
+      }
+    } catch (err) {
+      console.warn(`Erro ao listar diretório ${path}:`, err);
+      return foundFiles;
+    }
+
+    console.log(`[Scan] Pasta "${path || 'raiz'}": ${allEntries.length} itens encontrados`);
+    
+    // Process each entry
+    for (const entry of allEntries) {
+      const entryPath = path ? `${path}/${entry.name}` : entry.name;
       
-      if (actualEntry.kind === 'file') {
-        if (isImageFile(actualEntry.name)) {
+      if (entry.kind === 'file') {
+        if (isImageFile(entry.name)) {
           try {
-            const file = await actualEntry.getFile();
+            const file = await entry.getFile();
             const fileWithPath = new File([file], entryPath, { type: file.type });
             foundFiles.push(fileWithPath);
+            
+            // Update stats for each image found
+            setScanStats(prev => ({
+              ...prev,
+              images: prev.images + 1,
+              current: entryPath
+            }));
           } catch (err) {
             console.warn(`Não foi possível ler: ${entryPath}`, err);
           }
         }
-      } else if (actualEntry.kind === 'directory') {
+      } else if (entry.kind === 'directory') {
         setScanStats(prev => ({
+          ...prev,
           folders: prev.folders + 1,
-          images: prev.images,
           current: entryPath
         }));
         
-        const subFiles = await readDirectoryRecursively(actualEntry, entryPath);
+        // Recursively read subdirectory
+        const subFiles = await readDirectoryRecursively(entry, entryPath);
         foundFiles.push(...subFiles);
-        
-        setScanStats(prev => ({
-          folders: prev.folders,
-          images: prev.images + subFiles.length,
-          current: entryPath
-        }));
       }
     }
     
