@@ -4,16 +4,23 @@ import { useState, useRef, useCallback } from 'react';
 export interface OCRResult {
   // Texto bruto extraído
   rawText: string;
-  // Campos estruturados extraídos por regex
-  rodovia?: string;
-  km_inicio?: string;
+  
+  // === LOCALIZAÇÃO (onde a foto foi tirada) ===
+  rodovia?: string;      // SP-280, SP-270 (LOCAL)
+  km_inicio?: string;    // KM 150 (LOCAL)
   km_fim?: string;
   sentido?: string;
+  
+  // === FRENTE DE SERVIÇO/OBRA (identificação do trabalho) ===
+  frenteServico?: string;  // BSO_01, PORTICO_03, PASSARELA_02, etc.
+  
+  // === METADADOS ===
   data?: string;
   hora?: string;
   contrato?: string;
   fiscal?: string;
-  contratada?: string;
+  contratada?: string;     // Deprecated - usar frenteServico
+  
   // Confiança do OCR (0-1)
   confidence: number;
   // Se detectou placa de obra
@@ -22,28 +29,30 @@ export interface OCRResult {
 
 // Regex patterns para extrair informações de obras rodoviárias
 const PATTERNS = {
-  // Rodovias: SP-270, BR-116, SP 264, SP264, SP- 280, etc.
+  // === LOCALIZAÇÃO ===
+  // Rodovias: SP-270, BR-116, SP 264, SP264, SP- 280
   rodovia: /\b(SP|BR|MT|PR|MG|RJ|BA|GO|RS|SC|PE|CE|PA|MA|PI|RN|PB|SE|AL|ES|DF|TO|RO|AC|AM|RR|AP)[\s\-_]*(\d{2,3})\b/gi,
-  // KM: km 94+050, KM 101, km79+000, km131+100, KM 57, KM 79
+  // KM: km 94+050, KM 101, km79+000, km131+100, KM 57
   km: /\bkm[\s_]*(\d{1,4})[\s]*[\+\._]?[\s]*(\d{0,3})\b/gi,
-  // Sentido: Leste, Oeste, Norte, Sul, L/O, N/S, Capital, Interior
+  // Sentido: Leste, Oeste, Norte, Sul
   sentido: /\b(leste|oeste|norte|sul|capital|interior|crescente|decrescente|l[\s\/]?o|n[\s\/]?s|sentido[\s:]*\w+)\b/gi,
-  // Data numérica: 10/09/2025, 10-09-2025, 10.09.2025
-  data: /\b(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})\b/g,
-  // Data por extenso em português: 24 de nov. de 2025, 24 Nov 2025, 10 de janeiro de 2024, "15 de out. de 2025"
-  dataExtenso: /\b(\d{1,2})[\s]+(?:de\s+)?(jan(?:eiro)?|fev(?:ereiro)?|mar(?:ço|co)?|abr(?:il)?|mai(?:o)?|jun(?:ho)?|jul(?:ho)?|ago(?:sto)?|set(?:embro)?|out(?:ubro)?|nov(?:embro)?|dez(?:embro)?)\.?[\s]+(?:de\s+)?(\d{4})\b/gi,
-  // Hora: 15:40, 15h40, 15:40:00, 13:52:52
-  hora: /\b(\d{1,2})[:\s]?h?[:\s]?(\d{2})(?:[:\s](\d{2}))?\b/g,
-  // Contrato: Contrato nº 123, CT-123
-  contrato: /\b(?:contrato|ct|contr?)[\s\.\-:]*(?:n[°º]?[\s]*)?(\d+[\-\/]?\d*)\b/gi,
-  // BSO pattern específico: "BSO - 01", "BSO - 04", "BSO-01", "BSO 01"
+  
+  // === FRENTES DE SERVIÇO/OBRA ===
   bso: /\bBSO[\s\-_]*(\d{1,2})\b/gi,
-  // Free Flow, Cortina, Habitechne, etc.
-  estrutura: /\b(reforma[\s\-_]?(?:da[\s\-_]?)?bso|free[\s\-_]?flow|base|praça|praca|pedágio|pedagio|pórtico|portico|cortina|habitechne|sau|p)[\s\-_:]?\s*(p?\d+[\w]*|\d+[\w]*|\w+)?\b/gi,
-  // Obras: "obra free flow p17", "Reforma da BSO 1 SP 280"
-  obra: /\b(?:obra|reforma)[\s\-_:]*(?:da[\s\-_]*)?(bso[\s\-_]*\d+[^\n,]*|[^\n,]+)/gi,
-  // Rodovia por extenso: "Rod. Raposo Tavares", "Rodovia Presidente Castello Branco"
-  rodoviaNome: /\b(?:rod\.?|rodovia)[\s]+([^\d\n,]+?)(?:,|[\s]+s\/n|[\s]+km|\d|$)/gi,
+  portico: /\bP[OÓ]RTICO[\s\-_]*(\d{1,2})?\b/gi,
+  passarela: /\bPASSARELA[\s\-_]*(\d{1,2})?\b/gi,
+  viaduto: /\bVIADUTO[\s\-_]*([A-Z0-9\-]+)?\b/gi,
+  ponte: /\bPONTE[\s\-_]*([A-Z0-9\-]+)?\b/gi,
+  oae: /\bOAE[\s\-_]*(\d{1,2})?\b/gi,
+  pracaPedagio: /\bPRA[CÇ]A[\s\-_]*(DE[\s\-_]*)?(PED[AÁ]GIO)?[\s\-_]*(\d{1,2})?\b/gi,
+  freeFlow: /\bFREE[\s\-_]?FLOW[\s\-_]*([A-Z]?\d*)?\b/gi,
+  cortina: /\bCORTINA[\s\-_]*(\d{1,2})?\b/gi,
+  
+  // === METADADOS ===
+  data: /\b(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})\b/g,
+  dataExtenso: /\b(\d{1,2})[\s]+(?:de\s+)?(jan(?:eiro)?|fev(?:ereiro)?|mar(?:ço|co)?|abr(?:il)?|mai(?:o)?|jun(?:ho)?|jul(?:ho)?|ago(?:sto)?|set(?:embro)?|out(?:ubro)?|nov(?:embro)?|dez(?:embro)?)\.?[\s]+(?:de\s+)?(\d{4})\b/gi,
+  hora: /\b(\d{1,2})[:\s]?h?[:\s]?(\d{2})(?:[:\s](\d{2}))?\b/g,
+  contrato: /\b(?:contrato|ct|contr?)[\s\.\-:]*(?:n[°º]?[\s]*)?(\d+[\-\/]?\d*)\b/gi,
 };
 
 // Mapa de meses em português para números
@@ -72,25 +81,121 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
   const normalizedText = text.toUpperCase();
   const lowerText = text.toLowerCase();
 
-  // BSO - PRIORIDADE MÁXIMA para frente de serviço
-  // Padrão: "BSO - 01", "BSO - 04", "BSO-01", "BSO 01"
+  // === FRENTE DE SERVIÇO (identificação do trabalho) ===
+  // Busca em ordem de prioridade
+  
+  // BSO: "BSO - 01", "BSO - 04", "BSO-01", "BSO 01"
   const bsoMatch = PATTERNS.bso.exec(normalizedText);
   PATTERNS.bso.lastIndex = 0;
   if (bsoMatch) {
     const num = bsoMatch[1].padStart(2, '0');
-    result.contratada = `BSO_${num}`;
+    result.frenteServico = `BSO_${num}`;
     result.hasPlaca = true;
   }
+  
+  // PÓRTICO: "PÓRTICO 03", "PORTICO-1"
+  if (!result.frenteServico) {
+    const porticoMatch = PATTERNS.portico.exec(normalizedText);
+    PATTERNS.portico.lastIndex = 0;
+    if (porticoMatch) {
+      const num = porticoMatch[1] ? porticoMatch[1].padStart(2, '0') : '';
+      result.frenteServico = num ? `PORTICO_${num}` : 'PORTICO';
+      result.hasPlaca = true;
+    }
+  }
+  
+  // PASSARELA: "PASSARELA 02"
+  if (!result.frenteServico) {
+    const passarelaMatch = PATTERNS.passarela.exec(normalizedText);
+    PATTERNS.passarela.lastIndex = 0;
+    if (passarelaMatch) {
+      const num = passarelaMatch[1] ? passarelaMatch[1].padStart(2, '0') : '';
+      result.frenteServico = num ? `PASSARELA_${num}` : 'PASSARELA';
+      result.hasPlaca = true;
+    }
+  }
+  
+  // VIADUTO
+  if (!result.frenteServico) {
+    const viadutoMatch = PATTERNS.viaduto.exec(normalizedText);
+    PATTERNS.viaduto.lastIndex = 0;
+    if (viadutoMatch) {
+      const id = viadutoMatch[1] || '';
+      result.frenteServico = id ? `VIADUTO_${id}` : 'VIADUTO';
+      result.hasPlaca = true;
+    }
+  }
+  
+  // PONTE
+  if (!result.frenteServico) {
+    const ponteMatch = PATTERNS.ponte.exec(normalizedText);
+    PATTERNS.ponte.lastIndex = 0;
+    if (ponteMatch) {
+      const id = ponteMatch[1] || '';
+      result.frenteServico = id ? `PONTE_${id}` : 'PONTE';
+      result.hasPlaca = true;
+    }
+  }
+  
+  // OAE
+  if (!result.frenteServico) {
+    const oaeMatch = PATTERNS.oae.exec(normalizedText);
+    PATTERNS.oae.lastIndex = 0;
+    if (oaeMatch) {
+      const num = oaeMatch[1] ? oaeMatch[1].padStart(2, '0') : '';
+      result.frenteServico = num ? `OAE_${num}` : 'OAE';
+      result.hasPlaca = true;
+    }
+  }
+  
+  // PRAÇA DE PEDÁGIO
+  if (!result.frenteServico) {
+    const pracaMatch = PATTERNS.pracaPedagio.exec(normalizedText);
+    PATTERNS.pracaPedagio.lastIndex = 0;
+    if (pracaMatch) {
+      const num = pracaMatch[3] ? pracaMatch[3].padStart(2, '0') : '';
+      result.frenteServico = num ? `PRACA_PEDAGIO_${num}` : 'PRACA_PEDAGIO';
+      result.hasPlaca = true;
+    }
+  }
+  
+  // FREE FLOW
+  if (!result.frenteServico) {
+    const freeFlowMatch = PATTERNS.freeFlow.exec(normalizedText);
+    PATTERNS.freeFlow.lastIndex = 0;
+    if (freeFlowMatch) {
+      const id = freeFlowMatch[1] || '';
+      result.frenteServico = id ? `FREE_FLOW_${id}` : 'FREE_FLOW';
+      result.hasPlaca = true;
+    }
+  }
+  
+  // CORTINA
+  if (!result.frenteServico) {
+    const cortinaMatch = PATTERNS.cortina.exec(normalizedText);
+    PATTERNS.cortina.lastIndex = 0;
+    if (cortinaMatch) {
+      const num = cortinaMatch[1] ? cortinaMatch[1].padStart(2, '0') : '';
+      result.frenteServico = num ? `CORTINA_${num}` : 'CORTINA';
+      result.hasPlaca = true;
+    }
+  }
+  
+  // Compatibilidade: copia para contratada (deprecated)
+  if (result.frenteServico) {
+    result.contratada = result.frenteServico;
+  }
 
-  // Rodovia
+  // === LOCALIZAÇÃO ===
+  
+  // Rodovia (LOCAL, não frente de serviço)
   const rodoviaMatch = PATTERNS.rodovia.exec(normalizedText);
   PATTERNS.rodovia.lastIndex = 0;
   if (rodoviaMatch) {
     result.rodovia = `${rodoviaMatch[1]}-${rodoviaMatch[2]}`;
-    result.hasPlaca = true;
   }
 
-  // KM
+  // KM (LOCAL, não frente de serviço)
   const kmMatches: string[] = [];
   let kmMatch;
   while ((kmMatch = PATTERNS.km.exec(normalizedText)) !== null) {
@@ -103,7 +208,6 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
     if (kmMatches.length > 1) {
       result.km_fim = kmMatches[kmMatches.length - 1];
     }
-    result.hasPlaca = true;
   }
 
   // Sentido
@@ -158,64 +262,28 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
     result.contrato = contratoMatch[1];
   }
 
-  // Obra (prioridade alta para identificar frente de serviço)
-  // Exemplo: "obra free flow p17 SP264_km131+100", "Reforma da BSO 1 SP 280"
-  const obraMatch = PATTERNS.obra.exec(lowerText);
-  PATTERNS.obra.lastIndex = 0;
-  if (obraMatch) {
-    const obraText = obraMatch[1].trim();
-    
+  // Extração de frente de serviço de texto livre (fallback)
+  // Exemplo: "obra free flow p17", "Reforma da BSO 1 SP 280"
+  if (!result.frenteServico) {
     // Tenta extrair "Reforma da BSO 1" ou "BSO 1", "BSO 01"
-    const bsoMatch = obraText.match(/(?:reforma[\s\-_]*(?:da[\s\-_]*)?)?bso[\s\-_]*(\d+)/i);
-    if (bsoMatch) {
-      const num = bsoMatch[1].padStart(2, '0');
-      result.contratada = `REFORMA_BSO_${num}`;
+    const bsoTextMatch = lowerText.match(/(?:reforma[\s\-_]*(?:da[\s\-_]*)?)?bso[\s\-_]*(\d+)/i);
+    if (bsoTextMatch) {
+      const num = bsoTextMatch[1].padStart(2, '0');
+      result.frenteServico = `BSO_${num}`;
+      result.contratada = result.frenteServico;
       result.hasPlaca = true;
     }
     
     // Tenta extrair "free flow p17" ou similar
-    const freeFlowMatch = obraText.match(/free[\s\-_]?flow[\s\-_]?(p?\d+)/i);
-    if (freeFlowMatch && !result.contratada) {
-      result.contratada = `FREE_FLOW_${freeFlowMatch[1].toUpperCase()}`;
-      result.hasPlaca = true;
+    if (!result.frenteServico) {
+      const freeFlowTextMatch = lowerText.match(/free[\s\-_]?flow[\s\-_]?(p?\d+)?/i);
+      if (freeFlowTextMatch) {
+        const id = freeFlowTextMatch[1] ? freeFlowTextMatch[1].toUpperCase() : '';
+        result.frenteServico = id ? `FREE_FLOW_${id}` : 'FREE_FLOW';
+        result.contratada = result.frenteServico;
+        result.hasPlaca = true;
+      }
     }
-  }
-
-  // Estrutura (Free Flow, BSO, etc.)
-  const estruturaMatch = PATTERNS.estrutura.exec(normalizedText);
-  PATTERNS.estrutura.lastIndex = 0;
-  if (estruturaMatch) {
-    const tipo = estruturaMatch[1].toUpperCase().replace(/[\s\-_]/g, '_');
-    const id = (estruturaMatch[2] || '').toUpperCase().replace(/[\s\-]/g, '');
-    
-    // Monta identificador da frente de serviço
-    let frente = '';
-    if (tipo === 'FREE' || tipo === 'FREE_FLOW') {
-      frente = id ? `FREE_FLOW_${id}` : 'FREE_FLOW';
-    } else if (tipo.includes('REFORMA') && tipo.includes('BSO')) {
-      // Reforma da BSO
-      const num = id ? id.replace(/\D/g, '').padStart(2, '0') : '01';
-      frente = `REFORMA_BSO_${num}`;
-    } else if (tipo === 'BSO') {
-      const num = id ? id.replace(/\D/g, '').padStart(2, '0') : '01';
-      frente = `BSO_${num}`;
-    } else if (tipo === 'P' && id) {
-      // P17, P-10, etc
-      frente = `P_${id.replace(/^P/i, '')}`;
-    } else if (tipo === 'HABITECHNE') {
-      frente = 'HABITECHNE';
-      result.contratada = 'HABITECHNE';
-    } else if (tipo === 'CORTINA') {
-      frente = id ? `CORTINA_${id}` : 'CORTINA';
-    } else {
-      frente = id ? `${tipo}_${id}` : tipo;
-    }
-    
-    // Usa contratada para guardar a frente/pórtico identificado
-    if (frente && !result.contratada) {
-      result.contratada = frente;
-    }
-    result.hasPlaca = true;
   }
 
   return result;
