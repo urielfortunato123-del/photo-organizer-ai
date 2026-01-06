@@ -22,24 +22,28 @@ export interface OCRResult {
 
 // Regex patterns para extrair informações de obras rodoviárias
 const PATTERNS = {
-  // Rodovias: SP-270, BR-116, SP 264, SP264, etc.
+  // Rodovias: SP-270, BR-116, SP 264, SP264, SP- 280, etc.
   rodovia: /\b(SP|BR|MT|PR|MG|RJ|BA|GO|RS|SC|PE|CE|PA|MA|PI|RN|PB|SE|AL|ES|DF|TO|RO|AC|AM|RR|AP)[\s\-_]*(\d{2,3})\b/gi,
-  // KM: km 94+050, KM 101, km79+000, km131+100
+  // KM: km 94+050, KM 101, km79+000, km131+100, KM 57, KM 79
   km: /\bkm[\s_]*(\d{1,4})[\s]*[\+\._]?[\s]*(\d{0,3})\b/gi,
   // Sentido: Leste, Oeste, Norte, Sul, L/O, N/S, Capital, Interior
   sentido: /\b(leste|oeste|norte|sul|capital|interior|crescente|decrescente|l[\s\/]?o|n[\s\/]?s|sentido[\s:]*\w+)\b/gi,
   // Data numérica: 10/09/2025, 10-09-2025, 10.09.2025
   data: /\b(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})\b/g,
-  // Data por extenso em português: 24 de nov. de 2025, 24 Nov 2025, 10 de janeiro de 2024
+  // Data por extenso em português: 24 de nov. de 2025, 24 Nov 2025, 10 de janeiro de 2024, "15 de out. de 2025"
   dataExtenso: /\b(\d{1,2})[\s]+(?:de\s+)?(jan(?:eiro)?|fev(?:ereiro)?|mar(?:ço|co)?|abr(?:il)?|mai(?:o)?|jun(?:ho)?|jul(?:ho)?|ago(?:sto)?|set(?:embro)?|out(?:ubro)?|nov(?:embro)?|dez(?:embro)?)\.?[\s]+(?:de\s+)?(\d{4})\b/gi,
-  // Hora: 15:40, 15h40, 15:40:00
+  // Hora: 15:40, 15h40, 15:40:00, 13:52:52
   hora: /\b(\d{1,2})[:\s]?h?[:\s]?(\d{2})(?:[:\s](\d{2}))?\b/g,
   // Contrato: Contrato nº 123, CT-123
   contrato: /\b(?:contrato|ct|contr?)[\s\.\-:]*(?:n[°º]?[\s]*)?(\d+[\-\/]?\d*)\b/gi,
-  // Free Flow, BSO, Base, Praça, P-10, P10, P_10, Cortina, Reforma, etc.
-  estrutura: /\b(reforma[\s\-_]?(?:da[\s\-_]?)?bso|free[\s\-_]?flow|bso|base|praça|praca|pedágio|pedagio|pórtico|portico|cortina|habitechne|p)[\s\-_:]?\s*(p?\d+[\w]*|\d+[\w]*|\w+)?\b/gi,
+  // BSO pattern específico: "BSO - 01", "BSO - 04", "BSO-01", "BSO 01"
+  bso: /\bBSO[\s\-_]*(\d{1,2})\b/gi,
+  // Free Flow, Cortina, Habitechne, etc.
+  estrutura: /\b(reforma[\s\-_]?(?:da[\s\-_]?)?bso|free[\s\-_]?flow|base|praça|praca|pedágio|pedagio|pórtico|portico|cortina|habitechne|sau|p)[\s\-_:]?\s*(p?\d+[\w]*|\d+[\w]*|\w+)?\b/gi,
   // Obras: "obra free flow p17", "Reforma da BSO 1 SP 280"
   obra: /\b(?:obra|reforma)[\s\-_:]*(?:da[\s\-_]*)?(bso[\s\-_]*\d+[^\n,]*|[^\n,]+)/gi,
+  // Rodovia por extenso: "Rod. Raposo Tavares", "Rodovia Presidente Castello Branco"
+  rodoviaNome: /\b(?:rod\.?|rodovia)[\s]+([^\d\n,]+?)(?:,|[\s]+s\/n|[\s]+km|\d|$)/gi,
 };
 
 // Mapa de meses em português para números
@@ -67,6 +71,16 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
   // Normaliza texto
   const normalizedText = text.toUpperCase();
   const lowerText = text.toLowerCase();
+
+  // BSO - PRIORIDADE MÁXIMA para frente de serviço
+  // Padrão: "BSO - 01", "BSO - 04", "BSO-01", "BSO 01"
+  const bsoMatch = PATTERNS.bso.exec(normalizedText);
+  PATTERNS.bso.lastIndex = 0;
+  if (bsoMatch) {
+    const num = bsoMatch[1].padStart(2, '0');
+    result.contratada = `BSO_${num}`;
+    result.hasPlaca = true;
+  }
 
   // Rodovia
   const rodoviaMatch = PATTERNS.rodovia.exec(normalizedText);
