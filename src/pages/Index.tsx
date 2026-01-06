@@ -531,16 +531,15 @@ const Index: React.FC = () => {
 
     try {
       const zip = new JSZip();
-      const BATCH_SIZE = 20; // Processa 20 fotos por vez para não estourar memória
+      let addedCount = 0;
       
-      for (let i = 0; i < successResults.length; i += BATCH_SIZE) {
-        const batch = successResults.slice(i, i + BATCH_SIZE);
-        
-        // Processa o lote em paralelo
-        await Promise.all(batch.map(async (result, batchIndex) => {
-          const file = files.find((f) => f.name === result.filename);
-          if (!file || !result.dest) return;
+      // Adiciona arquivos um por um (mais estável)
+      for (let i = 0; i < successResults.length; i++) {
+        const result = successResults[i];
+        const file = files.find((f) => f.name === result.filename);
+        if (!file || !result.dest) continue;
 
+        try {
           const arrayBuffer = await file.arrayBuffer();
 
           const destParts = result.dest
@@ -548,56 +547,70 @@ const Index: React.FC = () => {
             .filter(Boolean)
             .map(sanitizeZipPart);
           const safeFilename = sanitizeZipPart(result.filename);
+          const fullPath = `${destParts.join('/')}/${safeFilename}`;
 
-          zip.file(`${destParts.join('/')}/${safeFilename}`, arrayBuffer);
+          zip.file(fullPath, arrayBuffer);
+          addedCount++;
           
-          setZipProgress(prev => ({ ...prev, current: i + batchIndex + 1 }));
-        }));
+          setZipProgress({ current: i + 1, total: successResults.length });
+        } catch (err) {
+          console.warn(`Erro ao adicionar ${result.filename}:`, err);
+        }
         
-        // Pequena pausa entre lotes para liberar memória
-        await new Promise(resolve => setTimeout(resolve, 50));
+        // Pausa pequena a cada 10 arquivos
+        if (i % 10 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
       }
 
-      // Gera o ZIP com menos compressão (mais rápido, menos memória)
+      if (addedCount === 0) {
+        throw new Error('Nenhum arquivo foi adicionado ao ZIP');
+      }
+
+      setZipProgress({ current: 0, total: 1 });
+      toast({ title: "Gerando ZIP...", description: `Compactando ${addedCount} fotos...` });
+
+      // Gera o ZIP SEM streamFiles (mais compatível com Windows)
       const zipBlob = await zip.generateAsync(
         {
           type: 'blob',
-          compression: 'DEFLATE',
-          compressionOptions: { level: 1 }, // Menor compressão = mais rápido e estável
-          streamFiles: true, // Streaming para arquivos grandes
+          compression: 'STORE', // Sem compressão = mais rápido e 100% compatível
         },
         (metadata) => {
-          // Callback de progresso da geração
-          setZipProgress(prev => ({ 
-            ...prev, 
-            current: Math.round(successResults.length * (metadata.percent / 100))
-          }));
+          if (metadata.percent % 10 < 1) {
+            setZipProgress({ current: Math.round(metadata.percent), total: 100 });
+          }
         }
       );
 
       // Valida se o ZIP foi gerado corretamente
-      if (zipBlob.size < 1000) {
-        throw new Error('ZIP gerado está vazio ou corrompido');
+      if (zipBlob.size < 100) {
+        throw new Error('ZIP gerado está vazio');
       }
 
+      // Download usando método mais confiável
       const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `obraphoto_organizado_${new Date().toISOString().split('T')[0]}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = url;
+      link.download = `obraphoto_organizado_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(link);
       
-      // Aguarda mais tempo antes de revogar para downloads grandes
-      window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+      // Clique e aguarda
+      link.click();
+      
+      // Remove link após um tempo
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 1000);
+      
+      // Mantém URL válida por 5 minutos (downloads grandes)
+      setTimeout(() => URL.revokeObjectURL(url), 300000);
 
       toast({
-        title: "ZIP exportado!",
-        description: `${successResults.length} fotos (${(zipBlob.size / 1024 / 1024).toFixed(1)}MB) organizadas em pastas.`,
+        title: "ZIP pronto!",
+        description: `${addedCount} fotos (${(zipBlob.size / 1024 / 1024).toFixed(1)}MB). Verifique sua pasta de Downloads.`,
       });
-
-      // Não limpar automaticamente (evita interromper download lento e não perde a sessão)
-      // (Se quiser, podemos adicionar um botão "Limpar sessão" após exportar)
       
     } catch (error) {
       console.error('Export error:', error);
