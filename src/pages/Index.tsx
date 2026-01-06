@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import JSZip from 'jszip';
 import { 
   Play, ImageIcon, CheckCircle2, XCircle, 
@@ -508,6 +508,76 @@ const Index: React.FC = () => {
 
   const [zipProgress, setZipProgress] = useState({ current: 0, total: 0 });
 
+  // Estado para popup de download
+  const [downloadPopup, setDownloadPopup] = useState<{
+    show: boolean;
+    partNumber: number;
+    totalParts: number;
+    blob: Blob | null;
+    filename: string;
+    countdown: number;
+  }>({ show: false, partNumber: 0, totalParts: 0, blob: null, filename: '', countdown: 10 });
+  
+  const downloadBlobRef = useRef<{ blob: Blob; filename: string } | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Função para baixar o blob atual
+  const executeDownload = useCallback(() => {
+    if (!downloadBlobRef.current) return;
+    
+    const { blob, filename } = downloadBlobRef.current;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.style.display = 'none';
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => document.body.removeChild(link), 500);
+    setTimeout(() => URL.revokeObjectURL(url), 300000);
+    
+    setDownloadPopup(prev => ({ ...prev, show: false }));
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+  }, []);
+
+  // Mostra popup e inicia countdown
+  const showDownloadPopup = useCallback((blob: Blob, filename: string, partNumber: number, totalParts: number): Promise<void> => {
+    return new Promise((resolve) => {
+      downloadBlobRef.current = { blob, filename };
+      
+      let countdown = 10;
+      setDownloadPopup({
+        show: true,
+        partNumber,
+        totalParts,
+        blob,
+        filename,
+        countdown,
+      });
+
+      countdownIntervalRef.current = setInterval(() => {
+        countdown -= 1;
+        setDownloadPopup(prev => ({ ...prev, countdown }));
+        
+        if (countdown <= 0) {
+          if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+          }
+          executeDownload();
+          resolve();
+        }
+      }, 1000);
+    });
+  }, [executeDownload]);
+
+  const handleDownloadNow = useCallback(() => {
+    executeDownload();
+  }, [executeDownload]);
+
   const handleExportZIP = async () => {
     const successResults = results.filter((r) => r.status === 'Sucesso' && r.dest);
 
@@ -528,7 +598,6 @@ const Index: React.FC = () => {
 
     setIsExporting(true);
     
-    // LIMITE POR PARTE: 50 fotos (evita ZIP grande demais)
     const CHUNK_SIZE = 50;
     const totalParts = Math.ceil(successResults.length / CHUNK_SIZE);
     const dateStr = new Date().toISOString().split('T')[0];
@@ -544,7 +613,6 @@ const Index: React.FC = () => {
         const zip = new JSZip();
         let addedCount = 0;
         
-        // Adiciona arquivos da parte atual
         for (let i = 0; i < chunkResults.length; i++) {
           const result = chunkResults[i];
           const file = files.find((f) => f.name === result.filename);
@@ -552,17 +620,10 @@ const Index: React.FC = () => {
 
           try {
             const arrayBuffer = await file.arrayBuffer();
-
-            const destParts = result.dest
-              .split('/')
-              .filter(Boolean)
-              .map(sanitizeZipPart);
+            const destParts = result.dest.split('/').filter(Boolean).map(sanitizeZipPart);
             const safeFilename = sanitizeZipPart(result.filename);
-            const fullPath = `${destParts.join('/')}/${safeFilename}`;
-
-            zip.file(fullPath, arrayBuffer);
+            zip.file(`${destParts.join('/')}/${safeFilename}`, arrayBuffer);
             addedCount++;
-            
             setZipProgress({ current: startIdx + i + 1, total: successResults.length });
           } catch (err) {
             console.warn(`Erro ao adicionar ${result.filename}:`, err);
@@ -571,44 +632,25 @@ const Index: React.FC = () => {
 
         if (addedCount === 0) continue;
 
-        toast({ 
-          title: `Gerando parte ${partIndex + 1}/${totalParts}...`, 
-          description: `${addedCount} fotos` 
-        });
-
-        // Gera o ZIP (sem compressão = mais rápido e estável)
-        const zipBlob = await zip.generateAsync({
-          type: 'blob',
-          compression: 'STORE',
-        });
-
+        const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
         if (zipBlob.size < 100) continue;
 
-        // Download
-        const url = URL.createObjectURL(zipBlob);
-        const link = document.createElement('a');
-        link.style.display = 'none';
-        link.href = url;
-        link.download = totalParts > 1 
+        const filename = totalParts > 1 
           ? `obraphoto_${dateStr}_parte${partIndex + 1}de${totalParts}.zip`
           : `obraphoto_organizado_${dateStr}.zip`;
-        document.body.appendChild(link);
-        link.click();
+
+        // Mostra popup e aguarda (10s ou clique)
+        await showDownloadPopup(zipBlob, filename, partIndex + 1, totalParts);
         
-        setTimeout(() => document.body.removeChild(link), 1000);
-        setTimeout(() => URL.revokeObjectURL(url), 300000);
-        
-        // Pausa entre partes para não travar o navegador
+        // Pausa extra entre partes
         if (partIndex < totalParts - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
 
       toast({
         title: "Exportação concluída!",
-        description: totalParts > 1 
-          ? `${successResults.length} fotos em ${totalParts} arquivos ZIP. Verifique sua pasta de Downloads.`
-          : `${successResults.length} fotos exportadas. Verifique sua pasta de Downloads.`,
+        description: `${successResults.length} fotos em ${totalParts} arquivo(s).`,
       });
       
     } catch (error) {
@@ -1140,6 +1182,66 @@ const Index: React.FC = () => {
         onRetryAll={handleRetryFailed}
       />
 
+      {/* Download Popup com Countdown */}
+      <AlertDialog open={downloadPopup.show}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <FolderArchive className="w-5 h-5 text-primary" />
+              Download Pronto - Parte {downloadPopup.partNumber}/{downloadPopup.totalParts}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>
+                  O arquivo <strong>{downloadPopup.filename}</strong> está pronto para download.
+                </p>
+                <div className="flex items-center justify-center">
+                  <div className="relative w-20 h-20">
+                    <svg className="w-20 h-20 transform -rotate-90">
+                      <circle
+                        cx="40"
+                        cy="40"
+                        r="35"
+                        stroke="currentColor"
+                        strokeWidth="6"
+                        fill="none"
+                        className="text-secondary"
+                      />
+                      <circle
+                        cx="40"
+                        cy="40"
+                        r="35"
+                        stroke="currentColor"
+                        strokeWidth="6"
+                        fill="none"
+                        strokeDasharray={220}
+                        strokeDashoffset={220 - (220 * downloadPopup.countdown) / 10}
+                        className="text-primary transition-all duration-1000"
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-foreground">
+                      {downloadPopup.countdown}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-center text-sm text-muted-foreground">
+                  Download automático em {downloadPopup.countdown} segundos...
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction 
+              onClick={handleDownloadNow}
+              className="bg-primary w-full"
+            >
+              <FolderArchive className="w-4 h-4 mr-2" />
+              Baixar Agora
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Confirmation Dialog for Large Batches */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
@@ -1151,7 +1253,7 @@ const Index: React.FC = () => {
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>
-                  As fotos serão processadas em <strong>grupos de {PROCESSING_CONFIG.groupSize}</strong> com intervalo de <strong>{PROCESSING_CONFIG.cooldownSeconds / 60} minutos</strong> entre eles.
+                  As fotos serão processadas em <strong>grupos de {PROCESSING_CONFIG.groupSize}</strong> com intervalo de <strong>{PROCESSING_CONFIG.cooldownSeconds} segundos</strong> entre eles.
                 </p>
                 <div className="bg-secondary/50 p-3 rounded-lg space-y-2">
                   <div className="flex items-center gap-2 text-sm">
@@ -1175,7 +1277,7 @@ const Index: React.FC = () => {
                 </div>
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4" />
-                  A cada {PROCESSING_CONFIG.groupSize} fotos, haverá uma pausa de {PROCESSING_CONFIG.cooldownSeconds / 60} minutos para não sobrecarregar a IA.
+                  A cada {PROCESSING_CONFIG.groupSize} fotos, haverá uma pausa de {PROCESSING_CONFIG.cooldownSeconds} segundos.
                 </p>
               </div>
             </AlertDialogDescription>
