@@ -1,5 +1,6 @@
 import { createWorker, Worker } from 'tesseract.js';
 import { useState, useRef, useCallback } from 'react';
+import { TODAS_FRENTES, FrenteServico } from '@/config/frentesServico';
 
 export interface OCRResult {
   // Texto bruto extraído
@@ -13,6 +14,7 @@ export interface OCRResult {
   
   // === FRENTE DE SERVIÇO/OBRA (identificação do trabalho) ===
   frenteServico?: string;  // BSO_01, PORTICO_03, PASSARELA_02, etc.
+  frenteServicoInfo?: FrenteServico; // Informações detalhadas da frente
   
   // === METADADOS ===
   data?: string;
@@ -27,7 +29,7 @@ export interface OCRResult {
   hasPlaca: boolean;
 }
 
-// Regex patterns para extrair informações de obras rodoviárias
+// Regex patterns para extrair informações básicas
 const PATTERNS = {
   // === LOCALIZAÇÃO ===
   // Rodovias: SP-270, BR-116, SP 264, SP264, SP- 280
@@ -36,19 +38,6 @@ const PATTERNS = {
   km: /\bkm[\s_]*(\d{1,4})[\s]*[\+\._]?[\s]*(\d{0,3})\b/gi,
   // Sentido: Leste, Oeste, Norte, Sul
   sentido: /\b(leste|oeste|norte|sul|capital|interior|crescente|decrescente|l[\s\/]?o|n[\s\/]?s|sentido[\s:]*\w+)\b/gi,
-  
-  // === FRENTES DE SERVIÇO/OBRA ===
-  bso: /\bBSO[\s\-_]*(\d{1,2})\b/gi,
-  portico: /\bP[OÓ]RTICO[\s\-_]*(\d{1,2})?\b/gi,
-  passarela: /\bPASSARELA[\s\-_]*(\d{1,2})?\b/gi,
-  viaduto: /\bVIADUTO[\s\-_]*([A-Z0-9\-]+)?\b/gi,
-  ponte: /\bPONTE[\s\-_]*([A-Z0-9\-]+)?\b/gi,
-  oae: /\bOAE[\s\-_]*(\d{1,2})?\b/gi,
-  pracaPedagio: /\bPRA[CÇ]A[\s\-_]*(DE[\s\-_]*)?(PED[AÁ]GIO)?[\s\-_]*(\d{1,2})?\b/gi,
-  freeFlow: /\bFREE[\s\-_]?FLOW[\s\-_]*(P[\-\s]*\d+|[A-Z]?\d+)?\b/gi,
-  cortinaAtirantada: /\bCORTINA[\s\-_]*ATIRANTADA\b/gi,
-  cortina: /\bCORTINA[\s\-_]*(\d{1,2})?\b/gi,
-  tirante: /\bTIRANTE[\s\-_]*(T?\d+)?\b/gi,
   
   // === METADADOS ===
   data: /\b(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})\b/g,
@@ -73,6 +62,57 @@ const MESES_PT: Record<string, string> = {
   'dez': '12', 'dezembro': '12',
 };
 
+/**
+ * Tenta identificar frente de serviço usando o catálogo completo
+ */
+function identificarFrenteServico(texto: string): { id: string; numero?: string; frente: FrenteServico } | null {
+  const normalizado = texto.toUpperCase();
+  
+  // Ordena por especificidade (frentes com subcategoria primeiro, depois por tamanho do nome)
+  const frentesOrdenadas = [...TODAS_FRENTES].sort((a, b) => {
+    // Cortina atirantada antes de cortina simples
+    if (a.id === 'CORTINA_ATIRANTADA' && b.id === 'CORTINA') return -1;
+    if (a.id === 'CORTINA' && b.id === 'CORTINA_ATIRANTADA') return 1;
+    
+    // Frentes com subcategoria são mais específicas
+    const aSpec = a.subcategoria ? 1 : 0;
+    const bSpec = b.subcategoria ? 1 : 0;
+    if (aSpec !== bSpec) return bSpec - aSpec;
+    
+    // Nomes mais longos são mais específicos
+    return b.nome.length - a.nome.length;
+  });
+  
+  for (const frente of frentesOrdenadas) {
+    // Reset regex
+    frente.regex.lastIndex = 0;
+    const match = frente.regex.exec(normalizado);
+    
+    if (match) {
+      frente.regex.lastIndex = 0;
+      
+      // Tenta extrair número do grupo de captura
+      let numero: string | undefined;
+      for (let i = 1; i < match.length; i++) {
+        const grupo = match[i];
+        if (grupo && /^\d+$/.test(grupo.trim())) {
+          numero = grupo.trim().padStart(2, '0');
+          break;
+        }
+        // Para casos como "P-10", "P10"
+        if (grupo && /^[A-Z]?[\-\s]*\d+$/i.test(grupo.trim())) {
+          numero = grupo.replace(/[\s\-_]+/g, '').toUpperCase();
+          break;
+        }
+      }
+      
+      return { id: frente.id, numero, frente };
+    }
+  }
+  
+  return null;
+}
+
 // Extrai dados estruturados do texto OCR
 export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' | 'confidence'> {
   const result: Omit<OCRResult, 'rawText' | 'confidence'> = {
@@ -83,120 +123,16 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
   const normalizedText = text.toUpperCase();
   const lowerText = text.toLowerCase();
 
-  // === FRENTE DE SERVIÇO (identificação do trabalho) ===
-  // Busca em ordem de prioridade
+  // === FRENTE DE SERVIÇO (usando catálogo completo) ===
+  const frenteEncontrada = identificarFrenteServico(text);
   
-  // BSO: "BSO - 01", "BSO - 04", "BSO-01", "BSO 01"
-  const bsoMatch = PATTERNS.bso.exec(normalizedText);
-  PATTERNS.bso.lastIndex = 0;
-  if (bsoMatch) {
-    const num = bsoMatch[1].padStart(2, '0');
-    result.frenteServico = `BSO_${num}`;
+  if (frenteEncontrada) {
+    const { id, numero, frente } = frenteEncontrada;
+    result.frenteServico = numero ? `${id}_${numero}` : id;
+    result.frenteServicoInfo = frente;
     result.hasPlaca = true;
-  }
-  
-  // PÓRTICO: "PÓRTICO 03", "PORTICO-1"
-  if (!result.frenteServico) {
-    const porticoMatch = PATTERNS.portico.exec(normalizedText);
-    PATTERNS.portico.lastIndex = 0;
-    if (porticoMatch) {
-      const num = porticoMatch[1] ? porticoMatch[1].padStart(2, '0') : '';
-      result.frenteServico = num ? `PORTICO_${num}` : 'PORTICO';
-      result.hasPlaca = true;
-    }
-  }
-  
-  // PASSARELA: "PASSARELA 02"
-  if (!result.frenteServico) {
-    const passarelaMatch = PATTERNS.passarela.exec(normalizedText);
-    PATTERNS.passarela.lastIndex = 0;
-    if (passarelaMatch) {
-      const num = passarelaMatch[1] ? passarelaMatch[1].padStart(2, '0') : '';
-      result.frenteServico = num ? `PASSARELA_${num}` : 'PASSARELA';
-      result.hasPlaca = true;
-    }
-  }
-  
-  // VIADUTO
-  if (!result.frenteServico) {
-    const viadutoMatch = PATTERNS.viaduto.exec(normalizedText);
-    PATTERNS.viaduto.lastIndex = 0;
-    if (viadutoMatch) {
-      const id = viadutoMatch[1] || '';
-      result.frenteServico = id ? `VIADUTO_${id}` : 'VIADUTO';
-      result.hasPlaca = true;
-    }
-  }
-  
-  // PONTE
-  if (!result.frenteServico) {
-    const ponteMatch = PATTERNS.ponte.exec(normalizedText);
-    PATTERNS.ponte.lastIndex = 0;
-    if (ponteMatch) {
-      const id = ponteMatch[1] || '';
-      result.frenteServico = id ? `PONTE_${id}` : 'PONTE';
-      result.hasPlaca = true;
-    }
-  }
-  
-  // OAE
-  if (!result.frenteServico) {
-    const oaeMatch = PATTERNS.oae.exec(normalizedText);
-    PATTERNS.oae.lastIndex = 0;
-    if (oaeMatch) {
-      const num = oaeMatch[1] ? oaeMatch[1].padStart(2, '0') : '';
-      result.frenteServico = num ? `OAE_${num}` : 'OAE';
-      result.hasPlaca = true;
-    }
-  }
-  
-  // PRAÇA DE PEDÁGIO
-  if (!result.frenteServico) {
-    const pracaMatch = PATTERNS.pracaPedagio.exec(normalizedText);
-    PATTERNS.pracaPedagio.lastIndex = 0;
-    if (pracaMatch) {
-      const num = pracaMatch[3] ? pracaMatch[3].padStart(2, '0') : '';
-      result.frenteServico = num ? `PRACA_PEDAGIO_${num}` : 'PRACA_PEDAGIO';
-      result.hasPlaca = true;
-    }
-  }
-  
-  // FREE FLOW: "Free Flow P-10", "Free Flow P17"
-  if (!result.frenteServico) {
-    const freeFlowMatch = PATTERNS.freeFlow.exec(normalizedText);
-    PATTERNS.freeFlow.lastIndex = 0;
-    if (freeFlowMatch) {
-      let id = freeFlowMatch[1] || '';
-      // Normaliza: "P-10" → "P10", "P 10" → "P10"
-      id = id.replace(/[\s\-_]+/g, '').toUpperCase();
-      result.frenteServico = id ? `FREE_FLOW_${id}` : 'FREE_FLOW';
-      result.hasPlaca = true;
-    }
-  }
-  
-  // CORTINA ATIRANTADA (antes de CORTINA simples)
-  if (!result.frenteServico) {
-    const cortinaAtirantadaMatch = PATTERNS.cortinaAtirantada.exec(normalizedText);
-    PATTERNS.cortinaAtirantada.lastIndex = 0;
-    if (cortinaAtirantadaMatch) {
-      result.frenteServico = 'CORTINA_ATIRANTADA';
-      result.hasPlaca = true;
-    }
-  }
-  
-  // CORTINA simples
-  if (!result.frenteServico) {
-    const cortinaMatch = PATTERNS.cortina.exec(normalizedText);
-    PATTERNS.cortina.lastIndex = 0;
-    if (cortinaMatch) {
-      const num = cortinaMatch[1] ? cortinaMatch[1].padStart(2, '0') : '';
-      result.frenteServico = num ? `CORTINA_${num}` : 'CORTINA';
-      result.hasPlaca = true;
-    }
-  }
-  
-  // Compatibilidade: copia para contratada (deprecated)
-  if (result.frenteServico) {
+    
+    // Compatibilidade: copia para contratada (deprecated)
     result.contratada = result.frenteServico;
   }
 
@@ -274,32 +210,6 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
   PATTERNS.contrato.lastIndex = 0;
   if (contratoMatch) {
     result.contrato = contratoMatch[1];
-  }
-
-  // Extração de frente de serviço de texto livre (fallback)
-  // Exemplo: "obra free flow p17", "Reforma da BSO 1 SP 280"
-  if (!result.frenteServico) {
-    // Tenta extrair "Reforma da BSO 1" ou "BSO 1", "BSO 01"
-    const bsoTextMatch = lowerText.match(/(?:reforma[\s\-_]*(?:da[\s\-_]*)?)?bso[\s\-_]*(\d+)/i);
-    if (bsoTextMatch) {
-      const num = bsoTextMatch[1].padStart(2, '0');
-      result.frenteServico = `BSO_${num}`;
-      result.contratada = result.frenteServico;
-      result.hasPlaca = true;
-    }
-    
-    // Tenta extrair "free flow p17", "free flow p-10" ou similar
-    if (!result.frenteServico) {
-      const freeFlowTextMatch = lowerText.match(/free[\s\-_]?flow[\s\-_]*(p[\-\s]*\d+|\d+)?/i);
-      if (freeFlowTextMatch) {
-        let id = freeFlowTextMatch[1] ? freeFlowTextMatch[1].toUpperCase() : '';
-        // Normaliza: "P-10" → "P10"
-        id = id.replace(/[\s\-_]+/g, '');
-        result.frenteServico = id ? `FREE_FLOW_${id}` : 'FREE_FLOW';
-        result.contratada = result.frenteServico;
-        result.hasPlaca = true;
-      }
-    }
   }
 
   return result;
