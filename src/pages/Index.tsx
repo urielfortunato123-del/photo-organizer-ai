@@ -30,6 +30,7 @@ import ResultsFilters, { ResultFilters } from '@/components/ResultsFilters';
 import StatisticsCard from '@/components/StatisticsCard';
 import DetailedReport from '@/components/DetailedReport';
 import CooldownOverlay from '@/components/CooldownOverlay';
+import ErrorsReport from '@/components/ErrorsReport';
 import { exportToExcelXML } from '@/utils/exportExcel';
 import { useImageCache } from '@/hooks/useImageCache';
 import { useTrialSession } from '@/hooks/useTrialSession';
@@ -63,8 +64,11 @@ const Index: React.FC = () => {
     abort: abortQueue, 
     reset: resetQueue, 
     skipCooldown,
+    pause: pauseQueue,
+    resume: resumeQueue,
     setResults: setQueueResults,
-    isCooldown 
+    isCooldown,
+    isPaused,
   } = useProcessingQueue(PROCESSING_CONFIG);
   
   // Cooldown for reprocess button (30 seconds)
@@ -105,6 +109,9 @@ const Index: React.FC = () => {
   
   // Detailed report modal
   const [showDetailedReport, setShowDetailedReport] = useState(false);
+  
+  // Errors report modal
+  const [showErrorsReport, setShowErrorsReport] = useState(false);
   
   // Filters
   const [filters, setFilters] = useState<ResultFilters>({
@@ -613,10 +620,15 @@ const Index: React.FC = () => {
               currentFileName={processingProgress.currentFile}
               startTime={processingStartTime}
               isProcessing={isProcessing}
+              isPaused={isPaused}
               currentBatch={queueStats.currentBatch}
               totalBatches={queueStats.totalBatches}
               queued={queueStats.queued}
+              errorsCount={queueStats.errors.length}
               onAbort={abortQueue}
+              onPause={pauseQueue}
+              onResume={resumeQueue}
+              onShowErrors={() => setShowErrorsReport(true)}
             />
           </div>
         )}
@@ -1026,9 +1038,19 @@ const Index: React.FC = () => {
         isActive={isCooldown}
         durationSeconds={queueStats.cooldownSeconds}
         onComplete={() => {}} // Handled by the hook
+        onSkip={skipCooldown}
         processedCount={queueStats.processed}
         nextBatchCount={queueStats.nextGroupSize}
         totalRemaining={queueStats.queued}
+        estimatedTotalTime={queueStats.estimatedTotalTime}
+      />
+
+      {/* Errors Report Modal */}
+      <ErrorsReport
+        isOpen={showErrorsReport}
+        onClose={() => setShowErrorsReport(false)}
+        errors={queueStats.errors}
+        onRetryAll={handleRetryFailed}
       />
 
       {/* Confirmation Dialog for Large Batches */}

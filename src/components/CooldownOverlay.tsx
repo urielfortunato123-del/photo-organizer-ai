@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Timer, Coffee, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { Timer, Coffee, Sparkles, Volume2, VolumeX, SkipForward, Bell, BellOff, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -7,28 +7,56 @@ interface CooldownOverlayProps {
   isActive: boolean;
   durationSeconds: number;
   onComplete: () => void;
+  onSkip?: () => void;
   processedCount: number;
   nextBatchCount: number;
   totalRemaining: number;
+  estimatedTotalTime?: string;
 }
 
 const CooldownOverlay: React.FC<CooldownOverlayProps> = ({
   isActive,
   durationSeconds,
   onComplete,
+  onSkip,
   processedCount,
   nextBatchCount,
   totalRemaining,
+  estimatedTotalTime,
 }) => {
   const [remainingSeconds, setRemainingSeconds] = useState(durationSeconds);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [browserNotifyEnabled, setBrowserNotifyEnabled] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
+
+  // Request browser notification permission
+  const requestNotificationPermission = useCallback(async () => {
+    if (!('Notification' in window)) return;
+    
+    if (Notification.permission === 'granted') {
+      setBrowserNotifyEnabled(true);
+    } else if (Notification.permission !== 'denied') {
+      const permission = await Notification.requestPermission();
+      setBrowserNotifyEnabled(permission === 'granted');
+    }
+  }, []);
+
+  const sendBrowserNotification = useCallback((title: string, body: string) => {
+    if (!browserNotifyEnabled || !('Notification' in window)) return;
+    
+    if (Notification.permission === 'granted') {
+      new Notification(title, {
+        body,
+        icon: '/favicon.ico',
+        tag: 'obraphoto-cooldown',
+      });
+    }
+  }, [browserNotifyEnabled]);
 
   const playNotificationSound = useCallback(() => {
     if (!soundEnabled) return;
     
     try {
-      // Create audio context on demand
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
@@ -68,6 +96,10 @@ const CooldownOverlay: React.FC<CooldownOverlayProps> = ({
         if (prev <= 1) {
           clearInterval(interval);
           playNotificationSound();
+          sendBrowserNotification(
+            'ObraPhoto - Cooldown Finalizado!',
+            `Iniciando próximo lote de ${nextBatchCount} fotos...`
+          );
           onComplete();
           return 0;
         }
@@ -80,7 +112,7 @@ const CooldownOverlay: React.FC<CooldownOverlayProps> = ({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isActive, durationSeconds, onComplete, playNotificationSound]);
+  }, [isActive, durationSeconds, onComplete, playNotificationSound, sendBrowserNotification, nextBatchCount]);
 
   if (!isActive) return null;
 
@@ -90,7 +122,7 @@ const CooldownOverlay: React.FC<CooldownOverlayProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center">
-      <div className="text-center space-y-8 p-8 max-w-md">
+      <div className="text-center space-y-6 p-8 max-w-lg">
         {/* Animated Timer Ring */}
         <div className="relative w-48 h-48 mx-auto">
           {/* Background ring */}
@@ -131,7 +163,7 @@ const CooldownOverlay: React.FC<CooldownOverlayProps> = ({
         </div>
 
         {/* Status text */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           <h2 className="text-2xl font-semibold text-foreground flex items-center justify-center gap-2">
             <Coffee className="w-6 h-6 text-primary" />
             Intervalo de Processamento
@@ -139,6 +171,12 @@ const CooldownOverlay: React.FC<CooldownOverlayProps> = ({
           <p className="text-muted-foreground">
             Aguardando para não sobrecarregar a IA...
           </p>
+          {estimatedTotalTime && (
+            <p className="text-sm text-primary flex items-center justify-center gap-2">
+              <Clock className="w-4 h-4" />
+              Tempo total estimado: {estimatedTotalTime}
+            </p>
+          )}
         </div>
 
         {/* Stats */}
@@ -157,8 +195,21 @@ const CooldownOverlay: React.FC<CooldownOverlayProps> = ({
           </div>
         </div>
 
-        {/* Sound toggle & Animated dots */}
-        <div className="flex items-center justify-center gap-4">
+        {/* Skip Button */}
+        {onSkip && (
+          <Button
+            onClick={onSkip}
+            variant="outline"
+            size="lg"
+            className="w-full border-primary/50 text-primary hover:bg-primary/10"
+          >
+            <SkipForward className="w-5 h-5 mr-2" />
+            Pular Cooldown e Continuar
+          </Button>
+        )}
+
+        {/* Sound & Browser Notification toggles */}
+        <div className="flex items-center justify-center gap-4 flex-wrap">
           <Button
             variant="ghost"
             size="sm"
@@ -171,6 +222,26 @@ const CooldownOverlay: React.FC<CooldownOverlayProps> = ({
               <VolumeX className="w-4 h-4 mr-2" />
             )}
             {soundEnabled ? 'Som ativado' : 'Som desativado'}
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (!browserNotifyEnabled) {
+                requestNotificationPermission();
+              } else {
+                setBrowserNotifyEnabled(false);
+              }
+            }}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {browserNotifyEnabled ? (
+              <Bell className="w-4 h-4 mr-2" />
+            ) : (
+              <BellOff className="w-4 h-4 mr-2" />
+            )}
+            {browserNotifyEnabled ? 'Notificações ativas' : 'Ativar notificações'}
           </Button>
         </div>
         
