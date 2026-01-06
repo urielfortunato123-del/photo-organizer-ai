@@ -527,96 +527,95 @@ const Index: React.FC = () => {
         .trim();
 
     setIsExporting(true);
-    setZipProgress({ current: 0, total: successResults.length });
+    
+    // LIMITE POR PARTE: 50 fotos (evita ZIP grande demais)
+    const CHUNK_SIZE = 50;
+    const totalParts = Math.ceil(successResults.length / CHUNK_SIZE);
+    const dateStr = new Date().toISOString().split('T')[0];
 
     try {
-      const zip = new JSZip();
-      let addedCount = 0;
-      
-      // Adiciona arquivos um por um (mais estável)
-      for (let i = 0; i < successResults.length; i++) {
-        const result = successResults[i];
-        const file = files.find((f) => f.name === result.filename);
-        if (!file || !result.dest) continue;
-
-        try {
-          const arrayBuffer = await file.arrayBuffer();
-
-          const destParts = result.dest
-            .split('/')
-            .filter(Boolean)
-            .map(sanitizeZipPart);
-          const safeFilename = sanitizeZipPart(result.filename);
-          const fullPath = `${destParts.join('/')}/${safeFilename}`;
-
-          zip.file(fullPath, arrayBuffer);
-          addedCount++;
-          
-          setZipProgress({ current: i + 1, total: successResults.length });
-        } catch (err) {
-          console.warn(`Erro ao adicionar ${result.filename}:`, err);
-        }
+      for (let partIndex = 0; partIndex < totalParts; partIndex++) {
+        const startIdx = partIndex * CHUNK_SIZE;
+        const endIdx = Math.min(startIdx + CHUNK_SIZE, successResults.length);
+        const chunkResults = successResults.slice(startIdx, endIdx);
         
-        // Pausa pequena a cada 10 arquivos
-        if (i % 10 === 0) {
-          await new Promise(resolve => setTimeout(resolve, 10));
-        }
-      }
+        setZipProgress({ current: startIdx, total: successResults.length });
+        
+        const zip = new JSZip();
+        let addedCount = 0;
+        
+        // Adiciona arquivos da parte atual
+        for (let i = 0; i < chunkResults.length; i++) {
+          const result = chunkResults[i];
+          const file = files.find((f) => f.name === result.filename);
+          if (!file || !result.dest) continue;
 
-      if (addedCount === 0) {
-        throw new Error('Nenhum arquivo foi adicionado ao ZIP');
-      }
+          try {
+            const arrayBuffer = await file.arrayBuffer();
 
-      setZipProgress({ current: 0, total: 1 });
-      toast({ title: "Gerando ZIP...", description: `Compactando ${addedCount} fotos...` });
+            const destParts = result.dest
+              .split('/')
+              .filter(Boolean)
+              .map(sanitizeZipPart);
+            const safeFilename = sanitizeZipPart(result.filename);
+            const fullPath = `${destParts.join('/')}/${safeFilename}`;
 
-      // Gera o ZIP SEM streamFiles (mais compatível com Windows)
-      const zipBlob = await zip.generateAsync(
-        {
-          type: 'blob',
-          compression: 'STORE', // Sem compressão = mais rápido e 100% compatível
-        },
-        (metadata) => {
-          if (metadata.percent % 10 < 1) {
-            setZipProgress({ current: Math.round(metadata.percent), total: 100 });
+            zip.file(fullPath, arrayBuffer);
+            addedCount++;
+            
+            setZipProgress({ current: startIdx + i + 1, total: successResults.length });
+          } catch (err) {
+            console.warn(`Erro ao adicionar ${result.filename}:`, err);
           }
         }
-      );
 
-      // Valida se o ZIP foi gerado corretamente
-      if (zipBlob.size < 100) {
-        throw new Error('ZIP gerado está vazio');
+        if (addedCount === 0) continue;
+
+        toast({ 
+          title: `Gerando parte ${partIndex + 1}/${totalParts}...`, 
+          description: `${addedCount} fotos` 
+        });
+
+        // Gera o ZIP (sem compressão = mais rápido e estável)
+        const zipBlob = await zip.generateAsync({
+          type: 'blob',
+          compression: 'STORE',
+        });
+
+        if (zipBlob.size < 100) continue;
+
+        // Download
+        const url = URL.createObjectURL(zipBlob);
+        const link = document.createElement('a');
+        link.style.display = 'none';
+        link.href = url;
+        link.download = totalParts > 1 
+          ? `obraphoto_${dateStr}_parte${partIndex + 1}de${totalParts}.zip`
+          : `obraphoto_organizado_${dateStr}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        
+        setTimeout(() => document.body.removeChild(link), 1000);
+        setTimeout(() => URL.revokeObjectURL(url), 300000);
+        
+        // Pausa entre partes para não travar o navegador
+        if (partIndex < totalParts - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
       }
 
-      // Download usando método mais confiável
-      const url = URL.createObjectURL(zipBlob);
-      const link = document.createElement('a');
-      link.style.display = 'none';
-      link.href = url;
-      link.download = `obraphoto_organizado_${new Date().toISOString().split('T')[0]}.zip`;
-      document.body.appendChild(link);
-      
-      // Clique e aguarda
-      link.click();
-      
-      // Remove link após um tempo
-      setTimeout(() => {
-        document.body.removeChild(link);
-      }, 1000);
-      
-      // Mantém URL válida por 5 minutos (downloads grandes)
-      setTimeout(() => URL.revokeObjectURL(url), 300000);
-
       toast({
-        title: "ZIP pronto!",
-        description: `${addedCount} fotos (${(zipBlob.size / 1024 / 1024).toFixed(1)}MB). Verifique sua pasta de Downloads.`,
+        title: "Exportação concluída!",
+        description: totalParts > 1 
+          ? `${successResults.length} fotos em ${totalParts} arquivos ZIP. Verifique sua pasta de Downloads.`
+          : `${successResults.length} fotos exportadas. Verifique sua pasta de Downloads.`,
       });
       
     } catch (error) {
       console.error('Export error:', error);
       toast({
         title: "Erro na exportação",
-        description: error instanceof Error ? error.message : "Erro desconhecido. Tente com menos fotos.",
+        description: error instanceof Error ? error.message : "Erro desconhecido.",
         variant: "destructive",
       });
     } finally {
