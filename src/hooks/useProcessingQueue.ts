@@ -29,10 +29,10 @@ export interface UseProcessingQueueOptions {
   delayBetweenBatches?: number; // Delay entre lotes em ms (padrão: 2000)
 }
 
-const DEFAULT_BATCH_SIZE = 5;
-const DEFAULT_GROUP_SIZE = 20;
-const DEFAULT_COOLDOWN_SECONDS = 120; // 2 minutos
-const DEFAULT_DELAY = 2000;
+const DEFAULT_BATCH_SIZE = 10; // Era 5, agora 10 por lote
+const DEFAULT_GROUP_SIZE = 50; // Era 20, agora 50 antes do cooldown
+const DEFAULT_COOLDOWN_SECONDS = 30; // Era 120 (2min), agora 30s
+const DEFAULT_DELAY = 500; // Era 2000, agora 0.5s
 
 export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
   const { 
