@@ -45,7 +45,7 @@ const PATTERNS = {
   ponte: /\bPONTE[\s\-_]*([A-Z0-9\-]+)?\b/gi,
   oae: /\bOAE[\s\-_]*(\d{1,2})?\b/gi,
   pracaPedagio: /\bPRA[CÇ]A[\s\-_]*(DE[\s\-_]*)?(PED[AÁ]GIO)?[\s\-_]*(\d{1,2})?\b/gi,
-  freeFlow: /\bFREE[\s\-_]?FLOW[\s\-_]*([A-Z]?\d*)?\b/gi,
+  freeFlow: /\bFREE[\s\-_]?FLOW[\s\-_]*(P[\-\s]*\d+|[A-Z]?\d+)?\b/gi,
   cortina: /\bCORTINA[\s\-_]*(\d{1,2})?\b/gi,
   
   // === METADADOS ===
@@ -159,12 +159,14 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
     }
   }
   
-  // FREE FLOW
+  // FREE FLOW: "Free Flow P-10", "Free Flow P17"
   if (!result.frenteServico) {
     const freeFlowMatch = PATTERNS.freeFlow.exec(normalizedText);
     PATTERNS.freeFlow.lastIndex = 0;
     if (freeFlowMatch) {
-      const id = freeFlowMatch[1] || '';
+      let id = freeFlowMatch[1] || '';
+      // Normaliza: "P-10" → "P10", "P 10" → "P10"
+      id = id.replace(/[\s\-_]+/g, '').toUpperCase();
       result.frenteServico = id ? `FREE_FLOW_${id}` : 'FREE_FLOW';
       result.hasPlaca = true;
     }
@@ -274,11 +276,13 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
       result.hasPlaca = true;
     }
     
-    // Tenta extrair "free flow p17" ou similar
+    // Tenta extrair "free flow p17", "free flow p-10" ou similar
     if (!result.frenteServico) {
-      const freeFlowTextMatch = lowerText.match(/free[\s\-_]?flow[\s\-_]?(p?\d+)?/i);
+      const freeFlowTextMatch = lowerText.match(/free[\s\-_]?flow[\s\-_]*(p[\-\s]*\d+|\d+)?/i);
       if (freeFlowTextMatch) {
-        const id = freeFlowTextMatch[1] ? freeFlowTextMatch[1].toUpperCase() : '';
+        let id = freeFlowTextMatch[1] ? freeFlowTextMatch[1].toUpperCase() : '';
+        // Normaliza: "P-10" → "P10"
+        id = id.replace(/[\s\-_]+/g, '');
         result.frenteServico = id ? `FREE_FLOW_${id}` : 'FREE_FLOW';
         result.contratada = result.frenteServico;
         result.hasPlaca = true;
