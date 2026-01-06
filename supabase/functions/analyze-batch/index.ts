@@ -461,8 +461,8 @@ serve(async (req) => {
     const results: { hash: string; result: Record<string, unknown> }[] = [];
     const errors: { hash: string; error: string }[] = [];
 
-    // Processa em paralelo para máxima velocidade (grupos de 3)
-    const PARALLEL_SIZE = 3;
+    // Processa em paralelo para máxima velocidade (grupos de 5)
+    const PARALLEL_SIZE = 5;
     for (let i = 0; i < images.length; i += PARALLEL_SIZE) {
       const batch = images.slice(i, i + PARALLEL_SIZE);
       
@@ -506,9 +506,9 @@ serve(async (req) => {
         }
       }
       
-      // Pequena pausa entre grupos paralelos
+      // Pausa mínima entre grupos paralelos
       if (i + PARALLEL_SIZE < images.length) {
-        await delay(300);
+        await delay(100);
       }
     }
 
