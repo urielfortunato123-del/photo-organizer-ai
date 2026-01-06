@@ -251,51 +251,66 @@ Responda APENAS com JSON.`;
 ${exifInfo}
 ${obrasConhecidas || ''}
 
-## TAREFA PRINCIPAL: Leia a LEGENDA/TEXTO da foto e extraia as informações.
+## CONCEITOS IMPORTANTES
 
-## 1. LEITURA DE LEGENDA (MUITO IMPORTANTE!)
-Procure QUALQUER texto visível na imagem, especialmente:
-- Na parte inferior direita (rodapé/legenda com data, endereço, BSO, KM, SP)
+### LOCALIZAÇÃO (onde a foto foi tirada):
+- RODOVIA: SP-280, SP-270, BR-116 → Indica ONDE é a foto
+- KM: KM 57, KM 150, KM 79 → Indica ONDE é a foto
+- Estes são LOCAIS, NÃO são frentes de serviço!
+
+### FRENTE DE SERVIÇO (identificação da obra/trabalho):
+- BSO: "BSO - 01", "BSO - 04" → Frente de serviço!
+- PÓRTICO: "Pórtico 03" → Frente de serviço!
+- PASSARELA: "Passarela 02" → Frente de serviço!
+- VIADUTO: "Viaduto KM 95" → Frente de serviço!
+- OAE: "OAE 05" → Frente de serviço!
+- FREE FLOW: "Free Flow P17" → Frente de serviço!
+- PRAÇA DE PEDÁGIO → Frente de serviço!
+
+## TAREFA PRINCIPAL: Leia a LEGENDA/TEXTO da foto
+
+Procure QUALQUER texto visível na imagem:
+- Na parte inferior direita (rodapé/legenda)
 - Placas de identificação
-- Marcações na foto
 
 PADRÃO COMUM DA LEGENDA:
-A legenda geralmente tem este formato:
 "15 de out. de 2025 13:51:02
 Rodovia Presidente Castello Branco
 São Roque
 BSO - 01 KM 57
 SP- 280"
 
-## 2. IDENTIFICAÇÃO DO PÓRTICO/BSO (PRIORIDADE MÁXIMA!)
-Procure "BSO - XX" ou "BSO-XX" na legenda:
+## CLASSIFICAÇÃO
+
+### portico (FRENTE DE SERVIÇO - NÃO é rodovia nem KM!):
 - "BSO - 01" → portico: "BSO_01"
 - "BSO - 04" → portico: "BSO_04"
-- "BSO - 02" → portico: "BSO_02"
+- "Pórtico 03" → portico: "PORTICO_03"
+- "Passarela 02" → portico: "PASSARELA_02"
+- Se NÃO encontrar BSO/PÓRTICO/PASSARELA → "${defaultPortico || 'NAO_IDENTIFICADO'}"
+- ATENÇÃO: "SP-280" e "KM 57" são LOCALIZAÇÃO, NÃO frente de serviço!
 
-Outros exemplos:
-- "Reforma da BSO 1" → portico: "REFORMA_BSO_01"
-- "SAU-01" → portico: "SAU_01"
-- "Free Flow P17" → portico: "FREE_FLOW_P17"
-- "Habitechne" → portico: "HABITECHNE"
-- "Cortina 01" → portico: "CORTINA_01"
+### rodovia (LOCALIZAÇÃO):
+- SP_280, SP_270 → Onde a foto foi tirada
 
-## 3. CLASSIFICAÇÃO
-- portico: USE EXATAMENTE o BSO que aparece na legenda! Ex: "BSO_01", "BSO_04"
-  - Se não encontrar → "${defaultPortico || 'NAO_IDENTIFICADO'}"
-- disciplina: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
-- servico: Específico da disciplina (REBOCO, AZULEJO, HIDRAULICA, ALVENARIA, etc.)
-- data: DD/MM/YYYY (extraia da legenda: "15 de out. de 2025" → "15/10/2025")
-- rodovia: SP_280, SP_270, etc.
-- km_inicio: Extraia o KM da legenda (ex: "KM 57" → "57")
-- ocr_text: COPIE o texto exato que você leu da legenda
+### km_inicio (LOCALIZAÇÃO):
+- KM 57, KM 150 → Onde na rodovia
+
+### disciplina:
+FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
+
+### servico:
+Específico da disciplina (REBOCO, AZULEJO, HIDRAULICA, ALVENARIA, etc.)
+
+### ocr_text:
+COPIE o texto exato da legenda que você leu
 
 ## RESPOSTA JSON
 \`\`\`json
-{"portico":"BSO_01","disciplina":"ACABAMENTO","servico":"REBOCO_E_EMBOCO","data":"15/10/2025","rodovia":"SP_280","km_inicio":"57","sentido":"","analise_tecnica":"Obra em fase de acabamento com aplicação de reboco","confidence":0.95,"ocr_text":"BSO - 01 KM 57 SP- 280","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
+{"portico":"BSO_01","disciplina":"ACABAMENTO","servico":"REBOCO","data":"15/10/2025","rodovia":"SP_280","km_inicio":"57","sentido":"","analise_tecnica":"Obra em fase de acabamento","confidence":0.95,"ocr_text":"BSO - 01 KM 57 SP- 280","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
 \`\`\`
 
-IMPORTANTE: Se você lê "BSO - XX" na legenda, a confiança deve ser ALTA (0.90+). A legenda é a fonte mais confiável!
+IMPORTANTE: Se você lê "BSO - XX" ou outro identificador de frente, a confiança deve ser ALTA (0.90+).
 
 Responda APENAS com JSON válido.`;
 }
