@@ -4,7 +4,7 @@ import {
   Play, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree, Folder,
   User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet,
-  Plus, X, Database, Clock, FileText, AlertTriangle, Zap
+  Plus, X, Database, Clock, FileText, AlertTriangle, Zap, Layers
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +34,7 @@ import { useImageCache } from '@/hooks/useImageCache';
 import { useTrialSession } from '@/hooks/useTrialSession';
 import { useAuth } from '@/hooks/useAuth';
 import { useOCR, extractStructuredData } from '@/hooks/useOCR';
+import { useProcessingQueue } from '@/hooks/useProcessingQueue';
 import { 
   api, 
   ProcessingResult, 
@@ -47,6 +48,7 @@ const Index: React.FC = () => {
   const { toast } = useToast();
   const { profile } = useAuth();
   const { extractText, terminate: terminateOCR } = useOCR();
+  const { processQueue, queueStats, abort: abortQueue, reset: resetQueue, setResults: setQueueResults } = useProcessingQueue({ batchSize: 5, delayBetweenBatches: 2500 });
   
   // Cooldown for reprocess button (30 seconds)
   const [reprocessCooldown, setReprocessCooldown] = useState(0);
@@ -202,8 +204,8 @@ const Index: React.FC = () => {
       return;
     }
 
-    // If more than 10 files, show confirmation dialog
-    if (newFiles.length > 10) {
+    // If more than 50 files, show confirmation dialog
+    if (newFiles.length > 50) {
       setPendingProcessFiles(newFiles);
       setShowConfirmDialog(true);
       return;
@@ -249,52 +251,50 @@ const Index: React.FC = () => {
     } : undefined;
 
     try {
-      const newResults = await api.processPhotos(
+      // Use the queue for processing - no limits!
+      await processQueue(
         filesToProcess,
         config,
-        (current, total, filename) => {
-          setProcessingProgress({ current, total, currentFile: filename });
-        },
-        {
-          getCached: imageCache.getCached,
-          setCache: imageCache.setCache,
-          setCacheBulk: imageCache.setCacheBulk,
-        },
+        ocrExtractor,
+        // onBatchComplete - update results incrementally
         (batchResults) => {
           setResults(prev => [...prev, ...batchResults]);
           batchResults.forEach(r => {
             setProcessedFiles(prev => new Set([...prev, r.filename]));
           });
           setActiveTab('results');
+          
+          // Update progress based on queue stats
+          setProcessingProgress({
+            current: queueStats.processed,
+            total: queueStats.total,
+            currentFile: queueStats.currentFile,
+          });
         },
-        {
-          maxFiles: 100,
-          stopOnCreditError: true,
-        },
-        ocrExtractor // Passa extrator OCR local
+        // onComplete
+        (allResults) => {
+          const successCount = allResults.filter(r => r.status === 'Sucesso').length;
+          const creditErrors = allResults.filter(r => r.status.includes('402') || r.status.includes('crédito')).length;
+          
+          if (creditErrors > 0) {
+            toast({
+              title: "Processamento interrompido",
+              description: `Limite de créditos atingido. ${successCount} fotos processadas.`,
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Processamento concluído!",
+              description: `${successCount} de ${filesToProcess.length} fotos analisadas com sucesso.`,
+            });
+          }
+          
+          setIsProcessing(false);
+          setProcessingProgress({ current: 0, total: 0, currentFile: '' });
+          setProcessingStartTime(undefined);
+          setPendingProcessFiles([]);
+        }
       );
-
-      // Final update for processed files
-      const newProcessedNames = new Set(processedFiles);
-      newResults.forEach(r => newProcessedNames.add(r.filename));
-      setProcessedFiles(newProcessedNames);
-
-      const cacheStats = imageCache.getCacheStats();
-      const cachedCount = newResults.filter(r => r.status === 'Sucesso').length;
-      const creditErrors = newResults.filter(r => r.status.includes('402') || r.status.includes('crédito')).length;
-      
-      if (creditErrors > 0) {
-        toast({
-          title: "Processamento interrompido",
-          description: `Limite de créditos atingido. ${cachedCount} fotos processadas antes do erro.`,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Lote processado!",
-          description: `${cachedCount} de ${filesToProcess.length} fotos analisadas. Cache: ${cacheStats.total} itens.`,
-        });
-      }
     } catch (error) {
       console.error('Processing error:', error);
       const errorMsg = error instanceof Error ? error.message : "Erro desconhecido";
@@ -304,13 +304,24 @@ const Index: React.FC = () => {
         description: errorMsg,
         variant: "destructive",
       });
-    } finally {
+      
       setIsProcessing(false);
       setProcessingProgress({ current: 0, total: 0, currentFile: '' });
       setProcessingStartTime(undefined);
       setPendingProcessFiles([]);
     }
   };
+
+  // Sync queue stats with processing progress
+  useEffect(() => {
+    if (queueStats.isProcessing) {
+      setProcessingProgress({
+        current: queueStats.processed,
+        total: queueStats.total,
+        currentFile: queueStats.currentFile,
+      });
+    }
+  }, [queueStats]);
 
   // Helper to check if a result is incomplete (OK but no data)
   const isIncompleteResult = (r: ProcessingResult) => {
@@ -585,6 +596,10 @@ const Index: React.FC = () => {
               currentFileName={processingProgress.currentFile}
               startTime={processingStartTime}
               isProcessing={isProcessing}
+              currentBatch={queueStats.currentBatch}
+              totalBatches={queueStats.totalBatches}
+              queued={queueStats.queued}
+              onAbort={abortQueue}
             />
           </div>
         )}
@@ -994,15 +1009,19 @@ const Index: React.FC = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-500" />
-              Confirmar Processamento
+              <Layers className="w-5 h-5 text-primary" />
+              Processar {pendingProcessFiles.length} Fotos
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>
-                  Você está prestes a processar <strong>{pendingProcessFiles.length} fotos</strong>.
+                  As fotos serão processadas em <strong>lotes de 5</strong>, automaticamente em fila.
                 </p>
                 <div className="bg-secondary/50 p-3 rounded-lg space-y-2">
+                  <p className="text-sm flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-primary" />
+                    <strong>{Math.ceil(pendingProcessFiles.length / 5)} lotes</strong> serão processados automaticamente
+                  </p>
                   <p className="text-sm">
                     <strong>Custo estimado:</strong> {estimateCost(pendingProcessFiles.length, economicMode, useLocalOCR)}
                     {economicMode && <span className="ml-2 text-green-500">(Modo Econômico)</span>}
@@ -1013,7 +1032,7 @@ const Index: React.FC = () => {
                   </p>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  O processamento será interrompido automaticamente se os créditos acabarem.
+                  Você pode pausar a qualquer momento. O ZIP será gerado quando terminar.
                 </p>
               </div>
             </AlertDialogDescription>
@@ -1024,7 +1043,8 @@ const Index: React.FC = () => {
               onClick={() => executeProcessing(pendingProcessFiles)}
               className="bg-primary"
             >
-              Processar {pendingProcessFiles.length} fotos
+              <Sparkles className="w-4 h-4 mr-2" />
+              Iniciar Processamento
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
