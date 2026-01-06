@@ -265,6 +265,7 @@ ${obrasConhecidas || ''}
 - VIADUTO: "Viaduto KM 95" → Frente de serviço!
 - OAE: "OAE 05" → Frente de serviço!
 - FREE FLOW: "Free Flow P-10", "Free Flow P17" → Frente de serviço! (portico: "FREE_FLOW_P10")
+- CORTINA ATIRANTADA: "cortina atirantada" → Frente de serviço! (portico: "CORTINA_ATIRANTADA")
 - PRAÇA DE PEDÁGIO → Frente de serviço!
 
 ## TAREFA PRINCIPAL: Leia a LEGENDA/TEXTO da foto
