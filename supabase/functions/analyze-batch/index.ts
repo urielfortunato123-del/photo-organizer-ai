@@ -433,9 +433,9 @@ serve(async (req) => {
       );
     }
 
-    if (images.length > 10) {
+    if (images.length > 15) {
       return new Response(
-        JSON.stringify({ error: 'Maximum 10 images per batch' }),
+        JSON.stringify({ error: 'Maximum 15 images per batch' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -461,44 +461,54 @@ serve(async (req) => {
     const results: { hash: string; result: Record<string, unknown> }[] = [];
     const errors: { hash: string; error: string }[] = [];
 
-    for (let i = 0; i < images.length; i++) {
-      const image = images[i];
+    // Processa em paralelo para máxima velocidade (grupos de 3)
+    const PARALLEL_SIZE = 3;
+    for (let i = 0; i < images.length; i += PARALLEL_SIZE) {
+      const batch = images.slice(i, i + PARALLEL_SIZE);
       
-      try {
-        const analyzed = await analyzeImage(image, LOVABLE_API_KEY, defaultPortico, economicMode, obras, aprendizados, supabaseUrl, supabaseKey);
-        results.push(analyzed);
-        
-        if (i < images.length - 1) {
-          await delay(1000);
+      const batchPromises = batch.map(image => 
+        analyzeImage(image, LOVABLE_API_KEY, defaultPortico, economicMode, obras, aprendizados, supabaseUrl, supabaseKey)
+          .then(result => ({ success: true as const, result }))
+          .catch(err => ({ success: false as const, image, err }))
+      );
+      
+      const batchResults = await Promise.all(batchPromises);
+      
+      for (const res of batchResults) {
+        if (res.success) {
+          results.push(res.result);
+        } else {
+          const errObj = res.err as { status?: number; message?: string };
+          
+          if (errObj.status === 429) {
+            return new Response(
+              JSON.stringify({
+                results,
+                errors: [...errors, { hash: res.image.hash, error: 'Rate limit' }],
+                partial: true,
+                remaining: images.slice(i).map(img => img.hash)
+              }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          if (errObj.status === 402) {
+            return new Response(
+              JSON.stringify({ error: 'Limite de créditos atingido.' }),
+              { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          
+          errors.push({ 
+            hash: res.image.hash, 
+            error: res.err instanceof Error ? res.err.message : 'Unknown error'
+          });
         }
-      } catch (err: unknown) {
-        console.error(`Error processing ${image.filename}:`, err);
-        
-        const errObj = err as { status?: number; message?: string };
-        
-        if (errObj.status === 429) {
-          return new Response(
-            JSON.stringify({
-              results,
-              errors: [...errors, { hash: image.hash, error: 'Rate limit' }],
-              partial: true,
-              remaining: images.slice(i).map(img => img.hash)
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        
-        if (errObj.status === 402) {
-          return new Response(
-            JSON.stringify({ error: 'Limite de créditos atingido.' }),
-            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        
-        errors.push({ 
-          hash: image.hash, 
-          error: err instanceof Error ? err.message : 'Unknown error'
-        });
+      }
+      
+      // Pequena pausa entre grupos paralelos
+      if (i + PARALLEL_SIZE < images.length) {
+        await delay(300);
       }
     }
 
