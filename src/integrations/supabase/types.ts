@@ -14,6 +14,90 @@ export type Database = {
   }
   public: {
     Tables: {
+      categorias_frentes: {
+        Row: {
+          ativo: boolean
+          codigo: string
+          cor: string | null
+          created_at: string
+          descricao: string | null
+          icone: string | null
+          id: string
+          nome: string
+          ordem: number | null
+        }
+        Insert: {
+          ativo?: boolean
+          codigo: string
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          icone?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+        }
+        Update: {
+          ativo?: boolean
+          codigo?: string
+          cor?: string | null
+          created_at?: string
+          descricao?: string | null
+          icone?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+        }
+        Relationships: []
+      }
+      frentes_servico: {
+        Row: {
+          ativo: boolean
+          categoria: string
+          codigo: string
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          ordem: number | null
+          regex_pattern: string
+          subcategoria: string | null
+          updated_at: string
+          variacoes: string[]
+        }
+        Insert: {
+          ativo?: boolean
+          categoria: string
+          codigo: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          ordem?: number | null
+          regex_pattern: string
+          subcategoria?: string | null
+          updated_at?: string
+          variacoes?: string[]
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string
+          codigo?: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          ordem?: number | null
+          regex_pattern?: string
+          subcategoria?: string | null
+          updated_at?: string
+          variacoes?: string[]
+        }
+        Relationships: []
+      }
       obras_aprendizado: {
         Row: {
           aplicado: boolean | null
