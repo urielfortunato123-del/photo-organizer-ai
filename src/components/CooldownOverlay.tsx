@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Timer, Coffee, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Timer, Coffee, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 interface CooldownOverlayProps {
   isActive: boolean;
@@ -20,6 +21,39 @@ const CooldownOverlay: React.FC<CooldownOverlayProps> = ({
   totalRemaining,
 }) => {
   const [remainingSeconds, setRemainingSeconds] = useState(durationSeconds);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const playNotificationSound = useCallback(() => {
+    if (!soundEnabled) return;
+    
+    try {
+      // Create audio context on demand
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      const ctx = audioContextRef.current;
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      // Pleasant notification melody
+      oscillator.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+      oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+      oscillator.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2); // G5
+      
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.4);
+    } catch (e) {
+      console.log('Audio notification not available');
+    }
+  }, [soundEnabled]);
 
   useEffect(() => {
     if (!isActive) {
@@ -33,15 +67,20 @@ const CooldownOverlay: React.FC<CooldownOverlayProps> = ({
       setRemainingSeconds(prev => {
         if (prev <= 1) {
           clearInterval(interval);
+          playNotificationSound();
           onComplete();
           return 0;
+        }
+        // Play a tick sound at 10 seconds remaining
+        if (prev === 11) {
+          playNotificationSound();
         }
         return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isActive, durationSeconds, onComplete]);
+  }, [isActive, durationSeconds, onComplete, playNotificationSound]);
 
   if (!isActive) return null;
 
@@ -118,7 +157,23 @@ const CooldownOverlay: React.FC<CooldownOverlayProps> = ({
           </div>
         </div>
 
-        {/* Animated dots */}
+        {/* Sound toggle & Animated dots */}
+        <div className="flex items-center justify-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {soundEnabled ? (
+              <Volume2 className="w-4 h-4 mr-2" />
+            ) : (
+              <VolumeX className="w-4 h-4 mr-2" />
+            )}
+            {soundEnabled ? 'Som ativado' : 'Som desativado'}
+          </Button>
+        </div>
+        
         <div className="flex items-center justify-center gap-2">
           <Sparkles className="w-4 h-4 text-primary animate-pulse" />
           <span className="text-sm text-muted-foreground">
