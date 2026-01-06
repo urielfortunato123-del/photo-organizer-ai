@@ -29,6 +29,7 @@ import PhotoPreviewModal from '@/components/PhotoPreviewModal';
 import ResultsFilters, { ResultFilters } from '@/components/ResultsFilters';
 import StatisticsCard from '@/components/StatisticsCard';
 import DetailedReport from '@/components/DetailedReport';
+import CooldownOverlay from '@/components/CooldownOverlay';
 import { exportToExcelXML } from '@/utils/exportExcel';
 import { useImageCache } from '@/hooks/useImageCache';
 import { useTrialSession } from '@/hooks/useTrialSession';
@@ -43,12 +44,28 @@ import {
   PreProcessedOCR
 } from '@/services/api';
 
+// Config: lotes de 5 fotos, grupos de 20 fotos, cooldown de 2 minutos
+const PROCESSING_CONFIG = {
+  batchSize: 5,         // Fotos por lote enviado à IA
+  groupSize: 20,        // Fotos antes do cooldown
+  cooldownSeconds: 120, // 2 minutos de intervalo
+  delayBetweenBatches: 2500, // 2.5s entre lotes
+};
+
 const Index: React.FC = () => {
   const imageCache = useImageCache();
   const { toast } = useToast();
   const { profile } = useAuth();
   const { extractText, terminate: terminateOCR } = useOCR();
-  const { processQueue, queueStats, abort: abortQueue, reset: resetQueue, setResults: setQueueResults } = useProcessingQueue({ batchSize: 5, delayBetweenBatches: 2500 });
+  const { 
+    processQueue, 
+    queueStats, 
+    abort: abortQueue, 
+    reset: resetQueue, 
+    skipCooldown,
+    setResults: setQueueResults,
+    isCooldown 
+  } = useProcessingQueue(PROCESSING_CONFIG);
   
   // Cooldown for reprocess button (30 seconds)
   const [reprocessCooldown, setReprocessCooldown] = useState(0);
@@ -1004,6 +1021,16 @@ const Index: React.FC = () => {
         />
       )}
 
+      {/* Cooldown Overlay */}
+      <CooldownOverlay
+        isActive={isCooldown}
+        durationSeconds={queueStats.cooldownSeconds}
+        onComplete={() => {}} // Handled by the hook
+        processedCount={queueStats.processed}
+        nextBatchCount={queueStats.nextGroupSize}
+        totalRemaining={queueStats.queued}
+      />
+
       {/* Confirmation Dialog for Large Batches */}
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
@@ -1015,24 +1042,31 @@ const Index: React.FC = () => {
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>
-                  As fotos serão processadas em <strong>lotes de 5</strong>, automaticamente em fila.
+                  As fotos serão processadas em <strong>grupos de {PROCESSING_CONFIG.groupSize}</strong> com intervalo de <strong>{PROCESSING_CONFIG.cooldownSeconds / 60} minutos</strong> entre eles.
                 </p>
                 <div className="bg-secondary/50 p-3 rounded-lg space-y-2">
-                  <p className="text-sm flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-primary" />
-                    <strong>{Math.ceil(pendingProcessFiles.length / 5)} lotes</strong> serão processados automaticamente
-                  </p>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="w-4 h-4 text-primary" />
+                    <span>
+                      <strong>{Math.ceil(pendingProcessFiles.length / PROCESSING_CONFIG.groupSize)} grupos</strong> 
+                      {' '}({PROCESSING_CONFIG.groupSize} fotos cada)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Layers className="w-4 h-4 text-muted-foreground" />
+                    <span>
+                      {Math.ceil(pendingProcessFiles.length / PROCESSING_CONFIG.batchSize)} lotes de {PROCESSING_CONFIG.batchSize} fotos
+                    </span>
+                  </div>
                   <p className="text-sm">
                     <strong>Custo estimado:</strong> {estimateCost(pendingProcessFiles.length, economicMode, useLocalOCR)}
-                    {economicMode && <span className="ml-2 text-green-500">(Modo Econômico)</span>}
+                    {economicMode && <span className="ml-2 text-green-500">(Econômico)</span>}
                     {useLocalOCR && <span className="ml-2 text-blue-500">(OCR Local)</span>}
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    Com $20 você pode processar aproximadamente {estimatePhotosPerBudget(economicMode, useLocalOCR)} fotos.
-                  </p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Você pode pausar a qualquer momento. O ZIP será gerado quando terminar.
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  A cada {PROCESSING_CONFIG.groupSize} fotos, haverá uma pausa de {PROCESSING_CONFIG.cooldownSeconds / 60} minutos para não sobrecarregar a IA.
                 </p>
               </div>
             </AlertDialogDescription>

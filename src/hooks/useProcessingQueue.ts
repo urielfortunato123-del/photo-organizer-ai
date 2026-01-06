@@ -11,20 +11,29 @@ export interface QueueStats {
   isProcessing: boolean;
   currentFile: string;
   startTime?: number;
+  // Cooldown state
+  isCooldown: boolean;
+  cooldownSeconds: number;
+  nextGroupSize: number;
 }
 
 export interface UseProcessingQueueOptions {
   batchSize?: number; // Fotos por lote enviado para IA (padrão: 5)
-  maxConcurrentBatches?: number; // Lotes por vez (padrão: 1)
+  groupSize?: number; // Fotos por grupo antes do cooldown (padrão: 20)
+  cooldownSeconds?: number; // Tempo de cooldown em segundos (padrão: 120 = 2 min)
   delayBetweenBatches?: number; // Delay entre lotes em ms (padrão: 2000)
 }
 
 const DEFAULT_BATCH_SIZE = 5;
+const DEFAULT_GROUP_SIZE = 20;
+const DEFAULT_COOLDOWN_SECONDS = 120; // 2 minutos
 const DEFAULT_DELAY = 2000;
 
 export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
   const { 
     batchSize = DEFAULT_BATCH_SIZE,
+    groupSize = DEFAULT_GROUP_SIZE,
+    cooldownSeconds = DEFAULT_COOLDOWN_SECONDS,
     delayBetweenBatches = DEFAULT_DELAY 
   } = options;
 
@@ -38,10 +47,14 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
     totalBatches: 0,
     isProcessing: false,
     currentFile: '',
+    isCooldown: false,
+    cooldownSeconds: 0,
+    nextGroupSize: 0,
   });
   
   const abortRef = useRef(false);
   const processingRef = useRef(false);
+  const cooldownResolveRef = useRef<(() => void) | null>(null);
 
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -57,6 +70,43 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
       reader.onerror = error => reject(error);
     });
   };
+
+  // Cooldown promise that can be resolved externally
+  const startCooldown = useCallback((seconds: number, nextGroupCount: number, remainingCount: number): Promise<void> => {
+    return new Promise((resolve) => {
+      cooldownResolveRef.current = resolve;
+      
+      setQueueStats(prev => ({
+        ...prev,
+        isCooldown: true,
+        cooldownSeconds: seconds,
+        nextGroupSize: nextGroupCount,
+        queued: remainingCount,
+        currentFile: 'Intervalo de processamento...',
+      }));
+
+      let remaining = seconds;
+      const interval = setInterval(() => {
+        remaining -= 1;
+        setQueueStats(prev => ({ ...prev, cooldownSeconds: remaining }));
+        
+        if (remaining <= 0 || abortRef.current) {
+          clearInterval(interval);
+          setQueueStats(prev => ({ ...prev, isCooldown: false, cooldownSeconds: 0 }));
+          cooldownResolveRef.current = null;
+          resolve();
+        }
+      }, 1000);
+    });
+  }, []);
+
+  // Skip cooldown (called externally)
+  const skipCooldown = useCallback(() => {
+    if (cooldownResolveRef.current) {
+      cooldownResolveRef.current();
+      cooldownResolveRef.current = null;
+    }
+  }, []);
 
   const processQueue = useCallback(async (
     files: File[],
@@ -76,7 +126,7 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
     const totalFiles = files.length;
     const totalBatches = Math.ceil(totalFiles / batchSize);
     const allResults: ProcessingResult[] = [];
-    const processedFiles = new Set<string>();
+    const processedFilesSet = new Set<string>();
     
     setQueueStats({
       total: totalFiles,
@@ -87,6 +137,9 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
       isProcessing: true,
       currentFile: 'Preparando...',
       startTime: Date.now(),
+      isCooldown: false,
+      cooldownSeconds: 0,
+      nextGroupSize: 0,
     });
 
     // Step 1: Hash all files and check cache
@@ -103,7 +156,7 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
       
       if (cached) {
         cachedResults.push({ ...cached, filename: file.name });
-        processedFiles.add(file.name);
+        processedFilesSet.add(file.name);
       } else {
         filesToProcess.push({ file, hash });
       }
@@ -131,10 +184,11 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
       return allResults;
     }
 
-    // Step 2: Process in batches
-    const updatedTotalBatches = Math.ceil(filesToProcess.length / batchSize);
+    // Step 2: Process in groups with cooldown
+    let processedInCurrentGroup = 0;
     let processedCount = cachedResults.length;
     let creditErrorOccurred = false;
+    const updatedTotalBatches = Math.ceil(filesToProcess.length / batchSize);
 
     for (let batchIndex = 0; batchIndex < updatedTotalBatches; batchIndex++) {
       if (abortRef.current || creditErrorOccurred) break;
@@ -232,6 +286,7 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
         }
 
         processedCount += batch.length;
+        processedInCurrentGroup += batch.length;
         
         setQueueStats(prev => ({
           ...prev,
@@ -239,8 +294,14 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
           queued: filesToProcess.length - end,
         }));
 
-        // Delay between batches (unless last)
-        if (batchIndex + 1 < updatedTotalBatches && !abortRef.current && !creditErrorOccurred) {
+        // Check if we need cooldown (every groupSize photos)
+        const remainingFiles = filesToProcess.length - end;
+        if (processedInCurrentGroup >= groupSize && remainingFiles > 0 && !abortRef.current && !creditErrorOccurred) {
+          const nextGroupCount = Math.min(groupSize, remainingFiles);
+          await startCooldown(cooldownSeconds, nextGroupCount, remainingFiles);
+          processedInCurrentGroup = 0; // Reset counter for next group
+        } else if (batchIndex + 1 < updatedTotalBatches && !abortRef.current && !creditErrorOccurred) {
+          // Normal delay between batches
           setQueueStats(prev => ({
             ...prev,
             currentFile: `Aguardando próximo lote...`,
@@ -256,7 +317,7 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
           creditErrorOccurred = true;
           
           // Mark remaining as skipped
-          for (let i = start; i < filesToProcess.length; i++) {
+          for (let i = end; i < filesToProcess.length; i++) {
             const item = filesToProcess[i];
             const skipResult: ProcessingResult = {
               filename: item.file.name,
@@ -293,6 +354,7 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
         }))]);
 
         processedCount += batch.length;
+        processedInCurrentGroup += batch.length;
         
         // Continue with next batch after a longer delay
         await delay(delayBetweenBatches * 2);
@@ -303,6 +365,7 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
     setQueueStats(prev => ({
       ...prev,
       isProcessing: false,
+      isCooldown: false,
       currentFile: creditErrorOccurred ? 'Interrompido (créditos)' : 'Concluído!',
       processed: allResults.length,
       queued: 0,
@@ -312,11 +375,12 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
     onComplete?.(allResults);
     
     return allResults;
-  }, [batchSize, delayBetweenBatches, imageCache]);
+  }, [batchSize, groupSize, cooldownSeconds, delayBetweenBatches, imageCache, startCooldown]);
 
   const abort = useCallback(() => {
     abortRef.current = true;
-  }, []);
+    skipCooldown();
+  }, [skipCooldown]);
 
   const reset = useCallback(() => {
     setResults([]);
@@ -328,6 +392,9 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
       totalBatches: 0,
       isProcessing: false,
       currentFile: '',
+      isCooldown: false,
+      cooldownSeconds: 0,
+      nextGroupSize: 0,
     });
   }, []);
 
@@ -335,9 +402,11 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
     processQueue,
     abort,
     reset,
+    skipCooldown,
     results,
     setResults,
     queueStats,
     isProcessing: queueStats.isProcessing,
+    isCooldown: queueStats.isCooldown,
   };
 };
