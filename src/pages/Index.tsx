@@ -46,12 +46,12 @@ import {
   PreProcessedOCR
 } from '@/services/api';
 
-// Config: lotes de 5 fotos, grupos de 20 fotos, cooldown de 2 minutos
+// Config (otimizado): lotes maiores + cooldown curto
 const PROCESSING_CONFIG = {
-  batchSize: 5,         // Fotos por lote enviado à IA
-  groupSize: 20,        // Fotos antes do cooldown
-  cooldownSeconds: 120, // 2 minutos de intervalo
-  delayBetweenBatches: 2500, // 2.5s entre lotes
+  batchSize: 10,          // Fotos por lote enviado à IA
+  groupSize: 100,         // Fotos antes do cooldown
+  cooldownSeconds: 10,    // Intervalo de 10s (como você pediu)
+  delayBetweenBatches: 100, // 100ms entre lotes
 };
 
 const Index: React.FC = () => {
@@ -589,20 +589,15 @@ const Index: React.FC = () => {
       a.remove();
       
       // Aguarda mais tempo antes de revogar para downloads grandes
-      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+      window.setTimeout(() => URL.revokeObjectURL(url), 120000);
 
       toast({
         title: "ZIP exportado!",
         description: `${successResults.length} fotos (${(zipBlob.size / 1024 / 1024).toFixed(1)}MB) organizadas em pastas.`,
       });
-      
-      // Auto-clear after successful download
-      setFiles([]);
-      setResults([]);
-      setTreeData([]);
-      setProcessedFiles(new Set());
-      clearFiles();
-      resetQueue();
+
+      // Não limpar automaticamente (evita interromper download lento e não perde a sessão)
+      // (Se quiser, podemos adicionar um botão "Limpar sessão" após exportar)
       
     } catch (error) {
       console.error('Export error:', error);
