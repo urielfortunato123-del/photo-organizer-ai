@@ -251,25 +251,37 @@ Responda APENAS com JSON.`;
 ${exifInfo}
 ${obrasConhecidas || ''}
 
-## TAREFA PRINCIPAL: Leia a LEGENDA da foto e extraia as informações.
+## TAREFA PRINCIPAL: Leia a LEGENDA/TEXTO da foto e extraia as informações.
 
 ## 1. LEITURA DE LEGENDA (MUITO IMPORTANTE!)
-Procure texto na imagem:
+Procure QUALQUER texto visível na imagem, especialmente:
+- Na parte inferior (rodapé/legenda)
+- Placas de identificação
+- Marcações na foto
+
+EXEMPLOS de textos a identificar:
+- "Reforma da BSO 1 SP 280" → portico: "REFORMA_BSO_01"
+- "Reforma BSO 01" → portico: "REFORMA_BSO_01"
+- "BSO 04" → portico: "BSO_04"
 - "obra free flow p17" → portico: "FREE_FLOW_P17"
 - "habitechne" → portico: "HABITECHNE"
 - "cortina 01" → portico: "CORTINA_01"
-- "BSO 04" → portico: "BSO_04"
 
 ## 2. CLASSIFICAÇÃO
-- portico: USE O NOME DA OBRA da legenda! (ou "${defaultPortico || 'NAO_IDENTIFICADO'}" se não encontrar)
+- portico: USE EXATAMENTE o nome que aparece na legenda! Normalize para MAIÚSCULAS_COM_UNDERLINE
+  - Se vir "Reforma da BSO 1" → "REFORMA_BSO_01"
+  - Se não encontrar texto → "${defaultPortico || 'NAO_IDENTIFICADO'}"
 - disciplina: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
-- servico: Específico
-- data: DD/MM/YYYY
+- servico: Específico da disciplina
+- data: DD/MM/YYYY (leia da legenda se visível)
+- ocr_text: COPIE o texto exato que você leu da imagem
 
 ## RESPOSTA JSON
 \`\`\`json
-{"portico":"FREE_FLOW_P17","disciplina":"FUNDACAO","servico":"ARMADURA","data":"24/11/2025","rodovia":"SP_264","km_inicio":"131+100","sentido":"","analise_tecnica":"","confidence":0.90,"ocr_text":"obra free flow p17","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
+{"portico":"REFORMA_BSO_01","disciplina":"ACABAMENTO","servico":"REBOCO","data":"01/10/2025","rodovia":"SP_280","km_inicio":"","sentido":"NORTESUL","analise_tecnica":"Obra em fase de acabamento","confidence":0.92,"ocr_text":"Reforma da BSO 1 SP 280","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
 \`\`\`
+
+IMPORTANTE: Se você consegue ler o texto da legenda, a confiança deve ser ALTA (0.85+). Só use confiança baixa se o texto estiver ilegível.
 
 Responda APENAS com JSON válido.`;
 }
