@@ -36,10 +36,10 @@ const PATTERNS = {
   hora: /\b(\d{1,2})[:\s]?h?[:\s]?(\d{2})(?:[:\s](\d{2}))?\b/g,
   // Contrato: Contrato nº 123, CT-123
   contrato: /\b(?:contrato|ct|contr?)[\s\.\-:]*(?:n[°º]?[\s]*)?(\d+[\-\/]?\d*)\b/gi,
-  // Free Flow, BSO, Base, Praça, P-10, P10, P_10, Cortina, etc.
-  estrutura: /\b(free[\s\-_]?flow|bso|base|praça|praca|pedágio|pedagio|pórtico|portico|cortina|habitechne|p)[\s\-_:]?\s*(p?\d+[\w]*|\w+)?\b/gi,
-  // Obras: "obra free flow p17"
-  obra: /\bobra[\s\-_:]*([^\n,]+)/gi,
+  // Free Flow, BSO, Base, Praça, P-10, P10, P_10, Cortina, Reforma, etc.
+  estrutura: /\b(reforma[\s\-_]?(?:da[\s\-_]?)?bso|free[\s\-_]?flow|bso|base|praça|praca|pedágio|pedagio|pórtico|portico|cortina|habitechne|p)[\s\-_:]?\s*(p?\d+[\w]*|\d+[\w]*|\w+)?\b/gi,
+  // Obras: "obra free flow p17", "Reforma da BSO 1 SP 280"
+  obra: /\b(?:obra|reforma)[\s\-_:]*(?:da[\s\-_]*)?(bso[\s\-_]*\d+[^\n,]*|[^\n,]+)/gi,
 };
 
 // Mapa de meses em português para números
@@ -145,14 +145,23 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
   }
 
   // Obra (prioridade alta para identificar frente de serviço)
-  // Exemplo: "obra free flow p17 SP264_km131+100"
+  // Exemplo: "obra free flow p17 SP264_km131+100", "Reforma da BSO 1 SP 280"
   const obraMatch = PATTERNS.obra.exec(lowerText);
   PATTERNS.obra.lastIndex = 0;
   if (obraMatch) {
     const obraText = obraMatch[1].trim();
+    
+    // Tenta extrair "Reforma da BSO 1" ou "BSO 1", "BSO 01"
+    const bsoMatch = obraText.match(/(?:reforma[\s\-_]*(?:da[\s\-_]*)?)?bso[\s\-_]*(\d+)/i);
+    if (bsoMatch) {
+      const num = bsoMatch[1].padStart(2, '0');
+      result.contratada = `REFORMA_BSO_${num}`;
+      result.hasPlaca = true;
+    }
+    
     // Tenta extrair "free flow p17" ou similar
     const freeFlowMatch = obraText.match(/free[\s\-_]?flow[\s\-_]?(p?\d+)/i);
-    if (freeFlowMatch) {
+    if (freeFlowMatch && !result.contratada) {
       result.contratada = `FREE_FLOW_${freeFlowMatch[1].toUpperCase()}`;
       result.hasPlaca = true;
     }
@@ -169,12 +178,21 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
     let frente = '';
     if (tipo === 'FREE' || tipo === 'FREE_FLOW') {
       frente = id ? `FREE_FLOW_${id}` : 'FREE_FLOW';
+    } else if (tipo.includes('REFORMA') && tipo.includes('BSO')) {
+      // Reforma da BSO
+      const num = id ? id.replace(/\D/g, '').padStart(2, '0') : '01';
+      frente = `REFORMA_BSO_${num}`;
+    } else if (tipo === 'BSO') {
+      const num = id ? id.replace(/\D/g, '').padStart(2, '0') : '01';
+      frente = `BSO_${num}`;
     } else if (tipo === 'P' && id) {
       // P17, P-10, etc
       frente = `P_${id.replace(/^P/i, '')}`;
     } else if (tipo === 'HABITECHNE') {
       frente = 'HABITECHNE';
       result.contratada = 'HABITECHNE';
+    } else if (tipo === 'CORTINA') {
+      frente = id ? `CORTINA_${id}` : 'CORTINA';
     } else {
       frente = id ? `${tipo}_${id}` : tipo;
     }
