@@ -37,6 +37,7 @@ import { useTrialSession } from '@/hooks/useTrialSession';
 import { useAuth } from '@/hooks/useAuth';
 import { useOCR, extractStructuredData } from '@/hooks/useOCR';
 import { useProcessingQueue } from '@/hooks/useProcessingQueue';
+import { useFileStorage } from '@/hooks/useFileStorage';
 import { 
   api, 
   ProcessingResult, 
@@ -71,8 +72,12 @@ const Index: React.FC = () => {
     isPaused,
   } = useProcessingQueue(PROCESSING_CONFIG);
   
+  // File storage for persistence across refresh
+  const { saveFiles, loadFiles, clearFiles, storedCount, isLoading: isLoadingFiles } = useFileStorage();
+  
   // Cooldown for reprocess button (30 seconds)
   const [reprocessCooldown, setReprocessCooldown] = useState(0);
+  const [filesLoaded, setFilesLoaded] = useState(false);
   const { 
     isTrialActive, 
     canStartTrial, 
@@ -121,6 +126,34 @@ const Index: React.FC = () => {
     method: '',
     minConfidence: 0,
   });
+
+  // Load files from storage on mount
+  useEffect(() => {
+    const restoreFiles = async () => {
+      if (filesLoaded) return;
+      
+      const stored = await loadFiles();
+      if (stored.length > 0) {
+        setFiles(stored);
+        toast({
+          title: "Arquivos restaurados",
+          description: `${stored.length} arquivo(s) carregados da sessão anterior.`,
+        });
+      }
+      setFilesLoaded(true);
+    };
+    
+    if (!isLoadingFiles) {
+      restoreFiles();
+    }
+  }, [isLoadingFiles, filesLoaded, loadFiles, toast]);
+
+  // Save files to storage when they change
+  useEffect(() => {
+    if (filesLoaded && files.length > 0) {
+      saveFiles(files);
+    }
+  }, [files, filesLoaded, saveFiles]);
 
   // Generate file URLs when files change
   useEffect(() => {
@@ -698,12 +731,13 @@ const Index: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
+                      onClick={async () => {
                         setResults([]);
                         setProcessedFiles(new Set());
                         setFiles([]);
                         setTreeData([]);
-                        toast({ title: "Sessão limpa", description: "Todos os resultados foram removidos." });
+                        await clearFiles(); // Clear from IndexedDB too
+                        toast({ title: "Sessão limpa", description: "Todos os resultados e arquivos foram removidos." });
                       }}
                       className="text-destructive hover:text-destructive"
                     >
