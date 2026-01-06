@@ -9,12 +9,17 @@ export interface QueueStats {
   currentBatch: number;
   totalBatches: number;
   isProcessing: boolean;
+  isPaused: boolean;
   currentFile: string;
   startTime?: number;
   // Cooldown state
   isCooldown: boolean;
   cooldownSeconds: number;
   nextGroupSize: number;
+  // Error tracking
+  errors: { filename: string; error: string; hash?: string }[];
+  // Time estimation
+  estimatedTotalTime?: string;
 }
 
 export interface UseProcessingQueueOptions {
@@ -46,15 +51,19 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
     currentBatch: 0,
     totalBatches: 0,
     isProcessing: false,
+    isPaused: false,
     currentFile: '',
     isCooldown: false,
     cooldownSeconds: 0,
     nextGroupSize: 0,
+    errors: [],
   });
   
   const abortRef = useRef(false);
+  const pausedRef = useRef(false);
   const processingRef = useRef(false);
   const cooldownResolveRef = useRef<(() => void) | null>(null);
+  const pauseResolveRef = useRef<(() => void) | null>(null);
 
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -108,6 +117,53 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
     }
   }, []);
 
+  // Pause processing
+  const pause = useCallback(() => {
+    pausedRef.current = true;
+    setQueueStats(prev => ({ ...prev, isPaused: true, currentFile: 'Pausado' }));
+  }, []);
+
+  // Resume processing
+  const resume = useCallback(() => {
+    pausedRef.current = false;
+    setQueueStats(prev => ({ ...prev, isPaused: false }));
+    if (pauseResolveRef.current) {
+      pauseResolveRef.current();
+      pauseResolveRef.current = null;
+    }
+  }, []);
+
+  // Wait for resume if paused
+  const waitForResume = useCallback((): Promise<void> => {
+    if (!pausedRef.current) return Promise.resolve();
+    return new Promise((resolve) => {
+      pauseResolveRef.current = resolve;
+    });
+  }, []);
+
+  // Calculate estimated time
+  const calculateEstimatedTime = useCallback((processed: number, total: number, startTime: number): string => {
+    if (processed === 0) return 'Calculando...';
+    const elapsed = Date.now() - startTime;
+    const avgPerItem = elapsed / processed;
+    const remaining = total - processed;
+    const remainingMs = remaining * avgPerItem;
+    
+    // Add cooldown time estimates
+    const cooldownsRemaining = Math.floor(remaining / groupSize);
+    const cooldownTimeMs = cooldownsRemaining * cooldownSeconds * 1000;
+    const totalRemainingMs = remainingMs + cooldownTimeMs;
+    
+    const minutes = Math.floor(totalRemainingMs / 60000);
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    
+    if (hours > 0) {
+      return `~${hours}h ${mins}min`;
+    }
+    return `~${mins} min`;
+  }, [groupSize, cooldownSeconds]);
+
   const processQueue = useCallback(async (
     files: File[],
     config: ProcessingConfig,
@@ -135,11 +191,13 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
       currentBatch: 0,
       totalBatches,
       isProcessing: true,
+      isPaused: false,
       currentFile: 'Preparando...',
       startTime: Date.now(),
       isCooldown: false,
       cooldownSeconds: 0,
       nextGroupSize: 0,
+      errors: [],
     });
 
     // Step 1: Hash all files and check cache
@@ -192,6 +250,9 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
 
     for (let batchIndex = 0; batchIndex < updatedTotalBatches; batchIndex++) {
       if (abortRef.current || creditErrorOccurred) break;
+
+      // Wait if paused
+      await waitForResume();
 
       const start = batchIndex * batchSize;
       const end = Math.min(start + batchSize, filesToProcess.length);
@@ -260,7 +321,7 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
         setResults(prev => [...prev, ...batchResults]);
         onBatchComplete?.(batchResults);
 
-        // Handle errors
+        // Handle errors - track them
         const errorResults: ProcessingResult[] = [];
         for (const err of errors) {
           const originalFile = batchWithData.find(f => f.hash === err.hash);
@@ -278,6 +339,16 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
           };
           allResults.push(errorResult);
           errorResults.push(errorResult);
+          
+          // Track error in stats
+          setQueueStats(prev => ({
+            ...prev,
+            errors: [...prev.errors, { 
+              filename: originalFile?.file.name || 'unknown', 
+              error: err.error,
+              hash: err.hash 
+            }],
+          }));
         }
 
         if (errorResults.length > 0) {
@@ -288,11 +359,15 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
         processedCount += batch.length;
         processedInCurrentGroup += batch.length;
         
-        setQueueStats(prev => ({
-          ...prev,
-          processed: processedCount,
-          queued: filesToProcess.length - end,
-        }));
+        setQueueStats(prev => {
+          const estimatedTime = calculateEstimatedTime(processedCount, totalFiles, prev.startTime || Date.now());
+          return {
+            ...prev,
+            processed: processedCount,
+            queued: filesToProcess.length - end,
+            estimatedTotalTime: estimatedTime,
+          };
+        });
 
         // Check if we need cooldown (every groupSize photos)
         const remainingFiles = filesToProcess.length - end;
@@ -375,7 +450,7 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
     onComplete?.(allResults);
     
     return allResults;
-  }, [batchSize, groupSize, cooldownSeconds, delayBetweenBatches, imageCache, startCooldown]);
+  }, [batchSize, groupSize, cooldownSeconds, delayBetweenBatches, imageCache, startCooldown, waitForResume, calculateEstimatedTime]);
 
   const abort = useCallback(() => {
     abortRef.current = true;
@@ -384,6 +459,7 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
 
   const reset = useCallback(() => {
     setResults([]);
+    pausedRef.current = false;
     setQueueStats({
       total: 0,
       processed: 0,
@@ -391,10 +467,12 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
       currentBatch: 0,
       totalBatches: 0,
       isProcessing: false,
+      isPaused: false,
       currentFile: '',
       isCooldown: false,
       cooldownSeconds: 0,
       nextGroupSize: 0,
+      errors: [],
     });
   }, []);
 
@@ -403,10 +481,13 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
     abort,
     reset,
     skipCooldown,
+    pause,
+    resume,
     results,
     setResults,
     queueStats,
     isProcessing: queueStats.isProcessing,
+    isPaused: queueStats.isPaused,
     isCooldown: queueStats.isCooldown,
   };
 };
