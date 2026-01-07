@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation } from 'lucide-react';
+import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation, ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,6 +65,10 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
   const [editedService, setEditedService] = useState('');
   const [editedData, setEditedData] = useState('');
   const [availableServicos, setAvailableServicos] = useState<string[]>([]);
+  
+  // Image zoom state
+  const [isImageExpanded, setIsImageExpanded] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   // Reset form when result changes
   useEffect(() => {
@@ -161,11 +165,93 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4">
+          {/* Expanded Image Modal */}
+          {isImageExpanded && imageUrl && (
+            <div 
+              className="fixed inset-0 z-[100] bg-black/95 flex flex-col"
+              onClick={() => {
+                setIsImageExpanded(false);
+                setZoomLevel(1);
+              }}
+            >
+              {/* Zoom Controls */}
+              <div className="absolute top-4 right-4 z-10 flex gap-2" onClick={(e) => e.stopPropagation()}>
+                <Button 
+                  variant="secondary" 
+                  size="icon"
+                  onClick={() => setZoomLevel(z => Math.max(0.5, z - 0.25))}
+                  disabled={zoomLevel <= 0.5}
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <span className="flex items-center px-2 text-sm text-white bg-secondary/80 rounded">
+                  {Math.round(zoomLevel * 100)}%
+                </span>
+                <Button 
+                  variant="secondary" 
+                  size="icon"
+                  onClick={() => setZoomLevel(z => Math.min(4, z + 0.25))}
+                  disabled={zoomLevel >= 4}
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  size="icon"
+                  onClick={() => {
+                    setIsImageExpanded(false);
+                    setZoomLevel(1);
+                  }}
+                >
+                  <Minimize2 className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              {/* Scrollable Image Container */}
+              <div 
+                className="flex-1 overflow-auto flex items-center justify-center p-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <img 
+                  src={imageUrl} 
+                  alt={result.filename}
+                  className="max-w-none transition-transform duration-200"
+                  style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}
+                  draggable={false}
+                />
+              </div>
+              
+              {/* Instructions */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-sm bg-black/50 px-4 py-2 rounded-full">
+                Clique fora ou no X para fechar • Use os botões para zoom
+              </div>
+            </div>
+          )}
+
           <div className="grid md:grid-cols-2 gap-4">
             {/* Image Preview */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Preview</Label>
-              <div className="aspect-video bg-secondary rounded-lg overflow-hidden flex items-center justify-center">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Preview</Label>
+                {imageUrl && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-7 text-xs gap-1"
+                    onClick={() => setIsImageExpanded(true)}
+                  >
+                    <Maximize2 className="h-3 w-3" />
+                    Expandir
+                  </Button>
+                )}
+              </div>
+              <div 
+                className={cn(
+                  "aspect-video bg-secondary rounded-lg overflow-hidden flex items-center justify-center",
+                  imageUrl && "cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+                )}
+                onClick={() => imageUrl && setIsImageExpanded(true)}
+              >
                 {imageUrl ? (
                   <img 
                     src={imageUrl} 
