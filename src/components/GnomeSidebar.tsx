@@ -7,15 +7,13 @@ import {
   HelpCircle,
   Sparkles,
   LogOut,
-  User,
-  Clock
+  User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import logoObraphoto from '@/assets/logo-obraphoto.png';
 import VersionButton from './VersionButton';
 import { useAuth } from '@/hooks/useAuth';
-import { useTrialSession } from '@/hooks/useTrialSession';
 
 interface GnomeSidebarProps {
   activeTab: string;
@@ -29,8 +27,7 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
   resultsCount 
 }) => {
   const navigate = useNavigate();
-  const { user, profile, isAuthenticated, signOut } = useAuth();
-  const { isTrialActive, formatRemainingTime, sessionsUsedToday, sessionsUsedThisWeek, maxSessionsPerDay, maxSessionsPerWeek } = useTrialSession();
+  const { user, profile, signOut } = useAuth();
 
   const menuItems = [
     { 
@@ -86,22 +83,6 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
             </p>
           </div>
         </div>
-        
-        {/* Trial Status */}
-        {isTrialActive && (
-          <div className="mt-3 p-2 rounded-lg bg-warning/10 border border-warning/20">
-            <div className="flex items-center gap-2 text-warning">
-              <Clock className="w-4 h-4" />
-              <span className="text-xs font-medium">Modo Degustação</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Tempo: <span className="font-mono text-warning">{formatRemainingTime()}</span>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Hoje: {sessionsUsedToday}/{maxSessionsPerDay} | Semana: {sessionsUsedThisWeek}/{maxSessionsPerWeek}
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Navigation */}
