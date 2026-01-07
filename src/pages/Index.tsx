@@ -596,29 +596,8 @@ const Index: React.FC = () => {
       return;
     }
 
-    // Sanitiza e limita tamanhos para reduzir risco de "caminho muito longo" no Windows ao extrair ZIP.
-    // Observação: o limite real depende também da pasta onde o usuário extrai.
-    const sanitizeZipPart = (part: string, maxLen: number = 20) => {
-      const sanitized = part
-        .replace(/[\\/:*?"<>|]/g, '_')
-        .replace(/\s+/g, '_')
-        .trim();
-      return sanitized.length > maxLen ? sanitized.substring(0, maxLen) : sanitized;
-    };
-
-    // Hash simples (FNV-1a) para gerar um identificador curto e estável
-    const shortHash = (input: string) => {
-      let hash = 0x811c9dc5;
-      for (let i = 0; i < input.length; i++) {
-        hash ^= input.charCodeAt(i);
-        hash = Math.imul(hash, 0x01000193);
-      }
-      // unsigned -> base36
-      return (hash >>> 0).toString(36);
-    };
-
-    // Limita nome de arquivo preservando extensão
-    const sanitizeFilename = (filename: string, maxLen: number = 48) => {
+    // Mantém nomes curtos/seguros para ZIP (evita caracteres inválidos no Windows)
+    const sanitizeFilename = (filename: string, maxLen: number = 32) => {
       const lastDot = filename.lastIndexOf('.');
       const ext = lastDot > 0 ? filename.substring(lastDot) : '';
       const name = lastDot > 0 ? filename.substring(0, lastDot) : filename;
@@ -632,51 +611,73 @@ const Index: React.FC = () => {
       return truncatedName + ext;
     };
 
-    const buildSafeBasePath = (dest: string, filenameLen: number) => {
-      const MAX_ZIP_PATH = 180; // margem conservadora p/ Windows
-      const maxBaseLen = Math.max(12, MAX_ZIP_PATH - (filenameLen + 1)); // +1 da '/'
-
-      let parts = dest
-        .split('/')
-        .filter(Boolean)
-        .map((p) => sanitizeZipPart(p, 20));
-
-      // Se não tiver pasta, use uma genérica
-      if (parts.length === 0) parts = ['fotos'];
-
-      const joinedLen = () => parts.join('/').length;
-
-      // Primeiro: truncar partes longas para 12
-      while (joinedLen() > maxBaseLen) {
-        const longestIdx = parts.reduce(
-          (acc, cur, idx) => (cur.length > parts[acc].length ? idx : acc),
-          0
-        );
-
-        if (parts[longestIdx].length > 12) {
-          parts[longestIdx] = parts[longestIdx].substring(0, 12);
-          continue;
-        }
-
-        // Depois: remover partes do meio, preservando começo e fim
-        if (parts.length > 3) {
-          parts.splice(1, 1);
-          continue;
-        }
-
-        // Fallback final: uma pasta curta baseada em hash
-        parts = [`p_${shortHash(dest)}`];
-        break;
-      }
-
-      return parts.join('/');
-    };
-
     setIsExporting(true);
     
     const CHUNK_SIZE = 50;
     const totalParts = Math.ceil(successResults.length / CHUNK_SIZE);
     const dateStr = new Date().toISOString().split('T')[0];
+
+    const pickPhotoDate = (r: ProcessingResult) => {
+      const raw = (r.exif_date || r.data_detectada || '').trim();
+
+      // Prefer DD/MM/YYYY (já usado em outras partes do app)
+      const br = raw.match(/(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}):(\d{2}))?/);
+      if (br) {
+        const [_, dd, mm, yyyy, hh, mi, ss] = br;
+        return {
+          yyyy,
+          mm,
+          dd,
+          hh: hh || '00',
+          mi: mi || '00',
+          ss: ss || '00',
+        };
+      }
+
+      // Tenta ISO / formatos comuns (YYYY-MM-DD ...)
+      const iso = raw.match(/(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2})[:.](\d{2})[:.](\d{2}))?/);
+      if (iso) {
+        const [_, yyyy, mm, dd, hh, mi, ss] = iso;
+        return {
+          yyyy,
+          mm,
+          dd,
+          hh: hh || '00',
+          mi: mi || '00',
+          ss: ss || '00',
+        };
+      }
+
+      // Último fallback: Date()
+      const d = raw ? new Date(raw) : null;
+      if (d && !Number.isNaN(d.getTime())) {
+        const yyyy = String(d.getFullYear());
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mi = String(d.getMinutes()).padStart(2, '0');
+        const ss = String(d.getSeconds()).padStart(2, '0');
+        return { yyyy, mm, dd, hh, mi, ss };
+      }
+
+      return null;
+    };
+
+    // "Bem curto": dentro do ZIP, usa só a data da foto como pasta (DD_MM)
+    const buildDateOnlyPath = (r: ProcessingResult) => {
+      const d = pickPhotoDate(r);
+      if (!d) return 'SEM_DATA';
+      return `${d.dd}_${d.mm}`;
+    };
+
+    // "Bem curto": renomeia arquivos no ZIP para data/hora (evita nomes enormes tipo WhatsApp_Unknown...)
+    const buildDateOnlyFilename = (r: ProcessingResult, fallbackIndex: number, originalFilename: string) => {
+      const lastDot = originalFilename.lastIndexOf('.');
+      const ext = lastDot > 0 ? originalFilename.substring(lastDot) : '.jpg';
+      const d = pickPhotoDate(r);
+      if (!d) return sanitizeFilename(`SEM_DATA_${String(fallbackIndex).padStart(3, '0')}${ext}`, 32);
+      return sanitizeFilename(`${d.yyyy}${d.mm}${d.dd}_${d.hh}${d.mi}${d.ss}${ext}`, 32);
+    };
 
     try {
       for (let partIndex = 0; partIndex < totalParts; partIndex++) {
@@ -697,8 +698,8 @@ const Index: React.FC = () => {
           try {
             const arrayBuffer = await file.arrayBuffer();
 
-            const safeFilename = sanitizeFilename(result.filename);
-            const basePath = buildSafeBasePath(result.dest, safeFilename.length);
+            const basePath = buildDateOnlyPath(result);
+            const safeFilename = buildDateOnlyFilename(result, startIdx + i + 1, result.filename);
 
             // Adiciona a foto
             zip.file(`${basePath}/${safeFilename}`, arrayBuffer);
@@ -706,7 +707,7 @@ const Index: React.FC = () => {
             // Cria arquivo TXT com análise da IA (mesmo nome da foto, extensão .txt)
             const txtFilename = sanitizeFilename(
               safeFilename.replace(/\.[^.]+$/, '.txt'),
-              48
+              32
             );
             // Formata coordenadas GPS se disponíveis
             const gpsStr = (result.gps_lat && result.gps_lon) 
