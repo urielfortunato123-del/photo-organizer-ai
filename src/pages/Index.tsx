@@ -543,10 +543,14 @@ const Index: React.FC = () => {
     }
   }, []);
 
+  // Ref para resolver a Promise quando download é feito
+  const downloadResolveRef = useRef<(() => void) | null>(null);
+
   // Mostra popup e inicia countdown
   const showDownloadPopup = useCallback((blob: Blob, filename: string, partNumber: number, totalParts: number): Promise<void> => {
     return new Promise((resolve) => {
       downloadBlobRef.current = { blob, filename };
+      downloadResolveRef.current = resolve;
       
       let countdown = 10;
       setDownloadPopup({
@@ -568,14 +572,25 @@ const Index: React.FC = () => {
             countdownIntervalRef.current = null;
           }
           executeDownload();
-          resolve();
+          if (downloadResolveRef.current) {
+            downloadResolveRef.current();
+            downloadResolveRef.current = null;
+          }
         }
       }, 1000);
     });
   }, [executeDownload]);
 
   const handleDownloadNow = useCallback(() => {
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
     executeDownload();
+    if (downloadResolveRef.current) {
+      downloadResolveRef.current();
+      downloadResolveRef.current = null;
+    }
   }, [executeDownload]);
 
   const handleExportZIP = async () => {
@@ -1098,16 +1113,16 @@ const Index: React.FC = () => {
                   <div className="gnome-card p-6">
                     <h4 className="font-semibold text-foreground mb-4">Estrutura Padrão</h4>
                     <div className="space-y-2 text-sm font-mono text-muted-foreground bg-secondary/50 p-4 rounded-xl">
-                      <p className="text-primary font-semibold">{empresa || 'EMPRESA'}/</p>
-                      <p className="pl-4">└─ FOTOS/</p>
-                      <p className="pl-8">└─ FRENTE_SERVICO/</p>
-                      <p className="pl-12">└─ DISCIPLINA/</p>
-                      <p className="pl-16">└─ SERVICO/</p>
+                      <p className="text-primary font-semibold">FOTOS/</p>
+                      <p className="pl-4">└─ SERVICO (SP270, etc)/</p>
+                      <p className="pl-8">└─ ESTRUTURA (SEGURANÇA, etc)/</p>
+                      <p className="pl-12">└─ ATIVIDADE (ALAMBRADO, etc)/</p>
+                      <p className="pl-16">└─ TIPO (INSTALACAO, etc)/</p>
                       <p className="pl-20">└─ MES_ANO/</p>
                       <p className="pl-24">└─ DIA_MES/</p>
                     </div>
                     <p className="text-xs text-muted-foreground mt-3">
-                      Clique no nome da empresa acima para editar
+                      Atividades da mesma estrutura ficam agrupadas
                     </p>
                   </div>
 

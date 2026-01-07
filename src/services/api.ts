@@ -106,16 +106,26 @@ export const hashFile = async (file: File): Promise<string> => {
 };
 
 // Build destination path based on classification
-// Format: EMPRESA/FOTOS/PORTICO/DISCIPLINA/SERVICO/MES/DIA_MES
+// Format: FOTOS/SERVICO(ex: SP270)/ESTRUTURA(ex: SEGURANCA)/ATIVIDADE_DESENVOLVIDA(ex: ALAMBRADO)/TIPO_ATIVIDADE(disciplina)/MES/DIA
+// Agrupa por ESTRUTURA (categoria principal do serviço) - tudo de segurança fica junto
 const buildDestPath = (
   empresa: string,
-  portico: string,
-  disciplina: string,
-  servico: string,
+  portico: string, // = Serviço/Contrato (ex: SP270)
+  disciplina: string, // = Tipo de atividade (ex: INSTALACAO, MANUTENCAO)
+  servico: string, // = Atividade desenvolvida (ex: ALAMBRADO E FECHADURA PORTA)
   dataStr: string | null,
   organizeByDate: boolean
 ): string => {
-  let path = `${empresa}/FOTOS/${portico}/${disciplina}/${servico}`;
+  // Extrai a categoria/estrutura principal do serviço (primeira palavra)
+  // Ex: "SEGURANCA - ALAMBRADO E FECHADURA" -> "SEGURANCA"
+  // Ex: "TERRAPLENAGEM - CORTE" -> "TERRAPLENAGEM"
+  const estrutura = extractEstrutura(servico);
+  
+  // Atividade desenvolvida é o serviço completo ou a parte após o "-"
+  const atividadeDesenvolvida = extractAtividade(servico);
+  
+  // Estrutura: FOTOS / SERVICO(portico) / ESTRUTURA / ATIVIDADE_DESENVOLVIDA / TIPO_ATIVIDADE(disciplina)
+  let path = `FOTOS/${portico || 'NAO_IDENTIFICADO'}/${estrutura}/${atividadeDesenvolvida}/${disciplina || 'GERAL'}`;
   
   if (organizeByDate && dataStr) {
     // Try DD/MM/YYYY format first
@@ -123,7 +133,7 @@ const buildDestPath = (
     if (match) {
       const day = match[1];
       const month = parseInt(match[2], 10);
-      // Format: MES_NOME (e.g., 10_OUTUBRO)
+      // Format: MES_NOME (e.g., 01_JANEIRO)
       const monthName = MONTH_NAMES[month] || `${month.toString().padStart(2, '0')}_MES`;
       // Format: DIA_MES (e.g., 12_10)
       const dayMonth = `${day}_${month.toString().padStart(2, '0')}`;
@@ -132,6 +142,40 @@ const buildDestPath = (
   }
   
   return path;
+};
+
+// Extrai a estrutura/categoria principal do serviço
+// Ex: "SEGURANCA - ALAMBRADO" -> "SEGURANCA"
+// Ex: "TERRAPLENAGEM CORTE" -> "TERRAPLENAGEM"
+const extractEstrutura = (servico: string): string => {
+  if (!servico) return 'GERAL';
+  
+  // Se tem "-", pega a primeira parte
+  if (servico.includes('-')) {
+    return servico.split('-')[0].trim().toUpperCase().replace(/\s+/g, '_');
+  }
+  
+  // Senão, pega a primeira palavra significativa
+  const palavras = servico.trim().toUpperCase().split(/\s+/);
+  return palavras[0] || 'GERAL';
+};
+
+// Extrai a atividade desenvolvida (parte específica do serviço)
+// Ex: "SEGURANCA - ALAMBRADO E FECHADURA" -> "ALAMBRADO_E_FECHADURA"
+// Ex: "TERRAPLENAGEM" -> "TERRAPLENAGEM"
+const extractAtividade = (servico: string): string => {
+  if (!servico) return 'REGISTRO';
+  
+  // Se tem "-", pega a parte depois
+  if (servico.includes('-')) {
+    const partes = servico.split('-');
+    if (partes.length > 1 && partes[1].trim()) {
+      return partes[1].trim().toUpperCase().replace(/\s+/g, '_');
+    }
+  }
+  
+  // Senão, usa o serviço completo formatado
+  return servico.trim().toUpperCase().replace(/\s+/g, '_');
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
