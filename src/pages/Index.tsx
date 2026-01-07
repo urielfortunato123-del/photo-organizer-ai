@@ -596,11 +596,30 @@ const Index: React.FC = () => {
       return;
     }
 
-    const sanitizeZipPart = (part: string) =>
-      part
+    // Sanitiza e limita tamanho para evitar erro de caminho longo do Windows (max 260 chars)
+    const sanitizeZipPart = (part: string, maxLen: number = 30) => {
+      const sanitized = part
         .replace(/[\\/:*?"<>|]/g, '_')
-        .replace(/\s+/g, ' ')
+        .replace(/\s+/g, '_')
         .trim();
+      return sanitized.length > maxLen ? sanitized.substring(0, maxLen) : sanitized;
+    };
+
+    // Limita nome de arquivo preservando extensão
+    const sanitizeFilename = (filename: string, maxLen: number = 50) => {
+      const lastDot = filename.lastIndexOf('.');
+      const ext = lastDot > 0 ? filename.substring(lastDot) : '';
+      const name = lastDot > 0 ? filename.substring(0, lastDot) : filename;
+      const sanitizedName = name
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\s+/g, '_')
+        .trim();
+      const maxNameLen = maxLen - ext.length;
+      const truncatedName = sanitizedName.length > maxNameLen 
+        ? sanitizedName.substring(0, maxNameLen) 
+        : sanitizedName;
+      return truncatedName + ext;
+    };
 
     setIsExporting(true);
     
@@ -626,8 +645,9 @@ const Index: React.FC = () => {
 
           try {
             const arrayBuffer = await file.arrayBuffer();
-            const destParts = result.dest.split('/').filter(Boolean).map(sanitizeZipPart);
-            const safeFilename = sanitizeZipPart(result.filename);
+            // Limita cada parte do caminho para evitar caminhos longos
+            const destParts = result.dest.split('/').filter(Boolean).map(p => sanitizeZipPart(p));
+            const safeFilename = sanitizeFilename(result.filename);
             const basePath = destParts.join('/');
             
             // Adiciona a foto
