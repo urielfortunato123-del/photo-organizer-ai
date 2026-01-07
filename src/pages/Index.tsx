@@ -596,8 +596,9 @@ const Index: React.FC = () => {
       return;
     }
 
-    // Sanitiza e limita tamanho para evitar erro de caminho longo do Windows (max 260 chars)
-    const sanitizeZipPart = (part: string, maxLen: number = 30) => {
+    // Sanitiza e limita tamanhos para reduzir risco de "caminho muito longo" no Windows ao extrair ZIP.
+    // Observação: o limite real depende também da pasta onde o usuário extrai.
+    const sanitizeZipPart = (part: string, maxLen: number = 20) => {
       const sanitized = part
         .replace(/[\\/:*?"<>|]/g, '_')
         .replace(/\s+/g, '_')
@@ -605,8 +606,19 @@ const Index: React.FC = () => {
       return sanitized.length > maxLen ? sanitized.substring(0, maxLen) : sanitized;
     };
 
+    // Hash simples (FNV-1a) para gerar um identificador curto e estável
+    const shortHash = (input: string) => {
+      let hash = 0x811c9dc5;
+      for (let i = 0; i < input.length; i++) {
+        hash ^= input.charCodeAt(i);
+        hash = Math.imul(hash, 0x01000193);
+      }
+      // unsigned -> base36
+      return (hash >>> 0).toString(36);
+    };
+
     // Limita nome de arquivo preservando extensão
-    const sanitizeFilename = (filename: string, maxLen: number = 50) => {
+    const sanitizeFilename = (filename: string, maxLen: number = 48) => {
       const lastDot = filename.lastIndexOf('.');
       const ext = lastDot > 0 ? filename.substring(lastDot) : '';
       const name = lastDot > 0 ? filename.substring(0, lastDot) : filename;
@@ -614,11 +626,50 @@ const Index: React.FC = () => {
         .replace(/[\\/:*?"<>|]/g, '_')
         .replace(/\s+/g, '_')
         .trim();
-      const maxNameLen = maxLen - ext.length;
-      const truncatedName = sanitizedName.length > maxNameLen 
-        ? sanitizedName.substring(0, maxNameLen) 
-        : sanitizedName;
+      const maxNameLen = Math.max(8, maxLen - ext.length);
+      const truncatedName =
+        sanitizedName.length > maxNameLen ? sanitizedName.substring(0, maxNameLen) : sanitizedName;
       return truncatedName + ext;
+    };
+
+    const buildSafeBasePath = (dest: string, filenameLen: number) => {
+      const MAX_ZIP_PATH = 180; // margem conservadora p/ Windows
+      const maxBaseLen = Math.max(12, MAX_ZIP_PATH - (filenameLen + 1)); // +1 da '/'
+
+      let parts = dest
+        .split('/')
+        .filter(Boolean)
+        .map((p) => sanitizeZipPart(p, 20));
+
+      // Se não tiver pasta, use uma genérica
+      if (parts.length === 0) parts = ['fotos'];
+
+      const joinedLen = () => parts.join('/').length;
+
+      // Primeiro: truncar partes longas para 12
+      while (joinedLen() > maxBaseLen) {
+        const longestIdx = parts.reduce(
+          (acc, cur, idx) => (cur.length > parts[acc].length ? idx : acc),
+          0
+        );
+
+        if (parts[longestIdx].length > 12) {
+          parts[longestIdx] = parts[longestIdx].substring(0, 12);
+          continue;
+        }
+
+        // Depois: remover partes do meio, preservando começo e fim
+        if (parts.length > 3) {
+          parts.splice(1, 1);
+          continue;
+        }
+
+        // Fallback final: uma pasta curta baseada em hash
+        parts = [`p_${shortHash(dest)}`];
+        break;
+      }
+
+      return parts.join('/');
     };
 
     setIsExporting(true);
@@ -645,17 +696,18 @@ const Index: React.FC = () => {
 
           try {
             const arrayBuffer = await file.arrayBuffer();
-            // Limita cada parte do caminho para evitar caminhos longos
-            const destParts = result.dest.split('/').filter(Boolean).map(p => sanitizeZipPart(p));
+
             const safeFilename = sanitizeFilename(result.filename);
-            const basePath = destParts.join('/');
-            
+            const basePath = buildSafeBasePath(result.dest, safeFilename.length);
+
             // Adiciona a foto
             zip.file(`${basePath}/${safeFilename}`, arrayBuffer);
             
             // Cria arquivo TXT com análise da IA (mesmo nome da foto, extensão .txt)
-            const txtFilename = safeFilename.replace(/\.[^.]+$/, '.txt');
-            
+            const txtFilename = sanitizeFilename(
+              safeFilename.replace(/\.[^.]+$/, '.txt'),
+              48
+            );
             // Formata coordenadas GPS se disponíveis
             const gpsStr = (result.gps_lat && result.gps_lon) 
               ? `${result.gps_lat.toFixed(6)}, ${result.gps_lon.toFixed(6)}`
