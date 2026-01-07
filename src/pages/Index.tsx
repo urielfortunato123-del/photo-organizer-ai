@@ -637,7 +637,59 @@ const Index: React.FC = () => {
             const arrayBuffer = await file.arrayBuffer();
             const destParts = result.dest.split('/').filter(Boolean).map(sanitizeZipPart);
             const safeFilename = sanitizeZipPart(result.filename);
-            zip.file(`${destParts.join('/')}/${safeFilename}`, arrayBuffer);
+            const basePath = destParts.join('/');
+            
+            // Adiciona a foto
+            zip.file(`${basePath}/${safeFilename}`, arrayBuffer);
+            
+            // Cria arquivo TXT com análise da IA (mesmo nome da foto, extensão .txt)
+            const txtFilename = safeFilename.replace(/\.[^.]+$/, '.txt');
+            
+            // Formata coordenadas GPS se disponíveis
+            const gpsStr = (result.gps_lat && result.gps_lon) 
+              ? `${result.gps_lat.toFixed(6)}, ${result.gps_lon.toFixed(6)}`
+              : 'Não disponível';
+            
+            // Formata KM (pode ter km_inicio e km_fim)
+            const kmStr = result.km_inicio 
+              ? (result.km_fim ? `${result.km_inicio} - ${result.km_fim}` : result.km_inicio)
+              : 'Não identificado';
+            
+            const analiseContent = [
+              `ANÁLISE DA FOTO: ${result.filename}`,
+              `${'='.repeat(50)}`,
+              ``,
+              `📍 LOCALIZAÇÃO`,
+              `   Rodovia: ${result.rodovia || 'Não identificada'}`,
+              `   KM: ${kmStr}`,
+              `   Sentido: ${result.sentido || 'Não identificado'}`,
+              `   Coordenadas GPS: ${gpsStr}`,
+              ``,
+              `🔧 CLASSIFICAÇÃO`,
+              `   Serviço/Contrato: ${result.portico || 'Não identificado'}`,
+              `   Disciplina: ${result.disciplina || 'Não identificada'}`,
+              `   Frente de Serviço: ${result.service || 'Não identificada'}`,
+              ``,
+              `📅 DATA/HORA`,
+              `   Data Detectada: ${result.data_detectada || 'Não identificada'}`,
+              `   Data EXIF: ${result.exif_date || 'Não disponível'}`,
+              ``,
+              `🤖 ANÁLISE DA IA`,
+              `   ${result.ocr_text || 'Sem observações disponíveis'}`,
+              ``,
+              `📊 METADADOS`,
+              `   Status: ${result.status}`,
+              `   Confiança: ${result.confidence ? Math.round(result.confidence * 100) + '%' : 'N/A'}`,
+              `   Método: ${result.method || 'N/A'}`,
+              `   Dispositivo: ${result.device || 'N/A'}`,
+              `   Hash: ${result.hash || 'N/A'}`,
+              ``,
+              `${'='.repeat(50)}`,
+              `Gerado por ObraPhoto em ${new Date().toLocaleString('pt-BR')}`,
+            ].join('\n');
+            
+            zip.file(`${basePath}/${txtFilename}`, analiseContent);
+            
             addedCount++;
             setZipProgress({ current: startIdx + i + 1, total: successResults.length });
           } catch (err) {
