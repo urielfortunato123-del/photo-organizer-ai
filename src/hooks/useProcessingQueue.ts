@@ -68,15 +68,22 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64 = result.split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = error => reject(error);
+    return new Promise(async (resolve, reject) => {
+      try {
+        const { ensureJpegCompatible } = await import('@/utils/imageFormat');
+        const normalized = await ensureJpegCompatible(file);
+
+        const reader = new FileReader();
+        reader.readAsDataURL(normalized);
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64 = result.split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = error => reject(error);
+      } catch (e) {
+        reject(e);
+      }
     });
   };
 

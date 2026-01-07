@@ -290,7 +290,9 @@ const Index: React.FC = () => {
     // Função de extração OCR local
     const ocrExtractor = useLocalOCR ? async (file: File): Promise<PreProcessedOCR | null> => {
       try {
-        const result = await extractText(file);
+        const { ensureJpegCompatible } = await import('@/utils/imageFormat');
+        const normalized = await ensureJpegCompatible(file);
+        const result = await extractText(normalized);
         return {
           rawText: result.rawText,
           rodovia: result.rodovia,
