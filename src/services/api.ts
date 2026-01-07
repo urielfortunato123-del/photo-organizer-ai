@@ -83,11 +83,14 @@ export const MONTH_NAMES: Record<number, string> = {
   12: '12_DEZEMBRO',
 };
 
-// Convert file to base64
-const fileToBase64 = (file: File): Promise<string> => {
+// Convert file to base64 (converting HEIC/HEIF to JPEG when needed)
+const fileToBase64 = async (file: File): Promise<string> => {
+  const { ensureJpegCompatible } = await import('@/utils/imageFormat');
+  const normalized = await ensureJpegCompatible(file);
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(normalized);
     reader.onload = () => {
       const result = reader.result as string;
       const base64 = result.split(',')[1];
