@@ -1,5 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation, ZoomIn, ZoomOut, Maximize2, Minimize2, ExternalLink, Lightbulb, Map } from 'lucide-react';
+import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation, ZoomIn, ZoomOut, Maximize2, Minimize2, ExternalLink, Lightbulb, Map, Camera, Mountain, Smartphone, Info } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -330,6 +330,82 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
               />
             </div>
           </div>
+
+          {/* EXIF Metadata Section */}
+          {exifData && (exifData.make || exifData.model || exifData.dateTimeOriginal || exifData.dateTime || exifData.gpsAltitude !== undefined || exifData.software) && (
+            <div className="glass-card p-4 space-y-3">
+              <h4 className="font-semibold text-foreground flex items-center gap-2 text-sm">
+                <Info className="w-4 h-4 text-primary" />
+                Metadados EXIF
+              </h4>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Câmera / Dispositivo */}
+                {(exifData.make || exifData.model) && (
+                  <div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Camera className="w-3 h-3" />
+                      Câmera/Dispositivo
+                    </p>
+                    <p className="font-mono text-sm font-medium">
+                      {[exifData.make, exifData.model].filter(Boolean).join(' ')}
+                    </p>
+                  </div>
+                )}
+
+                {/* Data Original */}
+                {(exifData.dateTimeOriginal || exifData.dateTime) && (
+                  <div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      Data da Foto
+                    </p>
+                    <p className="font-mono text-sm font-medium">
+                      {exifData.dateTimeOriginal || exifData.dateTime}
+                    </p>
+                  </div>
+                )}
+
+                {/* Altitude GPS */}
+                {exifData.gpsAltitude !== undefined && (
+                  <div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Mountain className="w-3 h-3" />
+                      Altitude
+                    </p>
+                    <p className="font-mono text-sm font-medium">
+                      {exifData.gpsAltitude.toFixed(1)} m
+                    </p>
+                  </div>
+                )}
+
+                {/* Software */}
+                {exifData.software && (
+                  <div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Smartphone className="w-3 h-3" />
+                      Software
+                    </p>
+                    <p className="font-mono text-sm font-medium truncate" title={exifData.software}>
+                      {exifData.software}
+                    </p>
+                  </div>
+                )}
+
+                {/* Dimensões da imagem */}
+                {(exifData.imageWidth && exifData.imageHeight) && (
+                  <div>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <FileImage className="w-3 h-3" />
+                      Dimensões
+                    </p>
+                    <p className="font-mono text-sm font-medium">
+                      {exifData.imageWidth} × {exifData.imageHeight} px
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Classification Info */}
           <div className="glass-card p-4 space-y-4">
