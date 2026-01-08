@@ -31,6 +31,11 @@ import StatisticsCard from '@/components/StatisticsCard';
 import DetailedReport from '@/components/DetailedReport';
 import CooldownOverlay from '@/components/CooldownOverlay';
 import ErrorsReport from '@/components/ErrorsReport';
+import PhotoPreviewGrid from '@/components/PhotoPreviewGrid';
+import ProcessingOverlay from '@/components/ProcessingOverlay';
+import ValidationModal from '@/components/ValidationModal';
+import EnhancedTreeView from '@/components/EnhancedTreeView';
+import EnhancedResultsView from '@/components/EnhancedResultsView';
 import { exportToExcelXML } from '@/utils/exportExcel';
 import { useImageCache } from '@/hooks/useImageCache';
 import { useAuth } from '@/hooks/useAuth';
@@ -115,6 +120,12 @@ const Index: React.FC = () => {
     method: '',
     minConfidence: 0,
   });
+
+  // Validation modal
+  const [showValidation, setShowValidation] = useState(false);
+  
+  // Processing overlay completion state
+  const [showProcessingOverlay, setShowProcessingOverlay] = useState(false);
 
   // Load files from storage on mount
   useEffect(() => {
