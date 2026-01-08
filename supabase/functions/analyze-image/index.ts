@@ -247,71 +247,85 @@ Responda APENAS com JSON.`;
 ## DADOS EXIF: ${exifData.date ? `Data: ${exifData.date}` : 'Sem data'} | ${exifData.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : 'Sem GPS'}
 ` : '';
 
-  return `Você é um engenheiro civil especialista em obras rodoviárias.
+  return `Você é um engenheiro civil especialista em obras rodoviárias brasileiras.
 ${exifInfo}
 ${obrasConhecidas || ''}
 
-## CONCEITOS IMPORTANTES
+## ⚠️ IMPORTANTE: LEITURA DE TEXTO NA IMAGEM
 
-### LOCALIZAÇÃO (onde a foto foi tirada):
-- RODOVIA: SP-280, SP-270, BR-116 → Indica ONDE é a foto
-- KM: KM 57, KM 150, KM 79 → Indica ONDE é a foto
-- Estes são LOCAIS, NÃO são frentes de serviço!
+A maioria das fotos de obra tem uma LEGENDA/MARCA D'ÁGUA com texto BRANCO ou CLARO no canto inferior da imagem.
+Este texto frequentemente está em **BAIXO CONTRASTE** (branco sobre fundo claro ou cinza).
+Você DEVE fazer esforço extra para ler este texto mesmo que seja difícil de ver!
 
-### FRENTE DE SERVIÇO (identificação da obra/trabalho):
-- BSO: "BSO - 01", "BSO - 04" → Frente de serviço!
-- PÓRTICO: "Pórtico 03" → Frente de serviço!
-- PASSARELA: "Passarela 02" → Frente de serviço!
-- VIADUTO: "Viaduto KM 95" → Frente de serviço!
-- OAE: "OAE 05" → Frente de serviço!
-- FREE FLOW: "Free Flow P-10", "Free Flow P17" → Frente de serviço! (portico: "FREE_FLOW_P10")
-- CORTINA ATIRANTADA: "cortina atirantada" → Frente de serviço! (portico: "CORTINA_ATIRANTADA")
-- PRAÇA DE PEDÁGIO → Frente de serviço!
-
-## TAREFA PRINCIPAL: Leia a LEGENDA/TEXTO da foto
-
-Procure QUALQUER texto visível na imagem:
-- Na parte inferior direita (rodapé/legenda)
-- Placas de identificação
-
-PADRÃO COMUM DA LEGENDA:
-"15 de out. de 2025 13:51:02
-Rodovia Presidente Castello Branco
-São Roque
-BSO - 01 KM 57
-SP- 280"
-
-## CLASSIFICAÇÃO
-
-### portico (FRENTE DE SERVIÇO - NÃO é rodovia nem KM!):
-- "BSO - 01" → portico: "BSO_01"
-- "BSO - 04" → portico: "BSO_04"
-- "Pórtico 03" → portico: "PORTICO_03"
-- "Passarela 02" → portico: "PASSARELA_02"
-- Se NÃO encontrar BSO/PÓRTICO/PASSARELA → "${defaultPortico || 'NAO_IDENTIFICADO'}"
-- ATENÇÃO: "SP-280" e "KM 57" são LOCALIZAÇÃO, NÃO frente de serviço!
-
-### rodovia (LOCALIZAÇÃO):
-- SP_280, SP_270 → Onde a foto foi tirada
-
-### km_inicio (LOCALIZAÇÃO):
-- KM 57, KM 150 → Onde na rodovia
-
-### disciplina:
-FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
-
-### servico:
-Específico da disciplina (REBOCO, AZULEJO, HIDRAULICA, ALVENARIA, etc.)
-
-### ocr_text:
-COPIE o texto exato da legenda que você leu
-
-## RESPOSTA JSON
-\`\`\`json
-{"portico":"BSO_01","disciplina":"ACABAMENTO","servico":"REBOCO","data":"15/10/2025","rodovia":"SP_280","km_inicio":"57","sentido":"","analise_tecnica":"Obra em fase de acabamento","confidence":0.95,"ocr_text":"BSO - 01 KM 57 SP- 280","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
+### PADRÃO TÍPICO DA LEGENDA (geralmente no rodapé da foto):
+\`\`\`
+27 de ago. de 2025 11:49:21    ← DATA E HORA
+Free Flow P-10                  ← FRENTE DE SERVIÇO (IMPORTANTE!)
+SP-280 KM 57                    ← RODOVIA E KM
 \`\`\`
 
-IMPORTANTE: Se você lê "BSO - XX" ou outro identificador de frente, a confiança deve ser ALTA (0.90+).
+### DICAS PARA LER TEXTO CLARO/BRANCO:
+- Olhe com atenção especial nos cantos da imagem (especialmente inferior)
+- O texto pode ter sombra sutil ou estar semi-transparente
+- Procure por números (datas, KMs) e nomes (BSO, Pórtico, Free Flow, Cortina, etc.)
+
+## CONCEITOS - NÃO CONFUNDA!
+
+### LOCALIZAÇÃO (onde a foto foi tirada - campos rodovia, km):
+- SP-280, BR-116, SP-270 → Indica RODOVIA
+- KM 57, KM 150 → Indica QUILOMETRAGEM
+
+### FRENTE DE SERVIÇO (campo portico - NÃO é rodovia nem KM!):
+| Texto na Foto | Campo portico |
+|---------------|---------------|
+| "BSO - 01", "BSO - 04" | BSO_01, BSO_04 |
+| "Free Flow P-10", "Free Flow P17" | FREE_FLOW_P10, FREE_FLOW_P17 |
+| "Pórtico 03" | PORTICO_03 |
+| "Passarela 02" | PASSARELA_02 |
+| "Viaduto KM 95" | VIADUTO_KM95 |
+| "Cortina Atirantada", "Cortina 01" | CORTINA_ATIRANTADA, CORTINA_01 |
+| "OAE 05" | OAE_05 |
+| "Praça de Pedágio" | PRACA_PEDAGIO |
+
+⚠️ ERRO COMUM: Não use "SP_280" ou "KM_57" como portico - esses são LOCALIZAÇÃO!
+
+## TAREFA: ANALISE A IMAGEM
+
+1. **PROCURE TEXTO** na imagem, especialmente:
+   - Legenda no canto inferior (mesmo que seja texto claro/branco)
+   - Placas de identificação
+   - Qualquer texto visível
+
+2. **EXTRAIA** do texto encontrado:
+   - Frente de serviço (BSO, Free Flow, Pórtico, etc.) → campo \`portico\`
+   - Rodovia → campo \`rodovia\`
+   - KM → campo \`km_inicio\`
+   - Data (formato DD/MM/AAAA) → campo \`data\`
+
+3. **CLASSIFIQUE** visualmente:
+   - \`disciplina\`: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
+   - \`servico\`: Específico (CONCRETAGEM, ARMADURA, FORMA, etc.)
+
+## RESPOSTA JSON (APENAS ISSO, NADA MAIS)
+
+\`\`\`json
+{
+  "portico":"FREE_FLOW_P10",
+  "disciplina":"ESTRUTURA",
+  "servico":"CONCRETAGEM",
+  "data":"27/08/2025",
+  "rodovia":"SP_280",
+  "km_inicio":"57",
+  "sentido":"",
+  "analise_tecnica":"Trabalhador dispensando concreto em carrinho de mão",
+  "confidence":0.95,
+  "ocr_text":"27 de ago. de 2025 11:49:21 Free Flow P-10 SP-280",
+  "alertas":{"sem_placa":false,"texto_ilegivel":false}
+}
+\`\`\`
+
+Se você leu claramente uma frente de serviço como "Free Flow P-10", a confidence deve ser 0.90+.
+Se não encontrar frente de serviço, use "${defaultPortico || 'NAO_IDENTIFICADO'}" como portico.
 
 Responda APENAS com JSON válido.`;
 }
