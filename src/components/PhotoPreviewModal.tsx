@@ -60,6 +60,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
   onUpdateResult,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [editedFilename, setEditedFilename] = useState('');
   const [editedPortico, setEditedPortico] = useState('');
   const [editedDisciplina, setEditedDisciplina] = useState('');
   const [editedService, setEditedService] = useState('');
@@ -73,6 +74,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
   // Reset form when result changes
   useEffect(() => {
     if (result) {
+      setEditedFilename(result.filename || '');
       setEditedPortico(result.portico || '');
       setEditedDisciplina(result.disciplina || '');
       setEditedService(result.service || '');
@@ -95,6 +97,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
   if (!result) return null;
 
   const handleStartEdit = () => {
+    setEditedFilename(result.filename || '');
     setEditedPortico(result.portico || '');
     setEditedDisciplina(result.disciplina || '');
     setEditedService(result.service || '');
@@ -126,6 +129,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
       
       onUpdateResult({
         ...result,
+        filename: editedFilename || result.filename,
         portico: editedPortico,
         disciplina: editedDisciplina,
         service: editedService,
@@ -140,6 +144,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
   };
 
   const handleCancelEdit = () => {
+    setEditedFilename(result.filename || '');
     setEditedPortico(result.portico || '');
     setEditedDisciplina(result.disciplina || '');
     setEditedService(result.service || '');
@@ -160,7 +165,16 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileImage className="w-5 h-5 text-primary" />
-            {result.filename}
+            {isEditing ? (
+              <Input 
+                value={editedFilename}
+                onChange={(e) => setEditedFilename(e.target.value)}
+                className="h-7 font-mono text-sm max-w-[300px]"
+                placeholder="Nome do arquivo..."
+              />
+            ) : (
+              result.filename
+            )}
           </DialogTitle>
         </DialogHeader>
 
