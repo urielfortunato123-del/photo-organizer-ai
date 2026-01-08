@@ -36,12 +36,18 @@ import ProcessingOverlay from '@/components/ProcessingOverlay';
 import ValidationModal from '@/components/ValidationModal';
 import EnhancedTreeView from '@/components/EnhancedTreeView';
 import EnhancedResultsView from '@/components/EnhancedResultsView';
+import TourOverlay from '@/components/TourOverlay';
+import Header from '@/components/Header';
 import { exportToExcelXML } from '@/utils/exportExcel';
 import { useImageCache } from '@/hooks/useImageCache';
 import { useAuth } from '@/hooks/useAuth';
 import { useOCR, extractStructuredData } from '@/hooks/useOCR';
 import { useProcessingQueue } from '@/hooks/useProcessingQueue';
 import { useFileStorage } from '@/hooks/useFileStorage';
+import { useSoundFeedback } from '@/hooks/useSoundFeedback';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useTheme } from '@/hooks/useTheme';
+import { useTour } from '@/hooks/useTour';
 import { 
   api, 
   ProcessingResult, 
@@ -78,6 +84,11 @@ const Index: React.FC = () => {
   
   // File storage for persistence across refresh
   const { saveFiles, loadFiles, clearFiles, storedCount, isLoading: isLoadingFiles } = useFileStorage();
+  
+  // UX Hooks
+  const { soundEnabled, setSoundEnabled, playSuccess, playError } = useSoundFeedback();
+  const { theme, toggleTheme } = useTheme();
+  const { isActive: tourActive, step: tourStep, currentStep, totalSteps, startTour, nextStep, prevStep, skipTour } = useTour();
   
   // Cooldown for reprocess button (30 seconds)
   const [reprocessCooldown, setReprocessCooldown] = useState(0);
@@ -126,6 +137,18 @@ const Index: React.FC = () => {
   
   // Processing overlay completion state
   const [showProcessingOverlay, setShowProcessingOverlay] = useState(false);
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    onUpload: () => setActiveTab('upload'),
+    onResults: () => setActiveTab('results'),
+    onTree: () => setActiveTab('tree'),
+    onEscape: () => {
+      setPreviewModal({ isOpen: false, result: null });
+      setShowDetailedReport(false);
+      setShowErrorsReport(false);
+    },
+  });
 
   // Load files from storage on mount
   useEffect(() => {
@@ -336,12 +359,14 @@ const Index: React.FC = () => {
           const creditErrors = allResults.filter(r => r.status.includes('402') || r.status.includes('crédito')).length;
           
           if (creditErrors > 0) {
+            playError();
             toast({
               title: "Processamento interrompido",
               description: `Limite de créditos atingido. ${successCount} fotos processadas.`,
               variant: "destructive",
             });
           } else {
+            playSuccess();
             toast({
               title: "Processamento concluído!",
               description: `${successCount} de ${filesToProcess.length} fotos analisadas com sucesso.`,
@@ -358,6 +383,7 @@ const Index: React.FC = () => {
       console.error('Processing error:', error);
       const errorMsg = error instanceof Error ? error.message : "Erro desconhecido";
       
+      playError();
       toast({
         title: errorMsg.includes('crédito') ? "Limite de créditos" : "Erro no processamento",
         description: errorMsg,
@@ -824,18 +850,39 @@ const Index: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* GNOME Sidebar */}
-      <GnomeSidebar 
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        resultsCount={results.length}
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header with UX controls */}
+      <Header
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        soundEnabled={soundEnabled}
+        onToggleSound={() => setSoundEnabled(!soundEnabled)}
+        onStartTour={startTour}
       />
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        {/* Processing Progress */}
-        {isProcessing && (
+      {/* Tour Overlay */}
+      <TourOverlay
+        isActive={tourActive}
+        step={tourStep}
+        currentStep={currentStep}
+        totalSteps={totalSteps}
+        onNext={nextStep}
+        onPrev={prevStep}
+        onSkip={skipTour}
+      />
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* GNOME Sidebar */}
+        <GnomeSidebar 
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          resultsCount={results.length}
+        />
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-auto">
+          {/* Processing Progress */}
+          {isProcessing && (
           <div className="p-6 border-b border-border bg-card">
             <ProcessingProgress
               current={processingProgress.current}
@@ -1393,6 +1440,7 @@ const Index: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 };
