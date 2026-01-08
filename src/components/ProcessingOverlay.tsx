@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, CheckCircle2, XCircle, Play, X, AlertTriangle, FolderOpen } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, Play, X, AlertTriangle, FolderOpen, Bell, BellOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { useBrowserNotifications } from '@/hooks/useBrowserNotifications';
 
 interface ProcessingOverlayProps {
   isProcessing: boolean;
@@ -41,6 +42,14 @@ const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
 }) => {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
+  const notifiedRef = useRef(false);
+  
+  const { 
+    isSupported, 
+    permission, 
+    requestPermission, 
+    notifyProcessingComplete 
+  } = useBrowserNotifications();
   
   const progress = total > 0 ? Math.round((current / total) * 100) : 0;
   
@@ -57,14 +66,21 @@ const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
     return `~${Math.ceil(remaining / 60000)}min restantes`;
   };
 
-  // Detect completion
+  // Detect completion and send notification
   useEffect(() => {
     if (!isProcessing && current > 0 && current >= total) {
       setIsCompleted(true);
+      
+      // Send browser notification only once
+      if (!notifiedRef.current) {
+        notifiedRef.current = true;
+        notifyProcessingComplete(successCount, errorCount);
+      }
     } else if (isProcessing) {
       setIsCompleted(false);
+      notifiedRef.current = false;
     }
-  }, [isProcessing, current, total]);
+  }, [isProcessing, current, total, successCount, errorCount, notifyProcessingComplete]);
 
   if (!isProcessing && !isCompleted) return null;
 
@@ -185,15 +201,37 @@ const ProcessingOverlay: React.FC<ProcessingOverlayProps> = ({
                 </p>
               )}
 
-              {/* Cancel button */}
-              <Button
-                variant="outline"
-                onClick={() => setShowCancelConfirm(true)}
-                className="w-full border-destructive/50 text-destructive hover:bg-destructive/10"
-              >
-                <X className="w-4 h-4 mr-2" />
-                Cancelar
-              </Button>
+              {/* Notification toggle & Cancel button */}
+              <div className="flex gap-2">
+                {isSupported && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={requestPermission}
+                    className={cn(
+                      "shrink-0",
+                      permission === 'granted' 
+                        ? "border-primary/50 text-primary" 
+                        : "border-muted text-muted-foreground"
+                    )}
+                    title={permission === 'granted' ? 'Notificações ativas' : 'Ativar notificações'}
+                  >
+                    {permission === 'granted' ? (
+                      <Bell className="w-4 h-4" />
+                    ) : (
+                      <BellOff className="w-4 h-4" />
+                    )}
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={() => setShowCancelConfirm(true)}
+                  className="flex-1 border-destructive/50 text-destructive hover:bg-destructive/10"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancelar
+                </Button>
+              </div>
             </>
           )}
         </div>
