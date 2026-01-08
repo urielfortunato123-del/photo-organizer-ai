@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation, ZoomIn, ZoomOut, Maximize2, Minimize2 } from 'lucide-react';
+import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation, ZoomIn, ZoomOut, Maximize2, Minimize2, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -422,47 +422,85 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
             )}
 
             {/* Location info */}
-            {(result.rodovia || result.km_inicio || result.gps_lat) && (
-              <div className="glass-card p-3 space-y-2">
-                <h4 className="font-semibold text-foreground flex items-center gap-2 text-sm">
-                  <MapPin className="w-4 h-4 text-primary" />
-                  Localização
-                </h4>
-                <div className="grid sm:grid-cols-3 gap-3">
-                  {result.rodovia && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Rodovia</p>
-                      <p className="font-mono text-sm font-medium text-primary">{result.rodovia}</p>
-                    </div>
+            {(result.rodovia || result.km_inicio || result.gps_lat || result.ocr_text) && (() => {
+              // Extrai coordenadas do EXIF ou OCR
+              const getCoords = (): { lat: number; lng: number } | null => {
+                if (result.gps_lat && result.gps_lon) {
+                  return { lat: result.gps_lat, lng: result.gps_lon };
+                }
+                // Tenta extrair do texto OCR
+                if (result.ocr_text) {
+                  const dmsPattern = /(\d{1,3})°(\d{1,2})'(\d{1,2})"?\s*([NSns])\s*(\d{1,3})°(\d{1,2})'(\d{1,2})"?\s*([EWOewo])/;
+                  const match = result.ocr_text.match(dmsPattern);
+                  if (match) {
+                    let lat = parseInt(match[1]) + parseInt(match[2]) / 60 + parseInt(match[3]) / 3600;
+                    let lng = parseInt(match[5]) + parseInt(match[6]) / 60 + parseInt(match[7]) / 3600;
+                    if (match[4].toUpperCase() === 'S') lat = -lat;
+                    if (match[8].toUpperCase() === 'W' || match[8].toUpperCase() === 'O') lng = -lng;
+                    return { lat, lng };
+                  }
+                }
+                return null;
+              };
+
+              const coords = getCoords();
+              const googleMapsUrl = coords 
+                ? `https://www.google.com/maps?q=${coords.lat},${coords.lng}`
+                : null;
+
+              return (
+                <div 
+                  className={cn(
+                    "glass-card p-3 space-y-2 transition-all",
+                    googleMapsUrl && "cursor-pointer hover:ring-2 hover:ring-primary/50 hover:bg-primary/5"
                   )}
-                  {result.km_inicio && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">KM</p>
-                      <p className="font-mono text-sm font-medium">
-                        {result.km_inicio}{result.km_fim ? ` - ${result.km_fim}` : ''}
-                      </p>
-                    </div>
-                  )}
-                  {result.sentido && (
-                    <div>
-                      <p className="text-xs text-muted-foreground">Sentido</p>
-                      <p className="font-mono text-sm font-medium flex items-center gap-1">
-                        <Navigation className="w-3 h-3" />
-                        {result.sentido}
-                      </p>
-                    </div>
-                  )}
-                  {result.gps_lat && result.gps_lon && (
-                    <div className="sm:col-span-2">
-                      <p className="text-xs text-muted-foreground">GPS</p>
-                      <p className="font-mono text-xs text-muted-foreground">
-                        {result.gps_lat.toFixed(6)}, {result.gps_lon.toFixed(6)}
-                      </p>
-                    </div>
-                  )}
+                  onClick={() => googleMapsUrl && window.open(googleMapsUrl, '_blank')}
+                  title={googleMapsUrl ? "Clique para abrir no Google Maps" : undefined}
+                >
+                  <h4 className="font-semibold text-foreground flex items-center gap-2 text-sm">
+                    <MapPin className="w-4 h-4 text-primary" />
+                    Localização
+                    {googleMapsUrl && (
+                      <ExternalLink className="w-3 h-3 text-muted-foreground ml-auto" />
+                    )}
+                  </h4>
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    {result.rodovia && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Rodovia</p>
+                        <p className="font-mono text-sm font-medium text-primary">{result.rodovia}</p>
+                      </div>
+                    )}
+                    {result.km_inicio && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">KM</p>
+                        <p className="font-mono text-sm font-medium">
+                          {result.km_inicio}{result.km_fim ? ` - ${result.km_fim}` : ''}
+                        </p>
+                      </div>
+                    )}
+                    {result.sentido && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Sentido</p>
+                        <p className="font-mono text-sm font-medium flex items-center gap-1">
+                          <Navigation className="w-3 h-3" />
+                          {result.sentido}
+                        </p>
+                      </div>
+                    )}
+                    {coords && (
+                      <div className="sm:col-span-3">
+                        <p className="text-xs text-muted-foreground">GPS</p>
+                        <p className="font-mono text-xs text-primary flex items-center gap-1">
+                          📍 {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
+                          <span className="text-muted-foreground ml-1">(clique para abrir)</span>
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Alertas */}
             {result.alertas && Object.values(result.alertas).some(Boolean) && (
