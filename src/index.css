@@ -71,6 +71,56 @@
     /* Same as root - already dark */
   }
 
+  .light {
+    /* Light Theme */
+    --background: 210 20% 98%;
+    --foreground: 220 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 15%;
+
+    --primary: 185 80% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 15% 93%;
+    --secondary-foreground: 220 20% 30%;
+
+    --muted: 210 15% 90%;
+    --muted-foreground: 220 10% 45%;
+
+    --accent: 280 70% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 60% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 145 60% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 35 90% 50%;
+    --warning-foreground: 220 15% 15%;
+
+    --border: 210 15% 88%;
+    --input: 210 15% 93%;
+    --ring: 185 80% 40%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 20% 30%;
+    --sidebar-primary: 185 80% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 15% 95%;
+    --sidebar-accent-foreground: 220 20% 30%;
+    --sidebar-border: 210 15% 88%;
+    --sidebar-ring: 185 80% 40%;
+
+    --shadow-soft: 0 2px 8px hsl(210 15% 80% / 0.3), 0 8px 24px hsl(210 15% 80% / 0.2);
+    --shadow-card: 0 1px 3px hsl(210 15% 80% / 0.2), 0 4px 12px hsl(210 15% 80% / 0.15);
+    --shadow-elevated: 0 4px 16px hsl(210 15% 80% / 0.3), 0 12px 32px hsl(210 15% 80% / 0.2);
+  }
+
   * {
     @apply border-border;
   }
