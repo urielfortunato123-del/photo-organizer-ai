@@ -1,5 +1,12 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin } from 'lucide-react';
+import { LocationMap, parseDMSCoordinates } from '@/components/LocationMap';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -90,7 +97,21 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
   const [editValues, setEditValues] = useState<Partial<ProcessingResult>>({});
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [originalValues, setOriginalValues] = useState<Partial<ProcessingResult>>({});
+  const [mapResult, setMapResult] = useState<ProcessingResult | null>(null);
   const { salvarCorrecao } = useAprendizadoOCR();
+
+  // Extrai coordenadas do resultado (EXIF ou OCR)
+  const getCoordinates = (result: ProcessingResult): { lat: number; lng: number } | null => {
+    // Primeiro tenta GPS do EXIF
+    if (result.gps_lat && result.gps_lon) {
+      return { lat: result.gps_lat, lng: result.gps_lon };
+    }
+    // Depois tenta extrair do texto OCR
+    if (result.ocr_text) {
+      return parseDMSCoordinates(result.ocr_text);
+    }
+    return null;
+  };
 
   if (results.length === 0 && !isProcessing) {
     return null;
@@ -434,6 +455,17 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
+                          {getCoordinates(result) && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-7 w-7 text-blue-500 hover:text-blue-600"
+                              onClick={() => setMapResult(result)}
+                              title="Ver no mapa"
+                            >
+                              <MapPin className="w-4 h-4" />
+                            </Button>
+                          )}
                         </>
                       )}
                     </div>
@@ -444,6 +476,32 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
           </TableBody>
         </Table>
       </div>
+
+      {/* Modal do Mapa */}
+      <Dialog open={!!mapResult} onOpenChange={(open) => !open && setMapResult(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-blue-500" />
+              Localização: {mapResult?.portico || mapResult?.filename}
+            </DialogTitle>
+          </DialogHeader>
+          {mapResult && getCoordinates(mapResult) && (
+            <div className="space-y-3">
+              <LocationMap
+                latitude={getCoordinates(mapResult)!.lat}
+                longitude={getCoordinates(mapResult)!.lng}
+                locationName={mapResult.portico || mapResult.service || 'Localização'}
+              />
+              <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span>📍 {getCoordinates(mapResult)!.lat.toFixed(6)}, {getCoordinates(mapResult)!.lng.toFixed(6)}</span>
+                {mapResult.rodovia && <span>🛣️ {mapResult.rodovia}</span>}
+                {mapResult.km_inicio && <span>📏 KM {mapResult.km_inicio}</span>}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
