@@ -218,9 +218,9 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
             })}
           </div>
 
-          {/* Footer */}
+          {/* Footer - simplified for print */}
           <div className="mt-8 pt-4 border-t border-gray-300 text-center text-xs text-gray-500">
-            <p>Relatório gerado por ObraPhoto AI - {new Date().toLocaleDateString('pt-BR')}</p>
+            <p>ObraPhoto AI - {new Date().toLocaleDateString('pt-BR')}</p>
           </div>
         </div>
       </ScrollArea>
@@ -230,133 +230,142 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
         @media print {
           @page {
             size: A4;
-            margin: 10mm;
+            margin: 15mm;
           }
           
-          /* Ensure root prints correctly */
-          html, body, #root {
-            height: auto !important;
-            overflow: visible !important;
-            background: white !important;
-          }
-
-          /* Hide everything except our report (inside #root) */
-          #root > *:not(.print-container) {
+          /* Hide all UI elements */
+          body > *:not(#root),
+          .print\\:hidden,
+          nav, header, footer, aside,
+          button, .button,
+          [data-radix-scroll-area-scrollbar] {
             display: none !important;
-          }
-
-          /* Make sure the report container itself is shown */
-          .print-container {
-            display: block !important;
-          }
-
-          /* Reset container positioning */
-          .print-container,
-          .print-container * {
-            position: static !important;
-            overflow: visible !important;
-            height: auto !important;
-            width: 100% !important;
-            background: white !important;
+            visibility: hidden !important;
           }
           
-          /* Make sure report content is visible */
-          .print-report {
+          /* Force white background everywhere */
+          html, body, #root, * {
+            background: white !important;
+            background-color: white !important;
+            color: black !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          /* Reset all positioning */
+          .fixed, .absolute, .relative, .sticky {
+            position: static !important;
+          }
+          
+          /* Make everything visible and properly sized */
+          #root, .print-container, .print-report {
             display: block !important;
             visibility: visible !important;
-            position: static !important;
             width: 100% !important;
             height: auto !important;
             overflow: visible !important;
-            background: white !important;
-            color: black !important;
             padding: 0 !important;
             margin: 0 !important;
             max-width: none !important;
           }
           
-          .print-report * {
-            visibility: visible !important;
-            color-adjust: exact !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+          /* Report content styling */
+          .print-report {
+            background: white !important;
+            color: black !important;
           }
           
-          /* Hide non-print elements */
-          .print\\:hidden {
-            display: none !important;
-          }
-          
-          /* Photo grid for print */
-          .grid-cols-2 {
-            display: grid !important;
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 8px !important;
-          }
-          
-          .photo-item {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-          }
-          
-          /* Fix ScrollArea for printing */
+          /* ScrollArea fix */
           [data-radix-scroll-area-viewport],
-          [data-radix-scroll-area-root],
-          [data-radix-scroll-area-scrollbar] {
+          [data-radix-scroll-area-root] {
             overflow: visible !important;
             height: auto !important;
             display: block !important;
             position: static !important;
           }
           
-          /* Fix fixed positioning */
-          .fixed {
-            position: static !important;
-            overflow: visible !important;
+          /* Grid layout for photos */
+          .grid-cols-2 {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 12px !important;
           }
           
-          /* Image sizing for print - maintain aspect ratio */
+          /* Photo items */
+          .photo-item {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          
           .photo-item img {
             width: 100% !important;
             height: auto !important;
-            max-height: 160px !important;
+            max-height: 180px !important;
             object-fit: cover !important;
           }
           
           .aspect-\\[4\\/3\\] {
             aspect-ratio: 4/3 !important;
             height: auto !important;
-            max-height: 160px !important;
+            max-height: 180px !important;
           }
           
-          /* Table styling */
+          /* Tables */
           table {
             width: 100% !important;
             border-collapse: collapse !important;
           }
           
-          td {
-            border: 1px solid #ccc !important;
-            padding: 4px 8px !important;
-            font-size: 10px !important;
+          td, th {
+            border: 1px solid #333 !important;
+            padding: 6px 8px !important;
+            font-size: 11px !important;
+            color: black !important;
+            background: white !important;
           }
           
-          /* Font sizes for print */
-          .text-xs { font-size: 9px !important; }
-          .text-sm { font-size: 10px !important; }
+          .bg-gray-50, .bg-gray-100, .bg-gray-200 {
+            background: #f5f5f5 !important;
+          }
           
-          /* Header logo */
+          /* Logo */
           .print-report img:first-of-type {
-            height: 50px !important;
+            height: 60px !important;
             object-fit: contain !important;
           }
           
-          /* Section spacing */
-          .mb-4 { margin-bottom: 8px !important; }
-          .mb-8 { margin-bottom: 12px !important; }
-          .p-2 { padding: 4px !important; }
-          .p-3 { padding: 6px !important; }
-          .gap-4 { gap: 8px !important; }
+          /* Typography for print */
+          .text-xs { font-size: 10px !important; }
+          .text-sm { font-size: 11px !important; }
+          .font-bold { font-weight: bold !important; }
+          .font-semibold { font-weight: 600 !important; }
+          
+          /* Borders and colors */
+          .border, .border-gray-300 {
+            border-color: #333 !important;
+          }
+          
+          .border-red-600 {
+            border-color: #dc2626 !important;
+          }
+          
+          /* Spacing adjustments */
+          .mb-4 { margin-bottom: 10px !important; }
+          .mb-8 { margin-bottom: 16px !important; }
+          .mt-8 { margin-top: 16px !important; }
+          .p-2 { padding: 6px !important; }
+          .p-3 { padding: 8px !important; }
+          .gap-4 { gap: 12px !important; }
+          
+          /* Footer text */
+          .text-gray-500 {
+            color: #666 !important;
+          }
+          
+          /* Ensure page breaks work */
+          .print-report > * {
+            break-inside: avoid;
+          }
         }
       `}</style>
     </div>
