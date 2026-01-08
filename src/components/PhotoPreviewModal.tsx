@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation, ZoomIn, ZoomOut, Maximize2, Minimize2, ExternalLink } from 'lucide-react';
+import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation, ZoomIn, ZoomOut, Maximize2, Minimize2, ExternalLink, Lightbulb } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { ProcessingResult, MONTH_NAMES } from '@/services/api';
 import { cn } from '@/lib/utils';
+import { useAprendizadoOCR } from '@/hooks/useAprendizadoOCR';
 
 interface PhotoPreviewModalProps {
   isOpen: boolean;
@@ -123,9 +124,38 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
     return basePath;
   };
 
-  const handleSaveEdit = () => {
+  const { salvarCorrecao, buscarSugestoes } = useAprendizadoOCR();
+  const [sugestoes, setSugestoes] = useState<string[]>([]);
+
+  // Buscar sugestões quando tiver texto OCR
+  useEffect(() => {
+    if (result?.ocr_text && isEditing) {
+      buscarSugestoes(result.ocr_text).then(setSugestoes);
+    } else {
+      setSugestoes([]);
+    }
+  }, [result?.ocr_text, isEditing, buscarSugestoes]);
+
+  const handleSaveEdit = async () => {
     if (onUpdateResult) {
       const newDest = buildDestPath(editedPortico, editedDisciplina, editedService, editedData);
+      
+      // Detecta se houve correção na frente de serviço (portico)
+      const porticoOriginal = result.portico || '';
+      const porticoCorrigido = editedPortico;
+      const houveMudancaPortico = porticoOriginal !== porticoCorrigido && 
+                                   porticoCorrigido && 
+                                   porticoCorrigido !== 'NAO_IDENTIFICADO';
+      
+      // Se houve correção e temos texto OCR, salva o aprendizado
+      if (houveMudancaPortico && result.ocr_text) {
+        await salvarCorrecao({
+          textoOCR: result.ocr_text,
+          identificacaoErrada: porticoOriginal || 'NAO_IDENTIFICADO',
+          identificacaoCorreta: porticoCorrigido,
+          obraId: result.obra_id,
+        });
+      }
       
       onUpdateResult({
         ...result,
@@ -322,16 +352,39 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
             </div>
 
             {isEditing ? (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="space-y-1">
-                  <Label className="text-xs">Frente de Serviço</Label>
-                  <Input 
-                    value={editedPortico}
-                    onChange={(e) => setEditedPortico(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
-                    placeholder="P_10, CORTINA_01..."
-                    className="font-mono text-sm"
-                  />
-                </div>
+              <div className="space-y-4">
+                {/* Sugestões de aprendizado */}
+                {sugestoes.length > 0 && (
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Lightbulb className="w-4 h-4 text-primary" />
+                      <span className="text-xs font-medium text-primary">Sugestões baseadas em aprendizado</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {sugestoes.map((sugestao) => (
+                        <Badge 
+                          key={sugestao}
+                          variant="outline" 
+                          className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                          onClick={() => setEditedPortico(sugestao)}
+                        >
+                          {sugestao}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Frente de Serviço</Label>
+                    <Input 
+                      value={editedPortico}
+                      onChange={(e) => setEditedPortico(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
+                      placeholder="P_10, CORTINA_01..."
+                      className="font-mono text-sm"
+                    />
+                  </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Disciplina</Label>
                   <Select value={editedDisciplina} onValueChange={setEditedDisciplina}>
@@ -400,6 +453,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
                   />
                 </div>
               </div>
+            </div>
             ) : (
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>

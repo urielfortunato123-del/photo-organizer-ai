@@ -52,6 +52,10 @@ export function useAprendizadoOCR() {
 
       console.log('Correção salva para aprendizado:', data.identificacaoCorreta);
       
+      toast.success('🧠 Aprendizado salvo!', {
+        description: `Correção "${data.identificacaoCorreta}" será usada em futuras identificações.`
+      });
+      
       // Tenta atualizar/criar entrada no conhecimento
       await atualizarConhecimento(data);
       
