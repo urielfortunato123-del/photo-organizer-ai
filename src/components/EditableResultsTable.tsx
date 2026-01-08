@@ -99,6 +99,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
   const handleStartEdit = (result: ProcessingResult) => {
     setEditingRow(result.filename);
     const currentValues = {
+      filename: result.filename || '',
       portico: result.portico || '',
       disciplina: result.disciplina || '',
       service: result.service || '',
@@ -141,6 +142,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
 
       onUpdateResult({
         ...result,
+        filename: editValues.filename || result.filename,
         portico: editValues.portico || result.portico,
         disciplina: editValues.disciplina || result.disciplina,
         service: editValues.service || result.service,
@@ -304,9 +306,17 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   </TableCell>
                   
                   <TableCell>
-                    <span className="font-mono text-xs text-foreground truncate max-w-[100px] block">
-                      {result.filename}
-                    </span>
+                    {isEditing ? (
+                      <Input 
+                        value={editValues.filename || ''}
+                        onChange={(e) => setEditValues({...editValues, filename: e.target.value})}
+                        className="h-8 w-28 font-mono text-xs"
+                      />
+                    ) : (
+                      <span className="font-mono text-xs text-foreground truncate max-w-[100px] block">
+                        {result.filename}
+                      </span>
+                    )}
                   </TableCell>
                   
                   <TableCell>
