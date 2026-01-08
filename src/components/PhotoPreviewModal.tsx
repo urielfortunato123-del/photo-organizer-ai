@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation, ZoomIn, ZoomOut, Maximize2, Minimize2, ExternalLink, Lightbulb } from 'lucide-react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation, ZoomIn, ZoomOut, Maximize2, Minimize2, ExternalLink, Lightbulb, Map } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { ProcessingResult, MONTH_NAMES } from '@/services/api';
 import { cn } from '@/lib/utils';
 import { useAprendizadoOCR } from '@/hooks/useAprendizadoOCR';
+import { ExifData } from '@/hooks/useExifExtractor';
+
+// Lazy load the map component
+const LocationMap = lazy(() => import('@/components/LocationMap'));
 
 interface PhotoPreviewModalProps {
   isOpen: boolean;
@@ -17,6 +21,7 @@ interface PhotoPreviewModalProps {
   result: ProcessingResult | null;
   imageUrl?: string;
   ocrText?: string;
+  exifData?: ExifData;
   onUpdateResult?: (updated: ProcessingResult) => void;
 }
 
@@ -58,6 +63,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
   result,
   imageUrl,
   ocrText,
+  exifData,
   onUpdateResult,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -475,14 +481,19 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
               </div>
             )}
 
-            {/* Location info */}
-            {(result.rodovia || result.km_inicio || result.gps_lat || result.ocr_text) && (() => {
-              // Extrai coordenadas do EXIF ou OCR
-              const getCoords = (): { lat: number; lng: number } | null => {
-                if (result.gps_lat && result.gps_lon) {
-                  return { lat: result.gps_lat, lng: result.gps_lon };
+            {/* Location info with mini-map */}
+            {(() => {
+              // Extrai coordenadas: prioriza EXIF, depois result, depois OCR
+              const getCoords = (): { lat: number; lng: number; source: string } | null => {
+                // 1. Prioridade: EXIF data
+                if (exifData?.gpsLatitude && exifData?.gpsLongitude) {
+                  return { lat: exifData.gpsLatitude, lng: exifData.gpsLongitude, source: 'EXIF' };
                 }
-                // Tenta extrair do texto OCR
+                // 2. Result GPS
+                if (result.gps_lat && result.gps_lon) {
+                  return { lat: result.gps_lat, lng: result.gps_lon, source: 'API' };
+                }
+                // 3. Tenta extrair do texto OCR
                 if (result.ocr_text) {
                   const dmsPattern = /(\d{1,3})°(\d{1,2})'(\d{1,2})"?\s*([NSns])\s*(\d{1,3})°(\d{1,2})'(\d{1,2})"?\s*([EWOewo])/;
                   const match = result.ocr_text.match(dmsPattern);
@@ -491,7 +502,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
                     let lng = parseInt(match[5]) + parseInt(match[6]) / 60 + parseInt(match[7]) / 3600;
                     if (match[4].toUpperCase() === 'S') lat = -lat;
                     if (match[8].toUpperCase() === 'W' || match[8].toUpperCase() === 'O') lng = -lng;
-                    return { lat, lng };
+                    return { lat, lng, source: 'OCR' };
                   }
                 }
                 return null;
@@ -502,22 +513,21 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
                 ? `https://www.google.com/maps?q=${coords.lat},${coords.lng}`
                 : null;
 
+              const hasLocationInfo = result.rodovia || result.km_inicio || coords;
+              if (!hasLocationInfo) return null;
+
               return (
-                <div 
-                  className={cn(
-                    "glass-card p-3 space-y-2 transition-all",
-                    googleMapsUrl && "cursor-pointer hover:ring-2 hover:ring-primary/50 hover:bg-primary/5"
-                  )}
-                  onClick={() => googleMapsUrl && window.open(googleMapsUrl, '_blank')}
-                  title={googleMapsUrl ? "Clique para abrir no Google Maps" : undefined}
-                >
+                <div className="glass-card p-3 space-y-3">
                   <h4 className="font-semibold text-foreground flex items-center gap-2 text-sm">
                     <MapPin className="w-4 h-4 text-primary" />
                     Localização
-                    {googleMapsUrl && (
-                      <ExternalLink className="w-3 h-3 text-muted-foreground ml-auto" />
+                    {coords && (
+                      <Badge variant="outline" className="text-xs ml-2">
+                        via {coords.source}
+                      </Badge>
                     )}
                   </h4>
+                  
                   <div className="grid sm:grid-cols-3 gap-3">
                     {result.rodovia && (
                       <div>
@@ -543,15 +553,39 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
                       </div>
                     )}
                     {coords && (
-                      <div className="sm:col-span-3">
+                      <div 
+                        className="sm:col-span-3 cursor-pointer hover:bg-primary/5 rounded p-1 -m-1 transition-colors"
+                        onClick={() => googleMapsUrl && window.open(googleMapsUrl, '_blank')}
+                        title="Clique para abrir no Google Maps"
+                      >
                         <p className="text-xs text-muted-foreground">GPS</p>
                         <p className="font-mono text-xs text-primary flex items-center gap-1">
                           📍 {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
-                          <span className="text-muted-foreground ml-1">(clique para abrir)</span>
+                          <ExternalLink className="w-3 h-3 ml-1" />
+                          <span className="text-muted-foreground">(abrir no Google Maps)</span>
                         </p>
                       </div>
                     )}
                   </div>
+
+                  {/* Mini-mapa */}
+                  {coords && (
+                    <div className="pt-2">
+                      <Suspense fallback={
+                        <div className="h-[200px] bg-secondary/50 rounded-lg flex items-center justify-center">
+                          <Map className="w-6 h-6 text-muted-foreground animate-pulse" />
+                        </div>
+                      }>
+                        <div className="h-[200px] rounded-lg overflow-hidden border border-border">
+                          <LocationMap 
+                            latitude={coords.lat} 
+                            longitude={coords.lng} 
+                            locationName={result.portico || result.rodovia || 'Localização da foto'}
+                          />
+                        </div>
+                      </Suspense>
+                    </div>
+                  )}
                 </div>
               );
             })()}
