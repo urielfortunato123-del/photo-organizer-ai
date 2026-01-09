@@ -850,16 +850,19 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
                       Excluir Foto
                     </Button>
                   </AlertDialogTrigger>
-                  <AlertDialogContent>
+                  <AlertDialogContent className="max-w-md">
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Tem certeza que deseja excluir a foto "{result.filename}"? 
-                        Esta ação não pode ser desfeita.
+                      <AlertDialogTitle className="text-lg">Confirmar Exclusão</AlertDialogTitle>
+                      <AlertDialogDescription className="text-sm text-muted-foreground break-words">
+                        Tem certeza que deseja excluir a foto{' '}
+                        <span className="font-mono text-xs bg-secondary/50 px-1 py-0.5 rounded break-all inline-block max-w-full">
+                          "{result.filename}"
+                        </span>
+                        ? Esta ação não pode ser desfeita.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogFooter className="flex-row gap-2 sm:gap-2">
+                      <AlertDialogCancel className="mt-0">Cancelar</AlertDialogCancel>
                       <AlertDialogAction 
                         onClick={handleDeletePhoto}
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
