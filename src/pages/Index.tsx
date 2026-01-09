@@ -138,6 +138,8 @@ const Index: React.FC = () => {
   // Processing overlay completion state
   const [showProcessingOverlay, setShowProcessingOverlay] = useState(false);
 
+  // Track recently reprocessed photos (for visual indicator)
+  const [recentlyReprocessed, setRecentlyReprocessed] = useState<Set<string>>(new Set());
   // Keyboard shortcuts
   useKeyboardShortcuts({
     onUpload: () => setActiveTab('upload'),
@@ -921,6 +923,18 @@ const Index: React.FC = () => {
     // Remove old results for these files
     setResults(prev => prev.filter(r => !filenames.includes(r.filename)));
 
+    // Mark as recently reprocessed
+    setRecentlyReprocessed(new Set(filenames));
+    
+    // Clear the indicator after 30 seconds
+    setTimeout(() => {
+      setRecentlyReprocessed(prev => {
+        const updated = new Set(prev);
+        filenames.forEach(fn => updated.delete(fn));
+        return updated;
+      });
+    }, 30000);
+
     toast({
       title: "Reprocessando",
       description: `${selectedFiles.length} foto(s) serão reprocessadas.`,
@@ -1195,6 +1209,7 @@ const Index: React.FC = () => {
                     onUpdateResult={handleUpdateResult}
                     onDeletePhotos={handleDeletePhotos}
                     onReprocessSelected={handleReprocessSelected}
+                    recentlyReprocessed={recentlyReprocessed}
                   />
                   
                   {/* Show reprocess button for errors OR incomplete results */}

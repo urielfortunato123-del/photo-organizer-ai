@@ -49,6 +49,7 @@ interface EditableResultsTableProps {
   onBulkUpdate?: (updates: ProcessingResult[]) => void;
   onDeletePhotos?: (filenames: string[]) => void;
   onReprocessSelected?: (filenames: string[]) => void;
+  recentlyReprocessed?: Set<string>;
 }
 
 const DISCIPLINAS = [
@@ -106,7 +107,8 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
   onUpdateResult,
   onBulkUpdate,
   onDeletePhotos,
-  onReprocessSelected
+  onReprocessSelected,
+  recentlyReprocessed = new Set()
 }) => {
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<ProcessingResult>>({});
@@ -403,6 +405,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
             {results.map((result, index) => {
               const imageUrl = fileUrls?.get(result.filename);
               const isEditing = editingRow === result.filename;
+              const wasReprocessed = recentlyReprocessed.has(result.filename);
               
               return (
                 <TableRow 
@@ -410,7 +413,8 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   className={cn(
                     "border-border animate-fade-in",
                     selectedRows.has(result.filename) && "bg-primary/5",
-                    isEditing && "bg-warning/5"
+                    isEditing && "bg-warning/5",
+                    wasReprocessed && "bg-success/5 ring-1 ring-success/30"
                   )}
                   style={{ animationDelay: `${index * 30}ms` }}
                 >
@@ -439,7 +443,19 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   </TableCell>
                   
                   <TableCell>
-                    {result.status === 'Sucesso' && !isIncompleteResult(result) ? (
+                    {wasReprocessed && result.status === 'Sucesso' && !isIncompleteResult(result) ? (
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <span className="status-badge flex items-center gap-1 w-fit bg-success/20 text-success border-success/30">
+                            <RefreshCw className="w-3 h-3" />
+                            Atualizado
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">Foto reprocessada recentemente</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : result.status === 'Sucesso' && !isIncompleteResult(result) ? (
                       <span className="status-badge status-success flex items-center gap-1 w-fit">
                         <CheckCircle2 className="w-3 h-3" />
                         OK
