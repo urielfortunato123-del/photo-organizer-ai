@@ -387,33 +387,10 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
     });
   };
 
-  // ApplyAll popover component with field selection
-  const ApplyAllPopover = () => {
-    const hasAnyValue = editValues.portico || editValues.disciplina || editValues.service || editValues.data_detectada;
-    const selectedCount = Object.values(applyFields).filter(Boolean).length;
-    
-    // Count how many fields have values (can be selected)
-    const availableFields = [
-      editValues.portico,
-      editValues.disciplina,
-      editValues.service,
-      editValues.data_detectada
-    ].filter(Boolean).length;
-    
-    const allSelected = selectedCount === availableFields && availableFields > 0;
-    
-    const toggleSelectAll = () => {
-      if (allSelected) {
-        setApplyFields({ frente: false, disciplina: false, servico: false, data: false });
-      } else {
-        setApplyFields({
-          frente: !!editValues.portico,
-          disciplina: !!editValues.disciplina,
-          servico: !!editValues.service,
-          data: !!editValues.data_detectada
-        });
-      }
-    };
+  // ApplyAll button component with popover for target selection
+  const ApplyAllButton = () => {
+    const selectedFieldCount = Object.values(applyFields).filter(Boolean).length;
+    const hasFieldsSelected = selectedFieldCount > 0;
     
     return (
       <Popover open={showApplyAllPopover} onOpenChange={setShowApplyAllPopover}>
@@ -422,96 +399,40 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
             variant="outline"
             size="sm"
             className="h-7 gap-1.5 text-xs"
-            disabled={!hasAnyValue}
-            title="Aplicar campos para todos"
+            disabled={!hasFieldsSelected}
+            title={hasFieldsSelected ? `Aplicar ${selectedFieldCount} campo(s) marcado(s)` : 'Marque os campos que deseja aplicar'}
           >
             <Copy className="w-3.5 h-3.5" />
             Aplicar p/ Todos
+            {hasFieldsSelected && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-medium">
+                {selectedFieldCount}
+              </span>
+            )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-3" align="start">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-foreground">Selecione os campos:</p>
+        <PopoverContent className="w-48 p-2" align="start">
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground px-1">Aplicar para:</p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start text-xs gap-2 h-8"
+              onClick={() => handleApplySelectedFields(false)}
+            >
+              <CopyCheck className="w-3.5 h-3.5" />
+              Todos ({results.length})
+            </Button>
+            {selectedRows.size > 0 && (
               <Button
-                variant="ghost"
+                variant="default"
                 size="sm"
-                className="h-6 px-2 text-xs text-primary hover:text-primary/80"
-                onClick={toggleSelectAll}
+                className="w-full justify-start text-xs gap-2 h-8"
+                onClick={() => handleApplySelectedFields(true)}
               >
-                {allSelected ? 'Desmarcar todos' : 'Selecionar todos'}
+                <CopyCheck className="w-3.5 h-3.5" />
+                Selecionados ({selectedRows.size})
               </Button>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <Checkbox 
-                  checked={applyFields.frente} 
-                  onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, frente: !!checked }))}
-                  disabled={!editValues.portico}
-                />
-                <span className={cn("text-xs", !editValues.portico && "text-muted-foreground")}>
-                  Frente {editValues.portico ? `(${editValues.portico})` : '(vazio)'}
-                </span>
-              </label>
-              
-              <label className="flex items-center gap-2 cursor-pointer">
-                <Checkbox 
-                  checked={applyFields.disciplina} 
-                  onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, disciplina: !!checked }))}
-                  disabled={!editValues.disciplina}
-                />
-                <span className={cn("text-xs", !editValues.disciplina && "text-muted-foreground")}>
-                  Disciplina {editValues.disciplina ? `(${editValues.disciplina})` : '(vazio)'}
-                </span>
-              </label>
-              
-              <label className="flex items-center gap-2 cursor-pointer">
-                <Checkbox 
-                  checked={applyFields.servico} 
-                  onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, servico: !!checked }))}
-                  disabled={!editValues.service}
-                />
-                <span className={cn("text-xs", !editValues.service && "text-muted-foreground")}>
-                  Serviço {editValues.service ? `(${editValues.service})` : '(vazio)'}
-                </span>
-              </label>
-              
-              <label className="flex items-center gap-2 cursor-pointer">
-                <Checkbox 
-                  checked={applyFields.data} 
-                  onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, data: !!checked }))}
-                  disabled={!editValues.data_detectada}
-                />
-                <span className={cn("text-xs", !editValues.data_detectada && "text-muted-foreground")}>
-                  Data {editValues.data_detectada ? `(${editValues.data_detectada})` : '(vazio)'}
-                </span>
-              </label>
-            </div>
-            
-            {selectedCount > 0 && (
-              <div className="flex flex-col gap-2 pt-2 border-t border-border">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start text-xs gap-2"
-                  onClick={() => handleApplySelectedFields(false)}
-                >
-                  <CopyCheck className="w-3 h-3" />
-                  Aplicar em todos ({results.length})
-                </Button>
-                {selectedRows.size > 0 && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="w-full justify-start text-xs gap-2"
-                    onClick={() => handleApplySelectedFields(true)}
-                  >
-                    <CopyCheck className="w-3 h-3" />
-                    Aplicar nos selecionados ({selectedRows.size})
-                  </Button>
-                )}
-              </div>
             )}
           </div>
         </PopoverContent>
@@ -867,11 +788,28 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   
                   <TableCell>
                     {isEditing ? (
-                      <Input 
-                        value={editValues.portico || ''}
-                        onChange={(e) => setEditValues({...editValues, portico: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
-                        className="h-8 w-24 font-mono text-xs"
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <Input 
+                          value={editValues.portico || ''}
+                          onChange={(e) => setEditValues({...editValues, portico: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
+                          className="h-8 w-24 font-mono text-xs"
+                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Checkbox 
+                                checked={applyFields.frente} 
+                                onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, frente: !!checked }))}
+                                disabled={!editValues.portico}
+                                className="h-4 w-4"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">Incluir Frente ao aplicar p/ todos</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     ) : (
                       <span className="text-sm font-medium text-foreground">
                         {result.portico || '-'}
@@ -881,19 +819,36 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   
                   <TableCell>
                     {isEditing ? (
-                      <Select 
-                        value={editValues.disciplina || ''} 
-                        onValueChange={(v) => setEditValues({...editValues, disciplina: v})}
-                      >
-                        <SelectTrigger className="h-8 w-32 font-mono text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {DISCIPLINAS.map(d => (
-                            <SelectItem key={d} value={d} className="font-mono text-xs">{d}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-1.5">
+                        <Select 
+                          value={editValues.disciplina || ''} 
+                          onValueChange={(v) => setEditValues({...editValues, disciplina: v})}
+                        >
+                          <SelectTrigger className="h-8 w-28 font-mono text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DISCIPLINAS.map(d => (
+                              <SelectItem key={d} value={d} className="font-mono text-xs">{d}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Checkbox 
+                                checked={applyFields.disciplina} 
+                                onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, disciplina: !!checked }))}
+                                disabled={!editValues.disciplina}
+                                className="h-4 w-4"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">Incluir Disciplina ao aplicar p/ todos</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     ) : (
                       <span className="text-sm text-foreground">
                         {result.disciplina || '-'}
@@ -903,11 +858,28 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   
                   <TableCell>
                     {isEditing ? (
-                      <Input 
-                        value={editValues.service || ''}
-                        onChange={(e) => setEditValues({...editValues, service: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
-                        className="h-8 w-28 font-mono text-xs"
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <Input 
+                          value={editValues.service || ''}
+                          onChange={(e) => setEditValues({...editValues, service: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
+                          className="h-8 w-24 font-mono text-xs"
+                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Checkbox 
+                                checked={applyFields.servico} 
+                                onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, servico: !!checked }))}
+                                disabled={!editValues.service}
+                                className="h-4 w-4"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">Incluir Serviço ao aplicar p/ todos</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     ) : (
                       <span className="text-sm text-foreground truncate max-w-[120px] block">
                         {result.service || '-'}
@@ -917,13 +889,30 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   
                   <TableCell>
                     {isEditing ? (
-                      <Input 
-                        value={editValues.data_detectada || ''}
-                        onChange={(e) => setEditValues({...editValues, data_detectada: e.target.value})}
-                        placeholder="DD/MM/AAAA"
-                        className="h-8 w-24 font-mono text-xs"
-                        maxLength={10}
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <Input 
+                          value={editValues.data_detectada || ''}
+                          onChange={(e) => setEditValues({...editValues, data_detectada: e.target.value})}
+                          placeholder="DD/MM/AAAA"
+                          className="h-8 w-20 font-mono text-xs"
+                          maxLength={10}
+                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Checkbox 
+                                checked={applyFields.data} 
+                                onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, data: !!checked }))}
+                                disabled={!editValues.data_detectada}
+                                className="h-4 w-4"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="text-xs">Incluir Data ao aplicar p/ todos</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     ) : (
                       <span className="text-xs text-muted-foreground font-mono">
                         {result.data_detectada || '-'}
@@ -1039,7 +1028,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                     <div className="flex items-center gap-1">
                       {isEditing ? (
                         <>
-                          <ApplyAllPopover />
+                          <ApplyAllButton />
                           <Button 
                             variant="ghost" 
                             size="icon"
