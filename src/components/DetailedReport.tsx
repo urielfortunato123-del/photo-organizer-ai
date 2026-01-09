@@ -1,12 +1,13 @@
 import React, { useRef, useState } from 'react';
 import { ProcessingResult } from '@/services/api';
 import { 
-  FileText, Printer, XCircle, Camera
+  FileText, Printer, XCircle, Camera, MapPin
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { parseDMSCoordinates } from '@/components/LocationMap';
 import logoObraphoto from '@/assets/logo-obraphoto.png';
 
 interface DetailedReportProps {
@@ -190,6 +191,38 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
                 ? `${result.service}${result.portico ? ` - ${result.portico}` : ''}`
                 : result.tecnico?.substring(0, 50) || result.disciplina || 'REGISTRO';
               
+              // Gera URL de localização
+              const getLocationUrl = (): string | null => {
+                // GPS exato
+                if (result.gps_lat && result.gps_lon) {
+                  return `https://www.google.com/maps?q=${result.gps_lat},${result.gps_lon}`;
+                }
+                // GPS do OCR
+                if (result.ocr_text) {
+                  const coords = parseDMSCoordinates(result.ocr_text);
+                  if (coords) {
+                    return `https://www.google.com/maps?q=${coords.lat},${coords.lng}`;
+                  }
+                }
+                // Endereço da foto
+                const endereco = (result as any).endereco;
+                const cidade = (result as any).cidade;
+                const estado = (result as any).estado;
+                if (endereco || cidade) {
+                  const parts = [endereco, cidade, estado || 'Brasil'].filter(Boolean);
+                  return `https://www.google.com/maps/search/${encodeURIComponent(parts.join(', '))}`;
+                }
+                // Rodovia + KM
+                if (result.rodovia && result.km_inicio) {
+                  const rodovia = result.rodovia.replace('_', '-').replace('-', ' ');
+                  const km = result.km_inicio.replace('+', ' ');
+                  return `https://www.google.com/maps/search/${encodeURIComponent(`${rodovia} km ${km} Brasil`)}`;
+                }
+                return null;
+              };
+              
+              const locationUrl = getLocationUrl();
+              
               return (
                 <div key={`${result.filename}-${idx}`} className="photo-item">
                   {/* Photo */}
@@ -206,12 +239,23 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
                       </div>
                     )}
                   </div>
-                  {/* Caption */}
+                  {/* Caption with location link */}
                   <div className="border border-t-0 border-gray-300 p-2 bg-white">
                     <p className="text-xs text-gray-800">
                       <span className="font-semibold">Foto {String(idx + 1).padStart(2, '0')}:</span>{' '}
                       {caption.toUpperCase()}
                     </p>
+                    {locationUrl && (
+                      <a 
+                        href={locationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 mt-1 print-link"
+                      >
+                        <MapPin className="w-3 h-3" />
+                        <span className="underline">Ver localização no mapa</span>
+                      </a>
+                    )}
                   </div>
                 </div>
               );
@@ -230,7 +274,18 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
         @media print {
           @page {
             size: A4;
-            margin: 15mm;
+            margin: 15mm 15mm 15mm 15mm;
+          }
+          
+          /* Remove browser header/footer (URL, date, page numbers) */
+          @page :first {
+            margin-top: 15mm;
+          }
+          
+          /* Hide URL in header - some browsers respect this */
+          html {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           
           /* Hide all UI elements */
@@ -365,6 +420,27 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
           /* Ensure page breaks work */
           .print-report > * {
             break-inside: avoid;
+          }
+          
+          /* Location links - keep visible and clickable in PDF */
+          .print-link {
+            color: #2563eb !important;
+            text-decoration: underline !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            font-size: 9px !important;
+          }
+          
+          .print-link svg {
+            width: 10px !important;
+            height: 10px !important;
+            color: #2563eb !important;
+          }
+          
+          /* Show URL after link for PDF (optional - helps when printed on paper) */
+          .print-link::after {
+            content: none;
           }
         }
       `}</style>
