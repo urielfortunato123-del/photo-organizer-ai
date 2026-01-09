@@ -3,6 +3,7 @@ import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Downlo
 import { LocationMap, parseDMSCoordinates } from '@/components/LocationMap';
 import { MiniMap } from '@/components/MiniMap';
 import { exportToKML, exportToGPX, extractGPSFromResult } from '@/utils/exportGPS';
+import { AllPhotosMap } from '@/components/AllPhotosMap';
 import {
   Dialog,
   DialogContent,
@@ -119,6 +120,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
   const [mapResult, setMapResult] = useState<ProcessingResult | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [miniMapResult, setMiniMapResult] = useState<string | null>(null);
+  const [showAllPhotosMap, setShowAllPhotosMap] = useState(false);
   const { salvarCorrecao } = useAprendizadoOCR();
 
   // Extrai coordenadas do resultado (EXIF ou OCR)
@@ -354,6 +356,24 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
           {/* GPS Export Buttons */}
           {gpsCount > 0 && !isProcessing && (
             <div className="flex items-center gap-1">
+              {/* View All on Map */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setShowAllPhotosMap(true)}
+                    className="gap-1"
+                  >
+                    <Map className="w-4 h-4" />
+                    Ver Mapa ({gpsCount})
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">Ver todas as {gpsCount} localizações no mapa</p>
+                </TooltipContent>
+              </Tooltip>
+              
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -370,7 +390,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="text-xs">Exportar {gpsCount} localização(ões) para Google Earth (KML)</p>
+                  <p className="text-xs">Exportar para Google Earth (KML)</p>
                 </TooltipContent>
               </Tooltip>
               
@@ -390,13 +410,23 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="text-xs">Exportar {gpsCount} localização(ões) para GPS (GPX)</p>
+                  <p className="text-xs">Exportar para GPS (GPX)</p>
                 </TooltipContent>
               </Tooltip>
             </div>
           )}
         </div>
       </div>
+
+      {/* All Photos Map Modal */}
+      {showAllPhotosMap && (
+        <AllPhotosMap
+          results={results}
+          fileUrls={fileUrls}
+          onClose={() => setShowAllPhotosMap(false)}
+          onViewPhoto={onViewPhoto}
+        />
+      )}
 
       {/* Quick Selection Bar */}
       {problematicCount > 0 && (
