@@ -894,6 +894,42 @@ const Index: React.FC = () => {
     });
   }, [toast, imageCache, results]);
 
+  const handleReprocessSelected = useCallback(async (filenames: string[]) => {
+    const selectedFiles = files.filter(f => filenames.includes(f.name));
+    
+    if (selectedFiles.length === 0) {
+      toast({
+        title: "Arquivos não encontrados",
+        description: "Os arquivos originais não estão mais disponíveis.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Remove from processed so they can be reprocessed
+    setProcessedFiles(prev => {
+      const updated = new Set(prev);
+      filenames.forEach(fn => updated.delete(fn));
+      return updated;
+    });
+
+    // Remove from cache
+    results
+      .filter(r => filenames.includes(r.filename) && r.hash)
+      .forEach(r => imageCache.removeFromCache(r.hash!));
+
+    // Remove old results for these files
+    setResults(prev => prev.filter(r => !filenames.includes(r.filename)));
+
+    toast({
+      title: "Reprocessando",
+      description: `${selectedFiles.length} foto(s) serão reprocessadas.`,
+    });
+
+    // Trigger processing
+    await executeProcessing(selectedFiles);
+  }, [files, results, toast, imageCache]);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header with UX controls */}
@@ -1158,6 +1194,7 @@ const Index: React.FC = () => {
                     onViewPhoto={handleViewPhoto}
                     onUpdateResult={handleUpdateResult}
                     onDeletePhotos={handleDeletePhotos}
+                    onReprocessSelected={handleReprocessSelected}
                   />
                   
                   {/* Show reprocess button for errors OR incomplete results */}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2, Filter } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2, Filter, RefreshCw } from 'lucide-react';
 import { LocationMap, parseDMSCoordinates } from '@/components/LocationMap';
 import {
   Dialog,
@@ -48,6 +48,7 @@ interface EditableResultsTableProps {
   onUpdateResult?: (updated: ProcessingResult) => void;
   onBulkUpdate?: (updates: ProcessingResult[]) => void;
   onDeletePhotos?: (filenames: string[]) => void;
+  onReprocessSelected?: (filenames: string[]) => void;
 }
 
 const DISCIPLINAS = [
@@ -104,7 +105,8 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
   onViewPhoto,
   onUpdateResult,
   onBulkUpdate,
-  onDeletePhotos
+  onDeletePhotos,
+  onReprocessSelected
 }) => {
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<ProcessingResult>>({});
@@ -268,6 +270,20 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {selectedRows.size > 0 && onReprocessSelected && !isProcessing && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onReprocessSelected(Array.from(selectedRows));
+                setSelectedRows(new Set());
+              }}
+              className="gap-1"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Reprocessar ({selectedRows.size})
+            </Button>
+          )}
           {selectedRows.size > 0 && onDeletePhotos && (
             <Button
               variant="destructive"
