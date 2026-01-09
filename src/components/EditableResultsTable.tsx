@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2, Filter, RefreshCw } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2, Filter, RefreshCw, ExternalLink } from 'lucide-react';
 import { LocationMap, parseDMSCoordinates } from '@/components/LocationMap';
 import {
   Dialog,
@@ -397,6 +397,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
               <TableHead className="text-muted-foreground font-semibold">Disciplina</TableHead>
               <TableHead className="text-muted-foreground font-semibold">Serviço</TableHead>
               <TableHead className="text-muted-foreground font-semibold">Data</TableHead>
+              <TableHead className="text-muted-foreground font-semibold w-16">GPS</TableHead>
               <TableHead className="text-muted-foreground font-semibold">Confiança</TableHead>
               <TableHead className="text-muted-foreground font-semibold w-24">Ações</TableHead>
             </TableRow>
@@ -406,6 +407,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
               const imageUrl = fileUrls?.get(result.filename);
               const isEditing = editingRow === result.filename;
               const wasReprocessed = recentlyReprocessed.has(result.filename);
+              const coords = getCoordinates(result);
               
               return (
                 <TableRow 
@@ -569,6 +571,29 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                       <span className="text-xs text-muted-foreground font-mono">
                         {result.data_detectada || '-'}
                       </span>
+                    )}
+                  </TableCell>
+                  
+                  {/* GPS Column */}
+                  <TableCell>
+                    {coords ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => window.open(`https://www.google.com/maps?q=${coords.lat},${coords.lng}`, '_blank')}
+                            className="flex items-center gap-1 text-primary hover:text-primary/80 transition-colors cursor-pointer"
+                          >
+                            <MapPin className="w-4 h-4" />
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs font-mono">{coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}</p>
+                          <p className="text-xs text-muted-foreground">Clique para abrir no Google Maps</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">-</span>
                     )}
                   </TableCell>
                   
