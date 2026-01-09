@@ -228,7 +228,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
 
         <div className="flex-1 overflow-y-auto space-y-4">
           {/* Expanded Image Modal */}
-          {isImageExpanded && imageUrl && (
+          {isImageExpanded && (
             <div 
               className="fixed inset-0 z-[100] bg-black/95 flex flex-col"
               onClick={() => {
@@ -274,13 +274,20 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
                 className="flex-1 overflow-auto flex items-center justify-center p-4"
                 onClick={(e) => e.stopPropagation()}
               >
-                <img 
-                  src={imageUrl} 
-                  alt={result.filename}
-                  className="max-w-none transition-transform duration-200"
-                  style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}
-                  draggable={false}
-                />
+                {imageUrl ? (
+                  <img 
+                    src={imageUrl} 
+                    alt={result.filename}
+                    className="max-w-none transition-transform duration-200"
+                    style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}
+                    draggable={false}
+                  />
+                ) : (
+                  <div className="text-center text-white/70">
+                    <FileImage className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p>Imagem não disponível</p>
+                  </div>
+                )}
               </div>
               
               {/* Instructions */}

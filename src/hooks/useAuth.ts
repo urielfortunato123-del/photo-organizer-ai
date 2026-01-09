@@ -15,11 +15,20 @@ export const useAuth = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Safety timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      if (isLoading) {
+        console.warn('Auth loading timeout - forcing complete');
+        setIsLoading(false);
+      }
+    }, 5000);
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+        setIsLoading(false);
         
         // Defer profile fetch with setTimeout
         if (session?.user) {
@@ -42,9 +51,15 @@ export const useAuth = () => {
       }
       
       setIsLoading(false);
+    }).catch((error) => {
+      console.error('Error getting session:', error);
+      setIsLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(loadingTimeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchProfile = async (userId: string) => {
