@@ -392,6 +392,29 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
     const hasAnyValue = editValues.portico || editValues.disciplina || editValues.service || editValues.data_detectada;
     const selectedCount = Object.values(applyFields).filter(Boolean).length;
     
+    // Count how many fields have values (can be selected)
+    const availableFields = [
+      editValues.portico,
+      editValues.disciplina,
+      editValues.service,
+      editValues.data_detectada
+    ].filter(Boolean).length;
+    
+    const allSelected = selectedCount === availableFields && availableFields > 0;
+    
+    const toggleSelectAll = () => {
+      if (allSelected) {
+        setApplyFields({ frente: false, disciplina: false, servico: false, data: false });
+      } else {
+        setApplyFields({
+          frente: !!editValues.portico,
+          disciplina: !!editValues.disciplina,
+          servico: !!editValues.service,
+          data: !!editValues.data_detectada
+        });
+      }
+    };
+    
     return (
       <Popover open={showApplyAllPopover} onOpenChange={setShowApplyAllPopover}>
         <PopoverTrigger asChild>
@@ -408,7 +431,17 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
         </PopoverTrigger>
         <PopoverContent className="w-64 p-3" align="start">
           <div className="space-y-3">
-            <p className="text-xs font-medium text-foreground">Selecione os campos para aplicar:</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-foreground">Selecione os campos:</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-primary hover:text-primary/80"
+                onClick={toggleSelectAll}
+              >
+                {allSelected ? 'Desmarcar todos' : 'Selecionar todos'}
+              </Button>
+            </div>
             
             <div className="space-y-2">
               <label className="flex items-center gap-2 cursor-pointer">
