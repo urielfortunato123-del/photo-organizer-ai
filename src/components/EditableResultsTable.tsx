@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2, Filter } from 'lucide-react';
 import { LocationMap, parseDMSCoordinates } from '@/components/LocationMap';
 import {
   Dialog,
@@ -217,6 +217,33 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
     }
   };
 
+  // Quick selection helpers
+  const selectOnlyErrors = () => {
+    const errorFilenames = results
+      .filter(r => r.status.includes('Erro'))
+      .map(r => r.filename);
+    setSelectedRows(new Set(errorFilenames));
+  };
+
+  const selectOnlyIncomplete = () => {
+    const incompleteFilenames = results
+      .filter(isIncompleteResult)
+      .map(r => r.filename);
+    setSelectedRows(new Set(incompleteFilenames));
+  };
+
+  const selectProblematic = () => {
+    const problematicFilenames = results
+      .filter(r => r.status.includes('Erro') || isIncompleteResult(r))
+      .map(r => r.filename);
+    setSelectedRows(new Set(problematicFilenames));
+  };
+
+  // Count helpers
+  const errorCount = results.filter(r => r.status.includes('Erro')).length;
+  const incompleteCount = results.filter(isIncompleteResult).length;
+  const problematicCount = errorCount + incompleteCount;
+
   const handleBulkDelete = () => {
     if (onDeletePhotos && selectedRows.size > 0) {
       onDeletePhotos(Array.from(selectedRows));
@@ -260,6 +287,58 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
           )}
         </div>
       </div>
+
+      {/* Quick Selection Bar */}
+      {problematicCount > 0 && (
+        <div className="px-4 py-2 border-b border-border bg-secondary/30 flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Filter className="w-3 h-3" />
+            Seleção rápida:
+          </span>
+          {errorCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={selectOnlyErrors}
+              className="h-7 text-xs gap-1 border-destructive/50 text-destructive hover:bg-destructive/10"
+            >
+              <XCircle className="w-3 h-3" />
+              Erros ({errorCount})
+            </Button>
+          )}
+          {incompleteCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={selectOnlyIncomplete}
+              className="h-7 text-xs gap-1 border-warning/50 text-warning hover:bg-warning/10"
+            >
+              <AlertTriangle className="w-3 h-3" />
+              Incompletos ({incompleteCount})
+            </Button>
+          )}
+          {problematicCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={selectProblematic}
+              className="h-7 text-xs gap-1"
+            >
+              Todos problemáticos ({problematicCount})
+            </Button>
+          )}
+          {selectedRows.size > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedRows(new Set())}
+              className="h-7 text-xs"
+            >
+              Limpar seleção
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Bulk Delete Confirmation Dialog */}
       <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
