@@ -105,6 +105,19 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
     }
   }, [editedDisciplina]);
 
+  const { salvarCorrecao, buscarSugestoes } = useAprendizadoOCR();
+  const [sugestoes, setSugestoes] = useState<string[]>([]);
+
+  // Buscar sugestões quando tiver texto OCR
+  useEffect(() => {
+    if (result?.ocr_text && isEditing) {
+      buscarSugestoes(result.ocr_text).then(setSugestoes);
+    } else {
+      setSugestoes([]);
+    }
+  }, [result?.ocr_text, isEditing, buscarSugestoes]);
+
+  // Early return AFTER all hooks
   if (!result) return null;
 
   const handleStartEdit = () => {
@@ -134,17 +147,6 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
     return basePath;
   };
 
-  const { salvarCorrecao, buscarSugestoes } = useAprendizadoOCR();
-  const [sugestoes, setSugestoes] = useState<string[]>([]);
-
-  // Buscar sugestões quando tiver texto OCR
-  useEffect(() => {
-    if (result?.ocr_text && isEditing) {
-      buscarSugestoes(result.ocr_text).then(setSugestoes);
-    } else {
-      setSugestoes([]);
-    }
-  }, [result?.ocr_text, isEditing, buscarSugestoes]);
 
   const handleSaveEdit = async () => {
     if (onUpdateResult) {
