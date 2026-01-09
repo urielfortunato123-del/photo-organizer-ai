@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapPin, X, ExternalLink, Camera } from 'lucide-react';
@@ -107,8 +107,25 @@ export const AllPhotosMap: React.FC<AllPhotosMapProps> = ({
       }
     });
 
+    // Sort by date for chronological order
+    extracted.sort((a, b) => {
+      const dateA = a.result.data_detectada || a.result.exif_date || '';
+      const dateB = b.result.data_detectada || b.result.exif_date || '';
+      return dateA.localeCompare(dateB);
+    });
+
+    // Reassign index after sorting
+    extracted.forEach((point, idx) => {
+      point.index = idx + 1;
+    });
+
     return extracted;
   }, [results]);
+
+  // Generate polyline coordinates
+  const polylinePositions = useMemo(() => {
+    return points.map(p => [p.lat, p.lng] as [number, number]);
+  }, [points]);
 
   // Default center (São Paulo)
   const defaultCenter: [number, number] = points.length > 0 
@@ -243,6 +260,19 @@ export const AllPhotosMap: React.FC<AllPhotosMapProps> = ({
               </Marker>
             );
           })}
+          
+          {/* Polyline connecting points in chronological order */}
+          {polylinePositions.length > 1 && (
+            <Polyline 
+              positions={polylinePositions}
+              pathOptions={{
+                color: '#3b82f6',
+                weight: 3,
+                opacity: 0.7,
+                dashArray: '10, 5',
+              }}
+            />
+          )}
           
           <MapBoundsUpdater points={points} />
         </MapContainer>
