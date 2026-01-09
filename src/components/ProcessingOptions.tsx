@@ -34,64 +34,64 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
   onUseLocalOCRChange,
 }) => {
   return (
-    <div className="glass-card p-6 space-y-6">
-      <div className="flex items-center gap-3 pb-4 border-b border-border">
-        <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
-          <Settings className="w-5 h-5 text-primary" />
+    <div className="glass-card p-5 space-y-5">
+      <div className="flex items-center gap-3 pb-3 border-b border-border">
+        <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center">
+          <Settings className="w-4 h-4 text-primary" />
         </div>
         <div>
-          <h3 className="font-semibold text-foreground">Opções de Processamento</h3>
+          <h3 className="font-semibold text-foreground text-sm">Opções de Processamento</h3>
           <p className="text-xs text-muted-foreground">Configure como as fotos serão organizadas</p>
         </div>
       </div>
 
-      <div className="space-y-5">
+      <div className="space-y-4">
         {/* Empresa/Cliente */}
-        <div className="space-y-2">
-          <Label htmlFor="empresa" className="flex items-center gap-2 text-sm font-medium">
-            <Building2 className="w-4 h-4 text-primary" />
+        <div className="space-y-1.5">
+          <Label htmlFor="empresa" className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <Building2 className="w-3.5 h-3.5" />
             Empresa / Cliente
           </Label>
           <Input
             id="empresa"
-            placeholder="Ex: HABITECHENE, ABTECK..."
+            placeholder="HABITECHENE"
             value={empresa}
             onChange={(e) => onEmpresaChange(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
-            className="bg-secondary/50 border-border focus:border-primary"
+            className="h-9 bg-secondary/50 border-border focus:border-primary text-sm"
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[10px] text-muted-foreground/70">
             Nome da pasta raiz para organização
           </p>
         </div>
 
         {/* Default Frente de Serviço */}
-        <div className="space-y-2">
-          <Label htmlFor="portico" className="flex items-center gap-2 text-sm font-medium">
-            <MapPin className="w-4 h-4 text-primary" />
+        <div className="space-y-1.5">
+          <Label htmlFor="portico" className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <MapPin className="w-3.5 h-3.5" />
             Frente de Serviço Padrão
           </Label>
           <Input
             id="portico"
-            placeholder="Ex: PORTICO_01, CONSERVACAO_RODOVIA..."
+            placeholder="Ex: PORTICO_01, CONSERVAC"
             value={defaultPortico}
             onChange={(e) => onDefaultPorticoChange(e.target.value)}
-            className="bg-secondary/50 border-border focus:border-primary"
+            className="h-9 bg-secondary/50 border-border focus:border-primary text-sm"
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[10px] text-muted-foreground/70">
             Usado quando a frente de serviço não é identificada
           </p>
         </div>
 
         {/* Organize by Date */}
-        <div className="flex items-center justify-between p-4 rounded-xl bg-secondary/30 border border-border">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center">
+        <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
               <Calendar className="w-4 h-4 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-sm font-medium text-foreground">Organizar por Data</p>
-              <p className="text-xs text-muted-foreground">
-                Cria subpastas MÊS_ANO/DIA_MÊS
+              <p className="text-xs font-medium text-foreground">Organizar por Data</p>
+              <p className="text-[10px] text-muted-foreground">
+                Cria subpastas mês_ano/dia_mês
               </p>
             </div>
           </div>
@@ -102,14 +102,14 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
         </div>
 
         {/* AI Priority */}
-        <div className="flex items-center justify-between p-4 rounded-xl bg-primary/5 border border-primary/20">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center">
+        <div className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
               <Brain className="w-4 h-4 text-primary" />
             </div>
             <div>
-              <p className="text-sm font-medium text-foreground">Prioridade IA</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs font-medium text-foreground">Prioridade IA</p>
+              <p className="text-[10px] text-muted-foreground">
                 Usa análise avançada com Gemini/GPT
               </p>
             </div>
@@ -122,15 +122,15 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
 
         {/* OCR Local - only show when AI is enabled */}
         {iaPriority && onUseLocalOCRChange && (
-          <div className="flex items-center justify-between p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center">
+          <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
                 <ScanText className="w-4 h-4 text-blue-500" />
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">OCR Local</p>
-                <p className="text-xs text-muted-foreground">
-                  Extrai texto antes da IA (60% mais barato)
+                <p className="text-xs font-medium text-foreground">OCR Local</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Extrai texto antes da IA (-60% custo)
                 </p>
               </div>
             </div>
@@ -143,15 +143,15 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
 
         {/* Economic Mode - only show when AI is enabled */}
         {iaPriority && onEconomicModeChange && (
-          <div className="flex items-center justify-between p-4 rounded-xl bg-green-500/10 border border-green-500/20">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-green-500/20 flex items-center justify-center">
+          <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
                 <Zap className="w-4 h-4 text-green-500" />
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">Modo Econômico</p>
-                <p className="text-xs text-muted-foreground">
-                  2x mais fotos por $ (modelo mais leve)
+                <p className="text-xs font-medium text-foreground">Modo Econômico</p>
+                <p className="text-[10px] text-muted-foreground">
+                  2x mais fotos por $ (modelo leve)
                 </p>
               </div>
             </div>
