@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, X, ExternalLink, Camera } from 'lucide-react';
+import { MapPin, X, ExternalLink, Camera, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ProcessingResult } from '@/services/api';
 import { parseDMSCoordinates } from '@/components/LocationMap';
 import { cn } from '@/lib/utils';
@@ -80,8 +81,11 @@ export const AllPhotosMap: React.FC<AllPhotosMapProps> = ({
   onClose,
   onViewPhoto,
 }) => {
-  // Extract all GPS points
-  const points = useMemo<PhotoPoint[]>(() => {
+  const [filterRodovia, setFilterRodovia] = useState<string>('all');
+  const [filterDisciplina, setFilterDisciplina] = useState<string>('all');
+
+  // Extract all GPS points (unfiltered)
+  const allPoints = useMemo<PhotoPoint[]>(() => {
     const extracted: PhotoPoint[] = [];
     
     results.forEach((result, index) => {
@@ -114,13 +118,43 @@ export const AllPhotosMap: React.FC<AllPhotosMapProps> = ({
       return dateA.localeCompare(dateB);
     });
 
-    // Reassign index after sorting
-    extracted.forEach((point, idx) => {
-      point.index = idx + 1;
-    });
-
     return extracted;
   }, [results]);
+
+  // Get unique rodovias and disciplinas for filters
+  const { rodovias, disciplinas } = useMemo(() => {
+    const rodSet = new Set<string>();
+    const discSet = new Set<string>();
+    
+    allPoints.forEach(p => {
+      if (p.result.rodovia) rodSet.add(p.result.rodovia);
+      if (p.result.disciplina) discSet.add(p.result.disciplina);
+    });
+    
+    return {
+      rodovias: Array.from(rodSet).sort(),
+      disciplinas: Array.from(discSet).sort()
+    };
+  }, [allPoints]);
+
+  // Apply filters
+  const points = useMemo(() => {
+    let filtered = allPoints;
+    
+    if (filterRodovia !== 'all') {
+      filtered = filtered.filter(p => p.result.rodovia === filterRodovia);
+    }
+    if (filterDisciplina !== 'all') {
+      filtered = filtered.filter(p => p.result.disciplina === filterDisciplina);
+    }
+    
+    // Reassign index after filtering
+    filtered.forEach((point, idx) => {
+      point.index = idx + 1;
+    });
+    
+    return filtered;
+  }, [allPoints, filterRodovia, filterDisciplina]);
 
   // Generate polyline coordinates
   const polylinePositions = useMemo(() => {
@@ -150,7 +184,7 @@ export const AllPhotosMap: React.FC<AllPhotosMapProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border bg-card">
+      <div className="flex items-center justify-between p-4 border-b border-border bg-card flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
             <MapPin className="w-5 h-5 text-primary" />
@@ -158,10 +192,44 @@ export const AllPhotosMap: React.FC<AllPhotosMapProps> = ({
           <div>
             <h2 className="text-xl font-bold text-foreground">Mapa de Fotos</h2>
             <p className="text-sm text-muted-foreground">
-              {points.length} {points.length === 1 ? 'localização' : 'localizações'} com GPS
+              {points.length} de {allPoints.length} {allPoints.length === 1 ? 'localização' : 'localizações'}
             </p>
           </div>
         </div>
+        
+        {/* Filters */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Filter className="w-4 h-4 text-muted-foreground" />
+          
+          {rodovias.length > 0 && (
+            <Select value={filterRodovia} onValueChange={setFilterRodovia}>
+              <SelectTrigger className="w-36 h-8 text-xs">
+                <SelectValue placeholder="Rodovia" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas rodovias</SelectItem>
+                {rodovias.map(r => (
+                  <SelectItem key={r} value={r}>{r}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          
+          {disciplinas.length > 0 && (
+            <Select value={filterDisciplina} onValueChange={setFilterDisciplina}>
+              <SelectTrigger className="w-36 h-8 text-xs">
+                <SelectValue placeholder="Disciplina" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas disciplinas</SelectItem>
+                {disciplinas.map(d => (
+                  <SelectItem key={d} value={d}>{d}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+        
         <Button variant="ghost" onClick={onClose}>
           <X className="w-4 h-4 mr-2" />
           Fechar
