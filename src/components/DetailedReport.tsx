@@ -245,17 +245,6 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
                       <span className="font-semibold">Foto {String(idx + 1).padStart(2, '0')}:</span>{' '}
                       {caption.toUpperCase()}
                     </p>
-                    {locationUrl && (
-                      <a 
-                        href={locationUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 mt-1 print-link"
-                      >
-                        <MapPin className="w-3 h-3" />
-                        <span className="underline">Ver localização no mapa</span>
-                      </a>
-                    )}
                   </div>
                   
                   {/* AI Analysis Speech Bubble */}
