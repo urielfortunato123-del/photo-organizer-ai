@@ -1,13 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { ProcessingResult } from '@/services/api';
 import { 
-  FileText, Printer, XCircle, Camera, MapPin, Sparkles
+  FileText, Printer, XCircle, Camera, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { parseDMSCoordinates } from '@/components/LocationMap';
 import logoObraphoto from '@/assets/logo-obraphoto.png';
 
 interface DetailedReportProps {
@@ -190,38 +189,6 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
               const caption = result.service 
                 ? `${result.service}${result.portico ? ` - ${result.portico}` : ''}`
                 : result.tecnico?.substring(0, 50) || result.disciplina || 'REGISTRO';
-              
-              // Gera URL de localização
-              const getLocationUrl = (): string | null => {
-                // GPS exato
-                if (result.gps_lat && result.gps_lon) {
-                  return `https://www.google.com/maps?q=${result.gps_lat},${result.gps_lon}`;
-                }
-                // GPS do OCR
-                if (result.ocr_text) {
-                  const coords = parseDMSCoordinates(result.ocr_text);
-                  if (coords) {
-                    return `https://www.google.com/maps?q=${coords.lat},${coords.lng}`;
-                  }
-                }
-                // Endereço da foto
-                const endereco = (result as any).endereco;
-                const cidade = (result as any).cidade;
-                const estado = (result as any).estado;
-                if (endereco || cidade) {
-                  const parts = [endereco, cidade, estado || 'Brasil'].filter(Boolean);
-                  return `https://www.google.com/maps/search/${encodeURIComponent(parts.join(', '))}`;
-                }
-                // Rodovia + KM
-                if (result.rodovia && result.km_inicio) {
-                  const rodovia = result.rodovia.replace('_', '-').replace('-', ' ');
-                  const km = result.km_inicio.replace('+', ' ');
-                  return `https://www.google.com/maps/search/${encodeURIComponent(`${rodovia} km ${km} Brasil`)}`;
-                }
-                return null;
-              };
-              
-              const locationUrl = getLocationUrl();
               
               return (
                 <div key={`${result.filename}-${idx}`} className="photo-item">
