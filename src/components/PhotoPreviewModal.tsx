@@ -117,6 +117,31 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
     }
   }, [result?.ocr_text, isEditing, buscarSugestoes]);
 
+  // ALL useCallback hooks BEFORE early return
+  const handleCancelEdit = useCallback(() => {
+    if (!result) return;
+    setEditedFilename(result.filename || '');
+    setEditedPortico(result.portico || '');
+    setEditedDisciplina(result.disciplina || '');
+    setEditedService(result.service || '');
+    setEditedData(result.data_detectada || '');
+    setIsEditing(false);
+  }, [result]);
+
+  const handleDeletePhoto = useCallback(() => {
+    if (result && onDeletePhoto) {
+      onDeletePhoto(result);
+      onClose();
+    }
+  }, [result, onDeletePhoto, onClose]);
+
+  const getConfidenceColor = useCallback((confidence?: number) => {
+    if (!confidence) return 'text-muted-foreground';
+    if (confidence >= 0.8) return 'text-success';
+    if (confidence >= 0.5) return 'text-warning';
+    return 'text-destructive';
+  }, []);
+
   // Early return AFTER all hooks
   if (!result) return null;
 
@@ -184,30 +209,6 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
     }
     setIsEditing(false);
   };
-
-  const handleCancelEdit = useCallback(() => {
-    if (!result) return;
-    setEditedFilename(result.filename || '');
-    setEditedPortico(result.portico || '');
-    setEditedDisciplina(result.disciplina || '');
-    setEditedService(result.service || '');
-    setEditedData(result.data_detectada || '');
-    setIsEditing(false);
-  }, [result]);
-
-  const handleDeletePhoto = useCallback(() => {
-    if (result && onDeletePhoto) {
-      onDeletePhoto(result);
-      onClose();
-    }
-  }, [result, onDeletePhoto, onClose]);
-
-  const getConfidenceColor = useCallback((confidence?: number) => {
-    if (!confidence) return 'text-muted-foreground';
-    if (confidence >= 0.8) return 'text-success';
-    if (confidence >= 0.5) return 'text-warning';
-    return 'text-destructive';
-  }, []);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
