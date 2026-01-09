@@ -635,6 +635,27 @@ const Index: React.FC = () => {
       return;
     }
 
+    // Verifica quantas fotos realmente têm arquivos disponíveis
+    const availableResults = successResults.filter(r => files.find(f => f.name === r.filename));
+    
+    if (availableResults.length === 0) {
+      toast({
+        title: "Arquivos não encontrados",
+        description: "Os arquivos originais das fotos não estão mais disponíveis. Por favor, faça upload das fotos novamente.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (availableResults.length < successResults.length) {
+      const missing = successResults.length - availableResults.length;
+      toast({
+        title: `⚠️ ${missing} foto(s) sem arquivo`,
+        description: `Apenas ${availableResults.length} de ${successResults.length} fotos serão exportadas. As demais não têm arquivo disponível.`,
+        variant: "destructive",
+      });
+    }
+
     // Mantém nomes curtos/seguros para ZIP (evita caracteres inválidos no Windows)
     const sanitizeFilename = (filename: string, maxLen: number = 32) => {
       const lastDot = filename.lastIndexOf('.');
