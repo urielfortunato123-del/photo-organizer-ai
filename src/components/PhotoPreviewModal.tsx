@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense, memo, useCallback, useMemo } from 'react';
 import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation, ZoomIn, ZoomOut, Maximize2, Minimize2, ExternalLink, Lightbulb, Map, Camera, Mountain, Smartphone, Info, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -79,6 +80,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
   // Image zoom state
   const [isImageExpanded, setIsImageExpanded] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Reset form when result changes
   useEffect(() => {
@@ -746,18 +748,39 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
               </p>
             </div>
 
-            {/* Delete Photo Button */}
+            {/* Delete Photo Button with Confirmation */}
             {onDeletePhoto && (
               <div className="pt-3 border-t border-border">
-                <Button 
-                  variant="destructive" 
-                  size="sm" 
-                  onClick={handleDeletePhoto}
-                  className="w-full gap-2"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Excluir Foto
-                </Button>
+                <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="destructive" 
+                      size="sm" 
+                      className="w-full gap-2"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Excluir Foto
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Tem certeza que deseja excluir a foto "{result.filename}"? 
+                        Esta ação não pode ser desfeita.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={handleDeletePhoto}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Excluir
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             )}
           </div>
