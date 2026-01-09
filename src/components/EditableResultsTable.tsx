@@ -122,7 +122,13 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [miniMapResult, setMiniMapResult] = useState<string | null>(null);
   const [showAllPhotosMap, setShowAllPhotosMap] = useState(false);
-  const [showApplyAllPopover, setShowApplyAllPopover] = useState<'frente' | 'disciplina' | 'servico' | 'data' | null>(null);
+  const [showApplyAllPopover, setShowApplyAllPopover] = useState(false);
+  const [applyFields, setApplyFields] = useState<{
+    frente: boolean;
+    disciplina: boolean;
+    servico: boolean;
+    data: boolean;
+  }>({ frente: false, disciplina: false, servico: false, data: false });
   const { salvarCorrecao } = useAprendizadoOCR();
 
   // Extrai coordenadas do resultado (EXIF ou OCR)
@@ -308,25 +314,34 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
     }
   };
 
-  // Apply value to all (selected or all results)
-  const handleApplyToAll = (field: 'frente' | 'disciplina' | 'servico' | 'data', applyToSelected: boolean) => {
+  // Apply selected fields to all (selected or all results)
+  const handleApplySelectedFields = (applyToSelected: boolean) => {
     if (!onBulkUpdate) return;
     
-    const fieldMapping: Record<string, keyof ProcessingResult> = {
-      frente: 'portico',
-      disciplina: 'disciplina',
-      servico: 'service',
-      data: 'data_detectada'
+    const selectedFieldsList = Object.entries(applyFields).filter(([_, isSelected]) => isSelected).map(([field]) => field);
+    
+    if (selectedFieldsList.length === 0) {
+      toast.error('Selecione pelo menos um campo para aplicar');
+      return;
+    }
+    
+    // Check if all selected fields have values
+    const fieldValues: Record<string, string | undefined> = {
+      frente: editValues.portico,
+      disciplina: editValues.disciplina,
+      servico: editValues.service,
+      data: editValues.data_detectada
     };
     
-    const targetField = fieldMapping[field];
-    const value = field === 'frente' ? editValues.portico :
-                  field === 'disciplina' ? editValues.disciplina :
-                  field === 'servico' ? editValues.service :
-                  editValues.data_detectada;
-    
-    if (!value) {
-      toast.error('Preencha o campo antes de aplicar para todos');
+    const emptyFields = selectedFieldsList.filter(field => !fieldValues[field]);
+    if (emptyFields.length > 0) {
+      const fieldNames: Record<string, string> = {
+        frente: 'Frente',
+        disciplina: 'Disciplina',
+        servico: 'Serviço',
+        data: 'Data'
+      };
+      toast.error(`Preencha: ${emptyFields.map(f => fieldNames[f]).join(', ')}`);
       return;
     }
     
@@ -335,16 +350,19 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
       : results;
     
     const updates = targetResults.map(r => {
-      const newDest = buildDestPath(
-        field === 'frente' ? value : r.portico || 'NAO_IDENTIFICADO',
-        field === 'disciplina' ? value : r.disciplina || 'OUTROS',
-        field === 'servico' ? value : r.service || 'NAO_IDENTIFICADO',
-        field === 'data' ? value : r.data_detectada
-      );
+      const newPortico = applyFields.frente ? editValues.portico! : r.portico || 'NAO_IDENTIFICADO';
+      const newDisciplina = applyFields.disciplina ? editValues.disciplina! : r.disciplina || 'OUTROS';
+      const newService = applyFields.servico ? editValues.service! : r.service || 'NAO_IDENTIFICADO';
+      const newData = applyFields.data ? editValues.data_detectada! : r.data_detectada;
+      
+      const newDest = buildDestPath(newPortico, newDisciplina, newService, newData);
       
       return {
         ...r,
-        [targetField]: value,
+        ...(applyFields.frente && { portico: editValues.portico }),
+        ...(applyFields.disciplina && { disciplina: editValues.disciplina }),
+        ...(applyFields.servico && { service: editValues.service }),
+        ...(applyFields.data && { data_detectada: editValues.data_detectada }),
         dest: newDest,
         method: 'heuristica' as const,
         confidence: 1.0,
@@ -353,7 +371,8 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
     });
     
     onBulkUpdate(updates);
-    setShowApplyAllPopover(null);
+    setShowApplyAllPopover(false);
+    setApplyFields({ frente: false, disciplina: false, servico: false, data: false });
     
     const fieldNames: Record<string, string> = {
       frente: 'Frente',
@@ -362,53 +381,110 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
       data: 'Data'
     };
     
-    toast.success(`${fieldNames[field]} aplicado para ${updates.length} foto(s)`, {
+    const appliedFieldNames = selectedFieldsList.map(f => fieldNames[f]).join(', ');
+    toast.success(`${appliedFieldNames} aplicado(s) para ${updates.length} foto(s)`, {
       icon: <CopyCheck className="w-4 h-4" />
     });
   };
 
-  // ApplyAll button component
-  const ApplyAllButton = ({ field }: { field: 'frente' | 'disciplina' | 'servico' | 'data' }) => (
-    <Popover open={showApplyAllPopover === field} onOpenChange={(open) => setShowApplyAllPopover(open ? field : null)}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 ml-1 text-primary hover:text-primary/80"
-          title="Aplicar para todos"
-        >
-          <Copy className="w-3 h-3" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-56 p-3" align="start">
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-foreground">Aplicar para:</p>
-          <div className="flex flex-col gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full justify-start text-xs gap-2"
-              onClick={() => handleApplyToAll(field, false)}
-            >
-              <CopyCheck className="w-3 h-3" />
-              Todos ({results.length})
-            </Button>
-            {selectedRows.size > 0 && (
-              <Button
-                variant="default"
-                size="sm"
-                className="w-full justify-start text-xs gap-2"
-                onClick={() => handleApplyToAll(field, true)}
-              >
-                <CopyCheck className="w-3 h-3" />
-                Selecionados ({selectedRows.size})
-              </Button>
+  // ApplyAll popover component with field selection
+  const ApplyAllPopover = () => {
+    const hasAnyValue = editValues.portico || editValues.disciplina || editValues.service || editValues.data_detectada;
+    const selectedCount = Object.values(applyFields).filter(Boolean).length;
+    
+    return (
+      <Popover open={showApplyAllPopover} onOpenChange={setShowApplyAllPopover}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            disabled={!hasAnyValue}
+            title="Aplicar campos para todos"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            Aplicar p/ Todos
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-3" align="start">
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-foreground">Selecione os campos para aplicar:</p>
+            
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox 
+                  checked={applyFields.frente} 
+                  onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, frente: !!checked }))}
+                  disabled={!editValues.portico}
+                />
+                <span className={cn("text-xs", !editValues.portico && "text-muted-foreground")}>
+                  Frente {editValues.portico ? `(${editValues.portico})` : '(vazio)'}
+                </span>
+              </label>
+              
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox 
+                  checked={applyFields.disciplina} 
+                  onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, disciplina: !!checked }))}
+                  disabled={!editValues.disciplina}
+                />
+                <span className={cn("text-xs", !editValues.disciplina && "text-muted-foreground")}>
+                  Disciplina {editValues.disciplina ? `(${editValues.disciplina})` : '(vazio)'}
+                </span>
+              </label>
+              
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox 
+                  checked={applyFields.servico} 
+                  onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, servico: !!checked }))}
+                  disabled={!editValues.service}
+                />
+                <span className={cn("text-xs", !editValues.service && "text-muted-foreground")}>
+                  Serviço {editValues.service ? `(${editValues.service})` : '(vazio)'}
+                </span>
+              </label>
+              
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox 
+                  checked={applyFields.data} 
+                  onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, data: !!checked }))}
+                  disabled={!editValues.data_detectada}
+                />
+                <span className={cn("text-xs", !editValues.data_detectada && "text-muted-foreground")}>
+                  Data {editValues.data_detectada ? `(${editValues.data_detectada})` : '(vazio)'}
+                </span>
+              </label>
+            </div>
+            
+            {selectedCount > 0 && (
+              <div className="flex flex-col gap-2 pt-2 border-t border-border">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start text-xs gap-2"
+                  onClick={() => handleApplySelectedFields(false)}
+                >
+                  <CopyCheck className="w-3 h-3" />
+                  Aplicar em todos ({results.length})
+                </Button>
+                {selectedRows.size > 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="w-full justify-start text-xs gap-2"
+                    onClick={() => handleApplySelectedFields(true)}
+                  >
+                    <CopyCheck className="w-3 h-3" />
+                    Aplicar nos selecionados ({selectedRows.size})
+                  </Button>
+                )}
+              </div>
             )}
           </div>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
+        </PopoverContent>
+      </Popover>
+    );
+  };
 
   return (
     <div className="glass-card overflow-hidden">
@@ -758,14 +834,11 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   
                   <TableCell>
                     {isEditing ? (
-                      <div className="flex items-center">
-                        <Input 
-                          value={editValues.portico || ''}
-                          onChange={(e) => setEditValues({...editValues, portico: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
-                          className="h-8 w-24 font-mono text-xs"
-                        />
-                        <ApplyAllButton field="frente" />
-                      </div>
+                      <Input 
+                        value={editValues.portico || ''}
+                        onChange={(e) => setEditValues({...editValues, portico: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
+                        className="h-8 w-24 font-mono text-xs"
+                      />
                     ) : (
                       <span className="text-sm font-medium text-foreground">
                         {result.portico || '-'}
@@ -775,22 +848,19 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   
                   <TableCell>
                     {isEditing ? (
-                      <div className="flex items-center">
-                        <Select 
-                          value={editValues.disciplina || ''} 
-                          onValueChange={(v) => setEditValues({...editValues, disciplina: v})}
-                        >
-                          <SelectTrigger className="h-8 w-32 font-mono text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {DISCIPLINAS.map(d => (
-                              <SelectItem key={d} value={d} className="font-mono text-xs">{d}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <ApplyAllButton field="disciplina" />
-                      </div>
+                      <Select 
+                        value={editValues.disciplina || ''} 
+                        onValueChange={(v) => setEditValues({...editValues, disciplina: v})}
+                      >
+                        <SelectTrigger className="h-8 w-32 font-mono text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DISCIPLINAS.map(d => (
+                            <SelectItem key={d} value={d} className="font-mono text-xs">{d}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     ) : (
                       <span className="text-sm text-foreground">
                         {result.disciplina || '-'}
@@ -800,14 +870,11 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   
                   <TableCell>
                     {isEditing ? (
-                      <div className="flex items-center">
-                        <Input 
-                          value={editValues.service || ''}
-                          onChange={(e) => setEditValues({...editValues, service: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
-                          className="h-8 w-28 font-mono text-xs"
-                        />
-                        <ApplyAllButton field="servico" />
-                      </div>
+                      <Input 
+                        value={editValues.service || ''}
+                        onChange={(e) => setEditValues({...editValues, service: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
+                        className="h-8 w-28 font-mono text-xs"
+                      />
                     ) : (
                       <span className="text-sm text-foreground truncate max-w-[120px] block">
                         {result.service || '-'}
@@ -817,16 +884,13 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   
                   <TableCell>
                     {isEditing ? (
-                      <div className="flex items-center">
-                        <Input 
-                          value={editValues.data_detectada || ''}
-                          onChange={(e) => setEditValues({...editValues, data_detectada: e.target.value})}
-                          placeholder="DD/MM/AAAA"
-                          className="h-8 w-24 font-mono text-xs"
-                          maxLength={10}
-                        />
-                        <ApplyAllButton field="data" />
-                      </div>
+                      <Input 
+                        value={editValues.data_detectada || ''}
+                        onChange={(e) => setEditValues({...editValues, data_detectada: e.target.value})}
+                        placeholder="DD/MM/AAAA"
+                        className="h-8 w-24 font-mono text-xs"
+                        maxLength={10}
+                      />
                     ) : (
                       <span className="text-xs text-muted-foreground font-mono">
                         {result.data_detectada || '-'}
@@ -942,11 +1006,13 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                     <div className="flex items-center gap-1">
                       {isEditing ? (
                         <>
+                          <ApplyAllPopover />
                           <Button 
                             variant="ghost" 
                             size="icon"
                             className="h-7 w-7 text-success hover:text-success"
                             onClick={() => handleSaveEdit(result)}
+                            title="Salvar"
                           >
                             <Check className="w-4 h-4" />
                           </Button>
@@ -955,6 +1021,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                             size="icon"
                             className="h-7 w-7 text-destructive hover:text-destructive"
                             onClick={handleCancelEdit}
+                            title="Cancelar"
                           >
                             <X className="w-4 h-4" />
                           </Button>
