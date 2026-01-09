@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2, Filter, RefreshCw, ExternalLink } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2, Filter, RefreshCw, ExternalLink, Map } from 'lucide-react';
 import { LocationMap, parseDMSCoordinates } from '@/components/LocationMap';
+import { MiniMap } from '@/components/MiniMap';
 import {
   Dialog,
   DialogContent,
@@ -116,6 +117,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
   const [originalValues, setOriginalValues] = useState<Partial<ProcessingResult>>({});
   const [mapResult, setMapResult] = useState<ProcessingResult | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [miniMapResult, setMiniMapResult] = useState<string | null>(null);
   const { salvarCorrecao } = useAprendizadoOCR();
 
   // Extrai coordenadas do resultado (EXIF ou OCR)
@@ -613,50 +615,93 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                     )}
                   </TableCell>
                   
-                  {/* GPS / Location Column */}
-                  <TableCell>
+                  {/* GPS / Location Column with Mini Map */}
+                  <TableCell className="relative">
                     {(() => {
                       const location = getLocationSearchUrl(result);
                       const hasGPS = coords !== null;
                       const endereco = (result as any).endereco;
                       const cidade = (result as any).cidade;
+                      const showMiniMap = miniMapResult === result.filename && hasGPS && coords;
                       
                       if (location) {
                         return (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => window.open(location.url, '_blank')}
-                                className={cn(
-                                  "flex items-center gap-1 transition-colors cursor-pointer",
-                                  location.type === 'gps' ? "text-primary hover:text-primary/80" : 
-                                  location.type === 'address' ? "text-success hover:text-success/80" :
-                                  "text-warning hover:text-warning/80"
-                                )}
-                              >
-                                <MapPin className="w-4 h-4" />
-                                <ExternalLink className="w-3 h-3" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {location.type === 'gps' ? (
-                                <>
-                                  <p className="text-xs font-mono">{coords!.lat.toFixed(6)}, {coords!.lng.toFixed(6)}</p>
-                                  <p className="text-xs text-muted-foreground">📍 GPS exato - Clique para abrir</p>
-                                </>
-                              ) : location.type === 'address' ? (
-                                <>
-                                  <p className="text-xs">{endereco || cidade}</p>
-                                  <p className="text-xs text-muted-foreground">🏠 Endereço - Clique para buscar</p>
-                                </>
-                              ) : (
-                                <>
-                                  <p className="text-xs font-mono">{result.rodovia} KM {result.km_inicio}</p>
-                                  <p className="text-xs text-muted-foreground">🛣️ Rodovia - Clique para buscar</p>
-                                </>
+                          <div className="relative">
+                            <div className="flex items-center gap-1">
+                              {/* Map icon - toggle mini map */}
+                              {hasGPS && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      onClick={() => setMiniMapResult(showMiniMap ? null : result.filename)}
+                                      className={cn(
+                                        "flex items-center transition-colors cursor-pointer",
+                                        showMiniMap ? "text-primary" : "text-muted-foreground hover:text-primary"
+                                      )}
+                                    >
+                                      <Map className="w-4 h-4" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs">{showMiniMap ? 'Ocultar' : 'Ver'} mini-mapa</p>
+                                  </TooltipContent>
+                                </Tooltip>
                               )}
-                            </TooltipContent>
-                          </Tooltip>
+                              
+                              {/* External link to Google Maps */}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => window.open(location.url, '_blank')}
+                                    className={cn(
+                                      "flex items-center gap-1 transition-colors cursor-pointer",
+                                      location.type === 'gps' ? "text-primary hover:text-primary/80" : 
+                                      location.type === 'address' ? "text-success hover:text-success/80" :
+                                      "text-warning hover:text-warning/80"
+                                    )}
+                                  >
+                                    <MapPin className="w-4 h-4" />
+                                    <ExternalLink className="w-3 h-3" />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {location.type === 'gps' ? (
+                                    <>
+                                      <p className="text-xs font-mono">{coords!.lat.toFixed(6)}, {coords!.lng.toFixed(6)}</p>
+                                      <p className="text-xs text-muted-foreground">📍 GPS exato - Clique para abrir</p>
+                                    </>
+                                  ) : location.type === 'address' ? (
+                                    <>
+                                      <p className="text-xs">{endereco || cidade}</p>
+                                      <p className="text-xs text-muted-foreground">🏠 Endereço - Clique para buscar</p>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <p className="text-xs font-mono">{result.rodovia} KM {result.km_inicio}</p>
+                                      <p className="text-xs text-muted-foreground">🛣️ Rodovia - Clique para buscar</p>
+                                    </>
+                                  )}
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                            
+                            {/* Mini Map Popup */}
+                            {showMiniMap && coords && (
+                              <div className="absolute z-50 top-full left-0 mt-1 w-48 h-32 bg-card border border-border rounded-lg shadow-lg overflow-hidden">
+                                <MiniMap 
+                                  latitude={coords.lat} 
+                                  longitude={coords.lng}
+                                  zoom={15}
+                                />
+                                <button
+                                  onClick={() => setMiniMapResult(null)}
+                                  className="absolute top-1 right-1 bg-background/90 rounded-full p-1 hover:bg-background"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         );
                       }
                       
