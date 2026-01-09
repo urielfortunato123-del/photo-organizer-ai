@@ -559,23 +559,56 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
               </div>
             </div>
             ) : (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">Frente de Serviço</p>
-                  <p className="font-mono text-sm font-medium">{result.portico || '-'}</p>
+              <div className="space-y-4">
+                {/* Linha 1: Classificação principal */}
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Frente de Serviço</p>
+                    <p className="font-mono text-sm font-medium">{result.portico || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Disciplina</p>
+                    <p className="font-mono text-sm font-medium">{result.disciplina || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Serviço</p>
+                    <p className="font-mono text-sm font-medium">{result.service || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Data</p>
+                    <p className="font-mono text-sm font-medium">{result.data_detectada || '-'}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Disciplina</p>
-                  <p className="font-mono text-sm font-medium">{result.disciplina || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Serviço</p>
-                  <p className="font-mono text-sm font-medium">{result.service || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Data</p>
-                  <p className="font-mono text-sm font-medium">{result.data_detectada || '-'}</p>
-                </div>
+                
+                {/* Linha 2: Informações adicionais extraídas (se disponíveis) */}
+                {(result.motorista || result.colaborador || result.atividade || result.hora) && (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-3 border-t border-border/50">
+                    {result.atividade && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Atividade</p>
+                        <p className="font-mono text-sm font-medium">{result.atividade}</p>
+                      </div>
+                    )}
+                    {result.motorista && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Motorista</p>
+                        <p className="font-mono text-sm font-medium">{result.motorista}</p>
+                      </div>
+                    )}
+                    {result.colaborador && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Colaborador</p>
+                        <p className="font-mono text-sm font-medium">{result.colaborador}</p>
+                      </div>
+                    )}
+                    {result.hora && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Hora</p>
+                        <p className="font-mono text-sm font-medium">{result.hora}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

@@ -229,15 +229,17 @@ ${exifData?.date ? `Data EXIF: ${exifData.date}` : ''}
 ${exifData?.gps ? `GPS: ${exifData.gps.lat.toFixed(4)}, ${exifData.gps.lon.toFixed(4)}` : ''}
 ${obrasConhecidas || ''}
 
-## TAREFA (APENAS CLASSIFICAÇÃO VISUAL)
+## TAREFA (CLASSIFICAÇÃO VISUAL + EXTRAÇÃO DE TEXTO)
 1. **FRENTE (portico)**: Use "${frenteIdentificada}" se já identificado.
 2. **DISCIPLINA**: FUNDACAO | ESTRUTURA | PORTICO_FREE_FLOW | CONTENCAO | TERRAPLENAGEM | DRENAGEM | PAVIMENTACAO | SINALIZACAO | BARREIRAS | ACABAMENTO | REVESTIMENTO | ALVENARIA | HIDRAULICA | ELETRICA | SEGURANCA | PAISAGISMO | MANUTENCAO | DEMOLICAO | OAC_OAE | OUTROS
-3. **SERVIÇO**: Específico da disciplina
-4. **DESCRIÇÃO**: O que você vê (1-2 frases)
+3. **SERVIÇO**: Específico (SIGA_PARE, ARMADURA, CONCRETAGEM, etc.)
+4. **MOTORISTA/COLABORADOR**: Extraia nomes se visíveis no texto da imagem
+5. **ATIVIDADE**: O que está sendo feito (SIGA/PARE, ROÇADA, INSTALAÇÃO, etc.)
+6. **DESCRIÇÃO**: O que você vê (1-2 frases)
 
 ## RESPOSTA JSON
 \`\`\`json
-{"portico":"${frenteIdentificada}","disciplina":"FUNDACAO","servico":"ARMADURA","analise_tecnica":"Descrição curta","confidence":0.85}
+{"portico":"${frenteIdentificada}","disciplina":"SINALIZACAO","servico":"SIGA_PARE","motorista":"Nome se visível","colaborador":"Nome se visível","atividade":"SIGA/PARE","analise_tecnica":"Descrição curta","confidence":0.85}
 \`\`\`
 
 Responda APENAS com JSON.`;
@@ -251,80 +253,75 @@ Responda APENAS com JSON.`;
 ${exifInfo}
 ${obrasConhecidas || ''}
 
-## ⚠️ IMPORTANTE: LEITURA DE TEXTO NA IMAGEM
+## ⚠️ IMPORTANTE: LEITURA COMPLETA DE TEXTO NA IMAGEM
 
-A maioria das fotos de obra tem uma LEGENDA/MARCA D'ÁGUA com texto BRANCO ou CLARO no canto inferior da imagem.
-Este texto frequentemente está em **BAIXO CONTRASTE** (branco sobre fundo claro ou cinza).
-Você DEVE fazer esforço extra para ler este texto mesmo que seja difícil de ver!
+A maioria das fotos de obra tem uma LEGENDA/MARCA D'ÁGUA no canto (geralmente inferior direito) com MUITAS informações importantes.
+Você DEVE ler TODO o texto visível, mesmo que seja difícil de ver (texto branco/claro, baixo contraste).
 
-### PADRÃO TÍPICO DA LEGENDA (geralmente no rodapé da foto):
+### PADRÃO TÍPICO DA LEGENDA (campos que você deve extrair):
 \`\`\`
-27 de ago. de 2025 11:49:21    ← DATA E HORA
-Free Flow P-10                  ← FRENTE DE SERVIÇO (IMPORTANTE!)
-SP-280 KM 57                    ← RODOVIA E KM
+9 DE OUT. DE 2025 05:53:08     ← DATA E HORA
+24.048226... 47.570556...W     ← COORDENADAS GPS
+SIGA/PARE                       ← ATIVIDADE/SERVIÇO
+SP 079                          ← RODOVIA
+KM 167                          ← QUILOMETRAGEM
+MOTORISTA: RODRIGO              ← NOME DO MOTORISTA
+COLABORADOR: DAVI               ← NOME DO COLABORADOR
 \`\`\`
 
-### DICAS PARA LER TEXTO CLARO/BRANCO:
-- Olhe com atenção especial nos cantos da imagem (especialmente inferior)
+### DICAS PARA LER TEXTO:
+- Olhe com atenção no canto inferior direito da imagem
+- Procure por nomes de pessoas (MOTORISTA:, COLABORADOR:, ENCARREGADO:)
+- Procure atividades específicas (SIGA/PARE, ROÇADA, LIMPEZA, etc.)
 - O texto pode ter sombra sutil ou estar semi-transparente
-- Procure por números (datas, KMs) e nomes (BSO, Pórtico, Free Flow, Cortina, etc.)
 
-## CONCEITOS - NÃO CONFUNDA!
+## CAMPOS A EXTRAIR
 
-### LOCALIZAÇÃO (onde a foto foi tirada - campos rodovia, km):
-- SP-280, BR-116, SP-270 → Indica RODOVIA
-- KM 57, KM 150 → Indica QUILOMETRAGEM
+### OBRIGATÓRIOS:
+- **portico**: Frente de serviço (BSO, Free Flow, SIGA/PARE, etc.)
+- **disciplina**: SINALIZACAO | TERRAPLENAGEM | PAVIMENTACAO | DRENAGEM | etc.
+- **servico**: Atividade específica (SIGA_PARE, ROCADA, CONCRETAGEM, etc.)
+- **data**: Data no formato DD/MM/AAAA
+- **rodovia**: SP_079, BR_116, etc.
+- **km_inicio**: Quilometragem
 
-### FRENTE DE SERVIÇO (campo portico - NÃO é rodovia nem KM!):
-| Texto na Foto | Campo portico |
-|---------------|---------------|
-| "BSO - 01", "BSO - 04" | BSO_01, BSO_04 |
-| "Free Flow P-10", "Free Flow P17" | FREE_FLOW_P10, FREE_FLOW_P17 |
-| "Pórtico 03" | PORTICO_03 |
-| "Passarela 02" | PASSARELA_02 |
-| "Viaduto KM 95" | VIADUTO_KM95 |
-| "Cortina Atirantada", "Cortina 01" | CORTINA_ATIRANTADA, CORTINA_01 |
-| "OAE 05" | OAE_05 |
-| "Praça de Pedágio" | PRACA_PEDAGIO |
+### EXTRAS (extrair se visíveis na imagem):
+- **motorista**: Nome do motorista (se aparecer "MOTORISTA: NOME")
+- **colaborador**: Nome do colaborador (se aparecer "COLABORADOR: NOME")
+- **atividade**: Descrição da atividade (SIGA/PARE, ROÇADA MANUAL, etc.)
+- **hora**: Horário se visível
 
-⚠️ ERRO COMUM: Não use "SP_280" ou "KM_57" como portico - esses são LOCALIZAÇÃO!
+## TAREFA: ANALISE A IMAGEM COMPLETAMENTE
 
-## TAREFA: ANALISE A IMAGEM
+1. **LEIA TODO O TEXTO** visível na imagem
+2. **EXTRAIA TODOS OS CAMPOS** listados acima
+3. **IDENTIFIQUE** o tipo de trabalho sendo realizado
+4. **CLASSIFIQUE** a disciplina corretamente
 
-1. **PROCURE TEXTO** na imagem, especialmente:
-   - Legenda no canto inferior (mesmo que seja texto claro/branco)
-   - Placas de identificação
-   - Qualquer texto visível
-
-2. **EXTRAIA** do texto encontrado:
-   - Frente de serviço (BSO, Free Flow, Pórtico, etc.) → campo \`portico\`
-   - Rodovia → campo \`rodovia\`
-   - KM → campo \`km_inicio\`
-   - Data (formato DD/MM/AAAA) → campo \`data\`
-
-3. **CLASSIFIQUE** visualmente:
-   - \`disciplina\`: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
-   - \`servico\`: Específico (CONCRETAGEM, ARMADURA, FORMA, etc.)
-
-## RESPOSTA JSON (APENAS ISSO, NADA MAIS)
+## RESPOSTA JSON (TODOS OS CAMPOS ENCONTRADOS)
 
 \`\`\`json
 {
-  "portico":"FREE_FLOW_P10",
-  "disciplina":"ESTRUTURA",
-  "servico":"CONCRETAGEM",
-  "data":"27/08/2025",
-  "rodovia":"SP_280",
-  "km_inicio":"57",
+  "portico":"SIGA_PARE",
+  "disciplina":"SINALIZACAO",
+  "servico":"SIGA_PARE",
+  "data":"09/10/2025",
+  "hora":"05:53:08",
+  "rodovia":"SP_079",
+  "km_inicio":"167",
   "sentido":"",
-  "analise_tecnica":"Trabalhador dispensando concreto em carrinho de mão",
+  "motorista":"RODRIGO",
+  "colaborador":"DAVI",
+  "atividade":"SIGA/PARE - Controle de tráfego",
+  "analise_tecnica":"Trabalhador com placa SIGA controlando tráfego em obra rodoviária",
   "confidence":0.95,
-  "ocr_text":"27 de ago. de 2025 11:49:21 Free Flow P-10 SP-280",
+  "ocr_text":"9 DE OUT. DE 2025 05:53:08 24.048... SIGA/PARE SP 079 KM 167 MOTORISTA: RODRIGO COLABORADOR: DAVI",
   "alertas":{"sem_placa":false,"texto_ilegivel":false}
 }
 \`\`\`
 
-Se você leu claramente uma frente de serviço como "Free Flow P-10", a confidence deve ser 0.90+.
+⚠️ IMPORTANTE: Extraia TODOS os nomes e informações visíveis. Não deixe campos vazios se a informação estiver na imagem!
+
 Se não encontrar frente de serviço, use "${defaultPortico || 'NAO_IDENTIFICADO'}" como portico.
 
 Responda APENAS com JSON válido.`;
@@ -479,11 +476,16 @@ serve(async (req) => {
       disciplina: normalizeField(result.disciplina, 'OUTROS'),
       servico: normalizeField(result.servico, 'NAO_IDENTIFICADO'),
       data: normalizeDate(ocrInput?.data || result.data || exifData?.date),
+      hora: result.hora || null,
       rodovia: normalizeField(ocrInput?.rodovia || obraIdentificada?.rodovia || result.rodovia, ''),
       km_inicio: ocrInput?.km_inicio || result.km_inicio || null,
       km_fim: ocrInput?.km_fim || result.km_fim || null,
       sentido: normalizeField(ocrInput?.sentido || result.sentido, ''),
       tipo_documento: result.tipo_documento || 'FOTO',
+      // Novos campos extraídos
+      motorista: result.motorista || null,
+      colaborador: result.colaborador || null,
+      atividade: result.atividade || null,
       analise_tecnica: result.analise_tecnica || '',
       confidence: normalizeConfidence(result.confidence),
       ocr_text: ocrInput?.rawText || result.ocr_text || '',

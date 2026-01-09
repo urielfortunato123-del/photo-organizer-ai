@@ -37,6 +37,11 @@ export interface ProcessingResult {
   device?: string;
   // Banco de conhecimento
   obra_id?: string;
+  // Novos campos extraídos da legenda
+  motorista?: string;
+  colaborador?: string;
+  atividade?: string;
+  hora?: string;
   // Alertas
   alertas?: {
     sem_placa?: boolean;
@@ -254,17 +259,22 @@ export const api = {
         service: data.servico,
         empresa: empresaNome,
         data_detectada: data.data,
+        hora: data.hora || undefined,
         tecnico: data.analise_tecnica,
         confidence: data.confidence,
         method: data.method || 'ia_forcada',
         ocr_text: data.ocr_text,
         obra_id: data.obra_id || undefined,
-        // Novos campos OCR avançado
+        // Campos OCR avançado
         rodovia: data.rodovia || undefined,
         km_inicio: data.km_inicio || undefined,
         km_fim: data.km_fim || undefined,
         sentido: data.sentido || undefined,
         tipo_documento: data.tipo_documento || 'FOTO',
+        // Novos campos extraídos
+        motorista: data.motorista || undefined,
+        colaborador: data.colaborador || undefined,
+        atividade: data.atividade || undefined,
         alertas: data.alertas,
         dest: buildDestPath(empresaNome, data.portico, data.disciplina, data.servico, data.data, true),
       };
@@ -328,6 +338,7 @@ export const api = {
           service: r.result.servico as string,
           empresa: empresaNome,
           data_detectada: r.result.data as string | undefined,
+          hora: r.result.hora as string | undefined,
           tecnico: r.result.analise_tecnica as string,
           confidence: r.result.confidence as number,
           method: (r.result.method as ProcessingResult['method']) || 'ia_forcada',
@@ -337,6 +348,10 @@ export const api = {
           km_inicio: r.result.km_inicio as string | undefined,
           km_fim: r.result.km_fim as string | undefined,
           sentido: r.result.sentido as string | undefined,
+          // Novos campos
+          motorista: r.result.motorista as string | undefined,
+          colaborador: r.result.colaborador as string | undefined,
+          atividade: r.result.atividade as string | undefined,
           alertas: r.result.alertas as ProcessingResult['alertas'],
           dest: buildDestPath(
             empresaNome,
