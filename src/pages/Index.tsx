@@ -4,7 +4,7 @@ import {
   Play, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree, Folder,
   User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet,
-  Plus, X, Database, Clock, FileText, AlertTriangle, Zap, Layers
+  Plus, X, Database, Clock, FileText, AlertTriangle, Zap, Layers, Save, FileUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,6 +39,7 @@ import EnhancedResultsView from '@/components/EnhancedResultsView';
 import TourOverlay from '@/components/TourOverlay';
 import Header from '@/components/Header';
 import { exportToExcelXML } from '@/utils/exportExcel';
+import { exportResultsJSON, importResultsJSON, mergeResults } from '@/utils/exportResults';
 import { useImageCache } from '@/hooks/useImageCache';
 import { useAuth } from '@/hooks/useAuth';
 import { useOCR, extractStructuredData } from '@/hooks/useOCR';
@@ -901,6 +902,43 @@ const Index: React.FC = () => {
     });
   }, [toast, imageCache]);
 
+  // Import saved session
+  const handleImportSession = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const imported = await importResultsJSON(file);
+    if (!imported) {
+      toast({
+        title: "Erro ao importar",
+        description: "O arquivo não é uma sessão válida do ObraPhoto.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Merge with existing results
+    const merged = mergeResults(results, imported.results);
+    setResults(merged);
+    setEmpresa(imported.empresa);
+    
+    // Mark imported filenames as processed
+    const importedNames = imported.results.map(r => r.filename);
+    setProcessedFiles(prev => {
+      const updated = new Set(prev);
+      importedNames.forEach(name => updated.add(name));
+      return updated;
+    });
+
+    toast({
+      title: "Sessão importada!",
+      description: `${imported.results.length} classificações restauradas. Faça upload das fotos para baixar o ZIP.`,
+    });
+
+    // Clear the input
+    event.target.value = '';
+  }, [results, toast]);
+
   const handleDeletePhotos = useCallback((filenames: string[]) => {
     // Remove from files
     setFiles(prev => prev.filter(f => !filenames.includes(f.name)));
@@ -1171,7 +1209,25 @@ const Index: React.FC = () => {
                       <h2 className="text-2xl font-semibold text-foreground">Resultados da Análise</h2>
                       <p className="text-muted-foreground">{results.length} fotos processadas</p>
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 flex-wrap">
+                      {/* Hidden file input for import */}
+                      <input
+                        type="file"
+                        id="import-session"
+                        accept=".json"
+                        className="hidden"
+                        onChange={handleImportSession}
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => document.getElementById('import-session')?.click()}
+                        disabled={isProcessing}
+                        className="rounded-xl border-blue-500/50 text-blue-600 hover:bg-blue-500/10"
+                        title="Carregar sessão salva anteriormente"
+                      >
+                        <FileUp className="w-4 h-4" />
+                        Carregar
+                      </Button>
                       <Button
                         variant="outline"
                         onClick={() => setShowDetailedReport(true)}
@@ -1180,6 +1236,16 @@ const Index: React.FC = () => {
                       >
                         <FileText className="w-4 h-4" />
                         Relatório Detalhado
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => exportResultsJSON(results, empresa)}
+                        disabled={isProcessing}
+                        className="rounded-xl border-green-500/50 text-green-600 hover:bg-green-500/10"
+                        title="Salva as classificações para continuar depois"
+                      >
+                        <Save className="w-4 h-4" />
+                        Salvar
                       </Button>
                       <Button
                         variant="outline"
