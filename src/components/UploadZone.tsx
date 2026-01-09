@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, ImagePlus, X, FolderTree, FolderOpen, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,25 @@ interface UploadZoneProps {
   files: File[];
   onFilesChange: (files: File[]) => void;
 }
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.95 },
+  visible: { 
+    opacity: 1, 
+    y: 0, 
+    scale: 1,
+    transition: {
+      type: "spring" as const,
+      stiffness: 300,
+      damping: 30
+    }
+  },
+  exit: { 
+    opacity: 0, 
+    scale: 0.9,
+    transition: { duration: 0.2 }
+  }
+};
 
 const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -186,22 +206,41 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
   }, [files, onFilesChange]);
 
   return (
-    <div className="space-y-5">
+    <motion.div 
+      className="space-y-5"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
       {/* Folder Selection - Two Cards Side by Side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Main Folder Button */}
-        <div 
+        <motion.div 
           onClick={!isScanning ? handleSelectFolder : undefined}
           className={cn(
             "relative group cursor-pointer rounded-xl border-2 border-dashed p-6 transition-all duration-200",
             "border-primary/40 bg-primary/5 hover:border-primary hover:bg-primary/10",
             isScanning && "pointer-events-none opacity-70"
           )}
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          whileHover={{ 
+            scale: 1.02, 
+            y: -4,
+            transition: { type: "spring", stiffness: 400, damping: 25 }
+          }}
+          whileTap={{ scale: 0.98 }}
         >
           <div className="flex flex-col items-center gap-3 text-center">
             {isScanning ? (
               <>
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                >
+                  <Loader2 className="h-8 w-8 text-primary" />
+                </motion.div>
                 <div>
                   <p className="text-sm font-medium text-foreground">Escaneando...</p>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -211,9 +250,13 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
               </>
             ) : (
               <>
-                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <motion.div 
+                  className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center"
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                >
                   <FolderTree className="h-6 w-6 text-primary" />
-                </div>
+                </motion.div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">Selecionar Pasta</p>
                   <p className="text-xs text-muted-foreground mt-1">Lê todas as subpastas automaticamente</p>
@@ -226,10 +269,16 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
               No preview, o navegador bloqueia seleção de pastas. Publique/abra em uma aba ou use o método alternativo.
             </p>
           )}
-        </div>
+        </motion.div>
 
         {/* Fallback folder input */}
-        <div className="relative">
+        <motion.div 
+          className="relative"
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          transition={{ delay: 0.1 }}
+        >
           <input
             type="file"
             // @ts-ignore
@@ -240,26 +289,37 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
             disabled={isScanning}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
           />
-          <div className={cn(
-            "h-full rounded-xl border-2 border-dashed p-6 transition-all duration-200",
-            "border-border bg-secondary/30 hover:border-muted-foreground/50 hover:bg-secondary/50",
-            isScanning && "opacity-50 pointer-events-none"
-          )}>
+          <motion.div 
+            className={cn(
+              "h-full rounded-xl border-2 border-dashed p-6 transition-all duration-200",
+              "border-border bg-secondary/30 hover:border-muted-foreground/50 hover:bg-secondary/50",
+              isScanning && "opacity-50 pointer-events-none"
+            )}
+            whileHover={{ 
+              scale: 1.02, 
+              y: -4,
+              transition: { type: "spring", stiffness: 400, damping: 25 }
+            }}
+          >
             <div className="flex flex-col items-center gap-3 text-center h-full justify-center">
-              <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center">
+              <motion.div 
+                className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center"
+                whileHover={{ scale: 1.1, rotate: -5 }}
+                transition={{ type: "spring", stiffness: 400, damping: 20 }}
+              >
                 <FolderOpen className="h-6 w-6 text-muted-foreground" />
-              </div>
+              </motion.div>
               <div>
                 <p className="text-sm font-medium text-foreground">Método Alternativo</p>
                 <p className="text-xs text-muted-foreground mt-1">Para navegadores mais antigos</p>
               </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
 
       {/* Drop zone for individual files */}
-      <div
+      <motion.div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -268,6 +328,15 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
           "border-border bg-secondary/20 hover:border-muted-foreground/40 hover:bg-secondary/30",
           isDragging && "border-primary bg-primary/10"
         )}
+        variants={cardVariants}
+        initial="hidden"
+        animate="visible"
+        transition={{ delay: 0.2 }}
+        whileHover={{ scale: 1.01 }}
+        animate-presence={{ 
+          scale: isDragging ? 1.02 : 1,
+          borderColor: isDragging ? "hsl(var(--primary))" : undefined
+        }}
       >
         <input
           type="file"
@@ -279,15 +348,19 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
         />
         <label htmlFor="file-upload" className="cursor-pointer block">
           <div className="flex flex-col items-center gap-3">
-            <div className={cn(
-              "w-12 h-12 rounded-xl bg-secondary flex items-center justify-center transition-transform",
-              isDragging && "scale-110 bg-primary/20"
-            )}>
+            <motion.div 
+              className={cn(
+                "w-12 h-12 rounded-xl bg-secondary flex items-center justify-center transition-transform",
+                isDragging && "bg-primary/20"
+              )}
+              animate={isDragging ? { scale: 1.1, rotate: 10 } : { scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 400, damping: 20 }}
+            >
               <Upload className={cn(
                 "w-6 h-6 text-muted-foreground transition-colors",
                 isDragging && "text-primary"
               )} />
-            </div>
+            </motion.div>
             <div>
               <p className="text-sm font-medium text-foreground">
                 Ou arraste fotos individuais aqui
@@ -298,51 +371,81 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
             </div>
           </div>
         </label>
-      </div>
+      </motion.div>
 
-      {files.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-foreground">
-              {files.length} {files.length === 1 ? 'arquivo selecionado' : 'arquivos selecionados'}
-            </p>
-            <button
-              onClick={() => onFilesChange([])}
-              className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-            >
-              Limpar todos
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-64 overflow-y-auto scrollbar-thin p-1">
-            {files.map((file, index) => (
-              <div
-                key={`${file.name}-${index}`}
-                className="relative group animate-scale-in"
-                style={{ animationDelay: `${index * 50}ms` }}
+      <AnimatePresence>
+        {files.length > 0 && (
+          <motion.div 
+            className="space-y-3"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-foreground">
+                {files.length} {files.length === 1 ? 'arquivo selecionado' : 'arquivos selecionados'}
+              </p>
+              <motion.button
+                onClick={() => onFilesChange([])}
+                className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <div className="aspect-square rounded-lg overflow-hidden bg-secondary border border-border">
-                  <img
-                    src={URL.createObjectURL(file)}
-                    alt={file.name}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                  />
-                </div>
-                <button
-                  onClick={() => removeFile(index)}
-                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-                <p className="text-[10px] text-muted-foreground truncate mt-1 px-1">
-                  {file.name}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+                Limpar todos
+              </motion.button>
+            </div>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-64 overflow-y-auto scrollbar-thin p-1">
+              <AnimatePresence mode="popLayout">
+                {files.map((file, index) => (
+                  <motion.div
+                    key={`${file.name}-${index}`}
+                    className="relative group"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.5 }}
+                    transition={{ 
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 25,
+                      delay: index * 0.02
+                    }}
+                    layout
+                  >
+                    <motion.div 
+                      className="aspect-square rounded-lg overflow-hidden bg-secondary border border-border"
+                      whileHover={{ scale: 1.05, y: -4 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                    >
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={file.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </motion.div>
+                    <motion.button
+                      onClick={() => removeFile(index)}
+                      className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 shadow-lg"
+                      initial={{ scale: 0 }}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      animate={{ opacity: 0 }}
+                      whileInView={{ opacity: 1 }}
+                    >
+                      <X className="w-3 h-3" />
+                    </motion.button>
+                    <p className="text-[10px] text-muted-foreground truncate mt-1 px-1">
+                      {file.name}
+                    </p>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 };
 
