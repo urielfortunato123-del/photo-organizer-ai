@@ -550,20 +550,41 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   </TableCell>
                   
                   <TableCell>
-                    <div 
-                      className="w-10 h-10 rounded-lg overflow-hidden bg-secondary flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-primary"
-                      onClick={() => onViewPhoto?.(result, imageUrl)}
-                    >
-                      {imageUrl ? (
-                        <img 
-                          src={imageUrl} 
-                          alt={result.filename}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <FileImage className="w-4 h-4 text-muted-foreground" />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div 
+                          className="w-10 h-10 rounded-lg overflow-hidden bg-secondary flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-primary"
+                          onClick={() => onViewPhoto?.(result, imageUrl)}
+                        >
+                          {imageUrl ? (
+                            <img 
+                              src={imageUrl} 
+                              alt={result.filename}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <FileImage className="w-4 h-4 text-muted-foreground" />
+                          )}
+                        </div>
+                      </TooltipTrigger>
+                      {result.tecnico && (
+                        <TooltipContent 
+                          side="right" 
+                          className="max-w-xs bg-card border border-border shadow-lg"
+                          sideOffset={8}
+                        >
+                          <div className="space-y-1">
+                            <p className="text-xs font-medium flex items-center gap-1 text-primary">
+                              <Brain className="w-3 h-3" />
+                              Análise da IA
+                            </p>
+                            <p className="text-xs text-foreground leading-relaxed">
+                              {result.tecnico}
+                            </p>
+                          </div>
+                        </TooltipContent>
                       )}
-                    </div>
+                    </Tooltip>
                   </TableCell>
                   
                   <TableCell>

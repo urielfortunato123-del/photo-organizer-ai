@@ -355,14 +355,16 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
           .photo-item img {
             width: 100% !important;
             height: auto !important;
-            max-height: 180px !important;
+            min-height: 200px !important;
+            max-height: 280px !important;
             object-fit: cover !important;
           }
           
           .aspect-\\[4\\/3\\] {
             aspect-ratio: 4/3 !important;
             height: auto !important;
-            max-height: 180px !important;
+            min-height: 200px !important;
+            max-height: 280px !important;
           }
           
           /* Tables */
