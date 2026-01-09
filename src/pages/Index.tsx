@@ -702,15 +702,21 @@ const Index: React.FC = () => {
       return null;
     };
 
-    // "Bem curto": dentro do ZIP, usa só a data da foto como pasta (DD_MM)
-    const buildDateOnlyPath = (r: ProcessingResult) => {
+    // Usa a estrutura completa do result.dest (FOTOS/SERVICO/ESTRUTURA/ATIVIDADE/TIPO/MES/DIA)
+    const getFullPath = (r: ProcessingResult) => {
+      if (r.dest) {
+        // Remove o prefixo EMPRESA se existir (já está na raiz do ZIP)
+        const cleanDest = r.dest.replace(/^[^/]+\//, '');
+        return cleanDest || 'SEM_CLASSIFICACAO';
+      }
+      // Fallback: se não tem dest, usa a data
       const d = pickPhotoDate(r);
       if (!d) return 'SEM_DATA';
-      return `${d.dd}_${d.mm}`;
+      return `FOTOS/NAO_IDENTIFICADO/GERAL/${d.dd}_${d.mm}`;
     };
 
-    // "Bem curto": renomeia arquivos no ZIP para data/hora (evita nomes enormes tipo WhatsApp_Unknown...)
-    const buildDateOnlyFilename = (r: ProcessingResult, fallbackIndex: number, originalFilename: string) => {
+    // Renomeia arquivos no ZIP para data/hora (evita nomes enormes tipo WhatsApp_Unknown...)
+    const buildSafeFilename = (r: ProcessingResult, fallbackIndex: number, originalFilename: string) => {
       const lastDot = originalFilename.lastIndexOf('.');
       const ext = lastDot > 0 ? originalFilename.substring(lastDot) : '.jpg';
       const d = pickPhotoDate(r);
@@ -737,8 +743,8 @@ const Index: React.FC = () => {
           try {
             const arrayBuffer = await file.arrayBuffer();
 
-            const basePath = buildDateOnlyPath(result);
-            const safeFilename = buildDateOnlyFilename(result, startIdx + i + 1, result.filename);
+            const basePath = getFullPath(result);
+            const safeFilename = buildSafeFilename(result, startIdx + i + 1, result.filename);
 
             // Adiciona a foto
             zip.file(`${basePath}/${safeFilename}`, arrayBuffer);
