@@ -246,7 +246,13 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
         @media print {
           @page {
             size: A4;
-            margin: 15mm 15mm 15mm 15mm;
+            margin: 15mm 15mm 20mm 15mm;
+            
+            @bottom-center {
+              content: "Página " counter(page) " de " counter(pages);
+              font-size: 9px;
+              color: #666;
+            }
           }
           
           /* Remove browser header/footer (URL, date, page numbers) */
