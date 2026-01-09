@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ProcessingResult } from '@/services/api';
 import { 
-  FileText, Printer, XCircle, Camera, MapPin
+  FileText, Printer, XCircle, Camera, MapPin, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -257,6 +257,22 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
                       </a>
                     )}
                   </div>
+                  
+                  {/* AI Analysis Speech Bubble */}
+                  {result.tecnico && (
+                    <div className="ai-bubble mt-2 relative">
+                      <div className="ai-bubble-arrow"></div>
+                      <div className="bg-gray-100 border border-gray-300 rounded-lg p-2">
+                        <p className="text-[10px] text-gray-600 flex items-center gap-1 mb-1">
+                          <Sparkles className="w-3 h-3 text-blue-500" />
+                          <span className="font-semibold text-blue-600">Análise da IA</span>
+                        </p>
+                        <p className="text-[9px] text-gray-700 leading-relaxed italic">
+                          "{result.tecnico}"
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -443,6 +459,55 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
           /* Show URL after link for PDF (optional - helps when printed on paper) */
           .print-link::after {
             content: none;
+          }
+          
+          /* AI Analysis Speech Bubble */
+          .ai-bubble {
+            position: relative;
+            margin-top: 6px !important;
+          }
+          
+          .ai-bubble-arrow {
+            position: absolute;
+            top: -6px;
+            left: 16px;
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 6px solid #d1d5db;
+          }
+          
+          .ai-bubble-arrow::after {
+            content: '';
+            position: absolute;
+            top: 1px;
+            left: -5px;
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 5px solid #f3f4f6;
+          }
+          
+          .ai-bubble .bg-gray-100 {
+            background: #f3f4f6 !important;
+          }
+          
+          .ai-bubble .text-blue-500 {
+            color: #3b82f6 !important;
+          }
+          
+          .ai-bubble .text-blue-600 {
+            color: #2563eb !important;
+          }
+          
+          .ai-bubble .text-gray-600 {
+            color: #4b5563 !important;
+          }
+          
+          .ai-bubble .text-gray-700 {
+            color: #374151 !important;
           }
         }
       `}</style>
