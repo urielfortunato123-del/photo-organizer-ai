@@ -12,6 +12,11 @@ export interface OCRResult {
   km_fim?: string;
   sentido?: string;
   
+  // === ENDEREÇO (quando disponível na foto) ===
+  endereco?: string;     // Rua das Jabuticabeiras, 85
+  cidade?: string;       // Salto de Pirapora
+  estado?: string;       // São Paulo, SP
+  
   // === FRENTE DE SERVIÇO/OBRA (identificação do trabalho) ===
   frenteServico?: string;  // BSO_01, PORTICO_03, PASSARELA_02, etc.
   frenteServicoInfo?: FrenteServico; // Informações detalhadas da frente
@@ -38,6 +43,16 @@ const PATTERNS = {
   km: /\bkm[\s_]*(\d{1,4})[\s]*[\+\._]?[\s]*(\d{0,3})\b/gi,
   // Sentido: Leste, Oeste, Norte, Sul
   sentido: /\b(leste|oeste|norte|sul|capital|interior|crescente|decrescente|l[\s\/]?o|n[\s\/]?s|sentido[\s:]*\w+)\b/gi,
+  
+  // === ENDEREÇO ===
+  // Formato: "85 Rua das Jabuticabeiras" (número primeiro)
+  enderecoNumPrimeiro: /\b(\d+)\s+(rua|r\.|av\.|avenida|alameda|al\.|travessa|tv\.|estrada|estr\.)\s+([^\n]+)/gi,
+  // Formato: "Rua das Jabuticabeiras, 85" (número no final)
+  enderecoNumFinal: /\b(rua|r\.|av\.|avenida|alameda|al\.|travessa|tv\.|estrada|estr\.)\s+([^,\n]+?)[\s,]+(\d+)\b/gi,
+  // Cidade sozinha (linha completa sem números)
+  cidade: /^([A-Za-zÀ-ÿ\s]{3,30})$/gm,
+  // Estado brasileiro
+  estadoBR: /\b(São Paulo|Rio de Janeiro|Minas Gerais|Paraná|Santa Catarina|Rio Grande do Sul|Bahia|Goiás|Ceará|Pernambuco|Mato Grosso|Mato Grosso do Sul|Espírito Santo|Distrito Federal|Amazonas|Pará|Maranhão|Piauí|Rio Grande do Norte|Paraíba|Sergipe|Alagoas|Tocantins|Rondônia|Acre|Amapá|Roraima)\b/gi,
   
   // === METADADOS ===
   data: /\b(\d{1,2})[\/\.\-](\d{1,2})[\/\.\-](\d{2,4})\b/g,
@@ -169,6 +184,54 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
     if (sentido.includes('L') && sentido.includes('O')) sentido = 'LESTE/OESTE';
     if (sentido.includes('N') && sentido.includes('S')) sentido = 'NORTE/SUL';
     result.sentido = sentido;
+  }
+
+  // === ENDEREÇO COMPLETO ===
+  // Tenta formato "85 Rua das Jabuticabeiras"
+  const endNumPrimeiroMatch = PATTERNS.enderecoNumPrimeiro.exec(text);
+  PATTERNS.enderecoNumPrimeiro.lastIndex = 0;
+  if (endNumPrimeiroMatch) {
+    const numero = endNumPrimeiroMatch[1];
+    const tipo = endNumPrimeiroMatch[2];
+    const nome = endNumPrimeiroMatch[3].trim();
+    result.endereco = `${tipo} ${nome}, ${numero}`.replace(/\s+/g, ' ');
+  }
+  
+  // Tenta formato "Rua das Jabuticabeiras, 85" (se não encontrou o primeiro)
+  if (!result.endereco) {
+    const endNumFinalMatch = PATTERNS.enderecoNumFinal.exec(text);
+    PATTERNS.enderecoNumFinal.lastIndex = 0;
+    if (endNumFinalMatch) {
+      const tipo = endNumFinalMatch[1];
+      const nome = endNumFinalMatch[2].trim();
+      const numero = endNumFinalMatch[3];
+      result.endereco = `${tipo} ${nome}, ${numero}`.replace(/\s+/g, ' ');
+    }
+  }
+  
+  // Estado brasileiro
+  const estadoMatch = PATTERNS.estadoBR.exec(text);
+  PATTERNS.estadoBR.lastIndex = 0;
+  if (estadoMatch) {
+    result.estado = estadoMatch[1];
+  }
+  
+  // Cidade (busca linhas que parecem ser nomes de cidade - antes do estado)
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+  for (const line of lines) {
+    // Ignora linhas com números (provavelmente endereço ou data)
+    if (/\d/.test(line)) continue;
+    // Ignora linhas com palavras-chave conhecidas
+    if (/rua|avenida|km|sp|br|tree|flow|bra/i.test(line)) continue;
+    // Linha curta sem números pode ser cidade
+    if (line.length >= 3 && line.length <= 40) {
+      // Verifica se parece nome de cidade (palavras capitalizadas)
+      const words = line.split(/\s+/);
+      const pareceNomeCidade = words.every(w => /^[A-ZÀ-Ÿ][a-zà-ÿ]*$/.test(w) || w.toLowerCase() === 'de' || w.toLowerCase() === 'do' || w.toLowerCase() === 'da' || w.toLowerCase() === 'dos' || w.toLowerCase() === 'das');
+      if (pareceNomeCidade && !result.cidade) {
+        result.cidade = line;
+      }
+    }
   }
 
   // Data numérica
