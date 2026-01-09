@@ -330,13 +330,9 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
         )}
         variants={cardVariants}
         initial="hidden"
-        animate="visible"
-        transition={{ delay: 0.2 }}
+        animate={isDragging ? { opacity: 1, y: 0, scale: 1.02 } : "visible"}
+        transition={{ delay: 0.2, type: "spring", stiffness: 300, damping: 30 }}
         whileHover={{ scale: 1.01 }}
-        animate-presence={{ 
-          scale: isDragging ? 1.02 : 1,
-          borderColor: isDragging ? "hsl(var(--primary))" : undefined
-        }}
       >
         <input
           type="file"
