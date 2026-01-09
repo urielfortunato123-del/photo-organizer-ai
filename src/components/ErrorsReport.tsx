@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, X, RefreshCw, FileWarning } from 'lucide-react';
+import { AlertTriangle, X, RefreshCw, FileWarning, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -57,6 +57,75 @@ const ErrorsReport: React.FC<ErrorsReportProps> = ({
     'Outros Erros': 'bg-muted text-muted-foreground border-border',
   };
 
+  // Download log function
+  const handleDownloadLog = () => {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const logContent = generateLogContent();
+    
+    const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `obraphoto-erros-${timestamp}.log`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const generateLogContent = () => {
+    const lines: string[] = [];
+    const now = new Date();
+    
+    lines.push('=' .repeat(60));
+    lines.push('  OBRAPHOTO AI - RELATÓRIO DE ERROS');
+    lines.push('=' .repeat(60));
+    lines.push('');
+    lines.push(`Data/Hora: ${now.toLocaleString('pt-BR')}`);
+    lines.push(`Total de erros: ${errors.length}`);
+    lines.push(`Navegador: ${navigator.userAgent}`);
+    lines.push('');
+    lines.push('-'.repeat(60));
+    lines.push('  RESUMO POR TIPO DE ERRO');
+    lines.push('-'.repeat(60));
+    
+    Object.entries(groupedErrors).forEach(([errorType, items]) => {
+      lines.push(`  ${errorType}: ${items.length} erro(s)`);
+    });
+    
+    lines.push('');
+    lines.push('-'.repeat(60));
+    lines.push('  DETALHES DOS ERROS');
+    lines.push('-'.repeat(60));
+    lines.push('');
+    
+    Object.entries(groupedErrors).forEach(([errorType, items]) => {
+      lines.push(`### ${errorType} (${items.length} arquivos) ###`);
+      lines.push('');
+      
+      items.forEach((item, idx) => {
+        lines.push(`[${idx + 1}] Arquivo: ${item.filename}`);
+        lines.push(`    Erro: ${item.error}`);
+        if (item.hash) {
+          lines.push(`    Hash: ${item.hash}`);
+        }
+        lines.push('');
+      });
+    });
+    
+    lines.push('-'.repeat(60));
+    lines.push('  INFORMAÇÕES ADICIONAIS');
+    lines.push('-'.repeat(60));
+    lines.push(`URL: ${window.location.href}`);
+    lines.push(`Versão: ObraPhoto AI v2.0`);
+    lines.push('');
+    lines.push('Para suporte, envie este arquivo para: suporte@obraphoto.ai');
+    lines.push('');
+    lines.push('=' .repeat(60));
+    
+    return lines.join('\n');
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[80vh]">
@@ -105,24 +174,35 @@ const ErrorsReport: React.FC<ErrorsReportProps> = ({
           </div>
         </ScrollArea>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-border">
-          {onRetryAll && errors.length > 0 && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                onRetryAll();
-                onClose();
-              }}
-              className="border-primary/50 text-primary hover:bg-primary/10"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Reprocessar Todos
-            </Button>
-          )}
-          <Button variant="ghost" onClick={onClose}>
-            <X className="w-4 h-4 mr-2" />
-            Fechar
+        <div className="flex justify-between gap-3 pt-4 border-t border-border">
+          <Button
+            variant="outline"
+            onClick={handleDownloadLog}
+            className="border-muted-foreground/30 hover:bg-muted"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Baixar Log
           </Button>
+          
+          <div className="flex gap-3">
+            {onRetryAll && errors.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  onRetryAll();
+                  onClose();
+                }}
+                className="border-primary/50 text-primary hover:bg-primary/10"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Reprocessar Todos
+              </Button>
+            )}
+            <Button variant="ghost" onClick={onClose}>
+              <X className="w-4 h-4 mr-2" />
+              Fechar
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
