@@ -131,12 +131,29 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
     return null;
   };
 
-  // Gera URL do Google Maps para busca por rodovia + KM
-  const getLocationSearchUrl = (result: ProcessingResult): string | null => {
+  // Gera URL do Google Maps para busca por localização
+  const getLocationSearchUrl = (result: ProcessingResult): { url: string; type: 'gps' | 'address' | 'highway' } | null => {
     // Se tem coordenadas GPS, usa diretamente
     const coords = getCoordinates(result);
     if (coords) {
-      return `https://www.google.com/maps?q=${coords.lat},${coords.lng}`;
+      return { 
+        url: `https://www.google.com/maps?q=${coords.lat},${coords.lng}`,
+        type: 'gps'
+      };
+    }
+    
+    // Se tem endereço completo (extraído da foto), usa para busca
+    const endereco = (result as any).endereco;
+    const cidade = (result as any).cidade;
+    const estado = (result as any).estado;
+    
+    if (endereco || cidade) {
+      const parts = [endereco, cidade, estado || 'Brasil'].filter(Boolean);
+      const searchQuery = encodeURIComponent(parts.join(', '));
+      return { 
+        url: `https://www.google.com/maps/search/${searchQuery}`,
+        type: 'address'
+      };
     }
     
     // Se tem rodovia + KM, gera busca no Google Maps
@@ -144,7 +161,10 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
       const rodovia = result.rodovia.replace('_', '-').replace('-', ' ');
       const km = result.km_inicio.replace('+', ' ');
       const searchQuery = encodeURIComponent(`${rodovia} km ${km} Brasil`);
-      return `https://www.google.com/maps/search/${searchQuery}`;
+      return { 
+        url: `https://www.google.com/maps/search/${searchQuery}`,
+        type: 'highway'
+      };
     }
     
     return null;
@@ -596,19 +616,22 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   {/* GPS / Location Column */}
                   <TableCell>
                     {(() => {
-                      const locationUrl = getLocationSearchUrl(result);
+                      const location = getLocationSearchUrl(result);
                       const hasGPS = coords !== null;
-                      const hasRodoviaKm = result.rodovia && result.km_inicio;
+                      const endereco = (result as any).endereco;
+                      const cidade = (result as any).cidade;
                       
-                      if (locationUrl) {
+                      if (location) {
                         return (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <button
-                                onClick={() => window.open(locationUrl, '_blank')}
+                                onClick={() => window.open(location.url, '_blank')}
                                 className={cn(
                                   "flex items-center gap-1 transition-colors cursor-pointer",
-                                  hasGPS ? "text-primary hover:text-primary/80" : "text-warning hover:text-warning/80"
+                                  location.type === 'gps' ? "text-primary hover:text-primary/80" : 
+                                  location.type === 'address' ? "text-success hover:text-success/80" :
+                                  "text-warning hover:text-warning/80"
                                 )}
                               >
                                 <MapPin className="w-4 h-4" />
@@ -616,17 +639,22 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                               </button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              {hasGPS ? (
+                              {location.type === 'gps' ? (
                                 <>
                                   <p className="text-xs font-mono">{coords!.lat.toFixed(6)}, {coords!.lng.toFixed(6)}</p>
                                   <p className="text-xs text-muted-foreground">📍 GPS exato - Clique para abrir</p>
                                 </>
-                              ) : hasRodoviaKm ? (
+                              ) : location.type === 'address' ? (
+                                <>
+                                  <p className="text-xs">{endereco || cidade}</p>
+                                  <p className="text-xs text-muted-foreground">🏠 Endereço - Clique para buscar</p>
+                                </>
+                              ) : (
                                 <>
                                   <p className="text-xs font-mono">{result.rodovia} KM {result.km_inicio}</p>
-                                  <p className="text-xs text-muted-foreground">🔍 Buscar no Google Maps</p>
+                                  <p className="text-xs text-muted-foreground">🛣️ Rodovia - Clique para buscar</p>
                                 </>
-                              ) : null}
+                              )}
                             </TooltipContent>
                           </Tooltip>
                         );
