@@ -834,11 +834,11 @@ const Index: React.FC = () => {
     }
   };
 
-  const handleViewPhoto = (result: ProcessingResult, imageUrl?: string) => {
+  const handleViewPhoto = useCallback((result: ProcessingResult, imageUrl?: string) => {
     setPreviewModal({ isOpen: true, result, imageUrl });
-  };
+  }, []);
 
-  const handleUpdateResult = (updated: ProcessingResult) => {
+  const handleUpdateResult = useCallback((updated: ProcessingResult) => {
     setResults(prev => prev.map(r => 
       r.filename === updated.filename ? updated : r
     ));
@@ -847,7 +847,30 @@ const Index: React.FC = () => {
       title: "Classificação atualizada",
       description: `${updated.filename} foi reclassificado.`,
     });
-  };
+  }, [toast]);
+
+  const handleDeletePhoto = useCallback((result: ProcessingResult) => {
+    // Remove from files
+    setFiles(prev => prev.filter(f => f.name !== result.filename));
+    // Remove from results
+    setResults(prev => prev.filter(r => r.filename !== result.filename));
+    // Remove from processed files
+    setProcessedFiles(prev => {
+      const updated = new Set(prev);
+      updated.delete(result.filename);
+      return updated;
+    });
+    // Remove from cache
+    if (result.hash) {
+      imageCache.removeFromCache(result.hash);
+    }
+    // Close modal
+    setPreviewModal({ isOpen: false, result: null });
+    toast({
+      title: "Foto excluída",
+      description: `${result.filename} foi removida da lista.`,
+    });
+  }, [toast, imageCache]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -1296,6 +1319,7 @@ const Index: React.FC = () => {
         result={previewModal.result}
         imageUrl={previewModal.imageUrl}
         onUpdateResult={handleUpdateResult}
+        onDeletePhoto={handleDeletePhoto}
       />
 
       {/* Detailed Report Modal */}

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation, ZoomIn, ZoomOut, Maximize2, Minimize2, ExternalLink, Lightbulb, Map, Camera, Mountain, Smartphone, Info } from 'lucide-react';
+import React, { useState, useEffect, lazy, Suspense, memo, useCallback, useMemo } from 'react';
+import { X, FileImage, FolderOpen, Brain, Edit2, Check, RotateCcw, Calendar, Sparkles, MapPin, Route, AlertCircle, AlertTriangle, Navigation, ZoomIn, ZoomOut, Maximize2, Minimize2, ExternalLink, Lightbulb, Map, Camera, Mountain, Smartphone, Info, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,7 @@ interface PhotoPreviewModalProps {
   ocrText?: string;
   exifData?: ExifData;
   onUpdateResult?: (updated: ProcessingResult) => void;
+  onDeletePhoto?: (result: ProcessingResult) => void;
 }
 
 // Disciplinas disponíveis
@@ -57,7 +58,7 @@ const SERVICOS_POR_DISCIPLINA: Record<string, string[]> = {
   OUTROS: ['NAO_IDENTIFICADO', 'REGISTRO', 'GERAL']
 };
 
-const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
+const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
   isOpen,
   onClose,
   result,
@@ -65,6 +66,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
   ocrText,
   exifData,
   onUpdateResult,
+  onDeletePhoto,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedFilename, setEditedFilename] = useState('');
@@ -179,21 +181,29 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
     setIsEditing(false);
   };
 
-  const handleCancelEdit = () => {
+  const handleCancelEdit = useCallback(() => {
+    if (!result) return;
     setEditedFilename(result.filename || '');
     setEditedPortico(result.portico || '');
     setEditedDisciplina(result.disciplina || '');
     setEditedService(result.service || '');
     setEditedData(result.data_detectada || '');
     setIsEditing(false);
-  };
+  }, [result]);
 
-  const getConfidenceColor = (confidence?: number) => {
+  const handleDeletePhoto = useCallback(() => {
+    if (result && onDeletePhoto) {
+      onDeletePhoto(result);
+      onClose();
+    }
+  }, [result, onDeletePhoto, onClose]);
+
+  const getConfidenceColor = useCallback((confidence?: number) => {
     if (!confidence) return 'text-muted-foreground';
     if (confidence >= 0.8) return 'text-success';
     if (confidence >= 0.5) return 'text-warning';
     return 'text-destructive';
-  };
+  }, []);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -735,11 +745,28 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = ({
                 {result.dest || 'Não definido'}
               </p>
             </div>
+
+            {/* Delete Photo Button */}
+            {onDeletePhoto && (
+              <div className="pt-3 border-t border-border">
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  onClick={handleDeletePhoto}
+                  className="w-full gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Excluir Foto
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>
     </Dialog>
   );
-};
+});
+
+PhotoPreviewModal.displayName = 'PhotoPreviewModal';
 
 export default PhotoPreviewModal;
