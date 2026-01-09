@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2, Filter, RefreshCw, ExternalLink, Map, Globe, FileDown } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2, Filter, RefreshCw, ExternalLink, Map, Globe, FileDown, Copy, CopyCheck } from 'lucide-react';
 import { LocationMap, parseDMSCoordinates } from '@/components/LocationMap';
 import { MiniMap } from '@/components/MiniMap';
 import { exportToKML, exportToGPX, extractGPSFromResult } from '@/utils/exportGPS';
@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { ProcessingResult, MONTH_NAMES } from '@/services/api';
 import { useAprendizadoOCR } from '@/hooks/useAprendizadoOCR';
@@ -121,6 +122,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [miniMapResult, setMiniMapResult] = useState<string | null>(null);
   const [showAllPhotosMap, setShowAllPhotosMap] = useState(false);
+  const [showApplyAllPopover, setShowApplyAllPopover] = useState<'frente' | 'disciplina' | 'servico' | 'data' | null>(null);
   const { salvarCorrecao } = useAprendizadoOCR();
 
   // Extrai coordenadas do resultado (EXIF ou OCR)
@@ -305,6 +307,109 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
       toast.success(`${selectedRows.size} foto(s) excluída(s)`);
     }
   };
+
+  // Apply value to all (selected or all results)
+  const handleApplyToAll = (field: 'frente' | 'disciplina' | 'servico' | 'data', applyToSelected: boolean) => {
+    if (!onBulkUpdate) return;
+    
+    const fieldMapping: Record<string, keyof ProcessingResult> = {
+      frente: 'portico',
+      disciplina: 'disciplina',
+      servico: 'service',
+      data: 'data_detectada'
+    };
+    
+    const targetField = fieldMapping[field];
+    const value = field === 'frente' ? editValues.portico :
+                  field === 'disciplina' ? editValues.disciplina :
+                  field === 'servico' ? editValues.service :
+                  editValues.data_detectada;
+    
+    if (!value) {
+      toast.error('Preencha o campo antes de aplicar para todos');
+      return;
+    }
+    
+    const targetResults = applyToSelected && selectedRows.size > 0 
+      ? results.filter(r => selectedRows.has(r.filename))
+      : results;
+    
+    const updates = targetResults.map(r => {
+      const newDest = buildDestPath(
+        field === 'frente' ? value : r.portico || 'NAO_IDENTIFICADO',
+        field === 'disciplina' ? value : r.disciplina || 'OUTROS',
+        field === 'servico' ? value : r.service || 'NAO_IDENTIFICADO',
+        field === 'data' ? value : r.data_detectada
+      );
+      
+      return {
+        ...r,
+        [targetField]: value,
+        dest: newDest,
+        method: 'heuristica' as const,
+        confidence: 1.0,
+        status: 'Sucesso' as const,
+      };
+    });
+    
+    onBulkUpdate(updates);
+    setShowApplyAllPopover(null);
+    
+    const fieldNames: Record<string, string> = {
+      frente: 'Frente',
+      disciplina: 'Disciplina',
+      servico: 'Serviço',
+      data: 'Data'
+    };
+    
+    toast.success(`${fieldNames[field]} aplicado para ${updates.length} foto(s)`, {
+      icon: <CopyCheck className="w-4 h-4" />
+    });
+  };
+
+  // ApplyAll button component
+  const ApplyAllButton = ({ field }: { field: 'frente' | 'disciplina' | 'servico' | 'data' }) => (
+    <Popover open={showApplyAllPopover === field} onOpenChange={(open) => setShowApplyAllPopover(open ? field : null)}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 ml-1 text-primary hover:text-primary/80"
+          title="Aplicar para todos"
+        >
+          <Copy className="w-3 h-3" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-3" align="start">
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-foreground">Aplicar para:</p>
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start text-xs gap-2"
+              onClick={() => handleApplyToAll(field, false)}
+            >
+              <CopyCheck className="w-3 h-3" />
+              Todos ({results.length})
+            </Button>
+            {selectedRows.size > 0 && (
+              <Button
+                variant="default"
+                size="sm"
+                className="w-full justify-start text-xs gap-2"
+                onClick={() => handleApplyToAll(field, true)}
+              >
+                <CopyCheck className="w-3 h-3" />
+                Selecionados ({selectedRows.size})
+              </Button>
+            )}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
   return (
     <div className="glass-card overflow-hidden">
       <div className="p-4 border-b border-border flex items-center justify-between">
@@ -653,11 +758,14 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   
                   <TableCell>
                     {isEditing ? (
-                      <Input 
-                        value={editValues.portico || ''}
-                        onChange={(e) => setEditValues({...editValues, portico: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
-                        className="h-8 w-24 font-mono text-xs"
-                      />
+                      <div className="flex items-center">
+                        <Input 
+                          value={editValues.portico || ''}
+                          onChange={(e) => setEditValues({...editValues, portico: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
+                          className="h-8 w-24 font-mono text-xs"
+                        />
+                        <ApplyAllButton field="frente" />
+                      </div>
                     ) : (
                       <span className="text-sm font-medium text-foreground">
                         {result.portico || '-'}
@@ -667,19 +775,22 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   
                   <TableCell>
                     {isEditing ? (
-                      <Select 
-                        value={editValues.disciplina || ''} 
-                        onValueChange={(v) => setEditValues({...editValues, disciplina: v})}
-                      >
-                        <SelectTrigger className="h-8 w-32 font-mono text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {DISCIPLINAS.map(d => (
-                            <SelectItem key={d} value={d} className="font-mono text-xs">{d}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center">
+                        <Select 
+                          value={editValues.disciplina || ''} 
+                          onValueChange={(v) => setEditValues({...editValues, disciplina: v})}
+                        >
+                          <SelectTrigger className="h-8 w-32 font-mono text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DISCIPLINAS.map(d => (
+                              <SelectItem key={d} value={d} className="font-mono text-xs">{d}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <ApplyAllButton field="disciplina" />
+                      </div>
                     ) : (
                       <span className="text-sm text-foreground">
                         {result.disciplina || '-'}
@@ -689,11 +800,14 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   
                   <TableCell>
                     {isEditing ? (
-                      <Input 
-                        value={editValues.service || ''}
-                        onChange={(e) => setEditValues({...editValues, service: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
-                        className="h-8 w-28 font-mono text-xs"
-                      />
+                      <div className="flex items-center">
+                        <Input 
+                          value={editValues.service || ''}
+                          onChange={(e) => setEditValues({...editValues, service: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
+                          className="h-8 w-28 font-mono text-xs"
+                        />
+                        <ApplyAllButton field="servico" />
+                      </div>
                     ) : (
                       <span className="text-sm text-foreground truncate max-w-[120px] block">
                         {result.service || '-'}
@@ -703,13 +817,16 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   
                   <TableCell>
                     {isEditing ? (
-                      <Input 
-                        value={editValues.data_detectada || ''}
-                        onChange={(e) => setEditValues({...editValues, data_detectada: e.target.value})}
-                        placeholder="DD/MM/AAAA"
-                        className="h-8 w-24 font-mono text-xs"
-                        maxLength={10}
-                      />
+                      <div className="flex items-center">
+                        <Input 
+                          value={editValues.data_detectada || ''}
+                          onChange={(e) => setEditValues({...editValues, data_detectada: e.target.value})}
+                          placeholder="DD/MM/AAAA"
+                          className="h-8 w-24 font-mono text-xs"
+                          maxLength={10}
+                        />
+                        <ApplyAllButton field="data" />
+                      </div>
                     ) : (
                       <span className="text-xs text-muted-foreground font-mono">
                         {result.data_detectada || '-'}
