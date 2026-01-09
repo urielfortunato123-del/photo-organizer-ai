@@ -522,16 +522,43 @@ function normalizeField(value: string | undefined | null, defaultValue: string):
 function normalizeDate(value: string | undefined | null): string | null {
   if (!value || typeof value !== 'string') return null;
   
+  // Formato DD/MM/YYYY ou D/M/YYYY
   const match1 = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (match1) {
     const [, day, month, year] = match1;
     return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
   }
   
+  // Formato YYYY-MM-DD
   const match2 = value.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (match2) {
     const [, year, month, day] = match2;
     return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+  }
+  
+  // Formato por extenso: "24 de nov. de 2025" ou "24 nov 2025"
+  const mesesPT: Record<string, string> = {
+    'jan': '01', 'janeiro': '01',
+    'fev': '02', 'fevereiro': '02',
+    'mar': '03', 'março': '03', 'marco': '03',
+    'abr': '04', 'abril': '04',
+    'mai': '05', 'maio': '05',
+    'jun': '06', 'junho': '06',
+    'jul': '07', 'julho': '07',
+    'ago': '08', 'agosto': '08',
+    'set': '09', 'setembro': '09',
+    'out': '10', 'outubro': '10',
+    'nov': '11', 'novembro': '11',
+    'dez': '12', 'dezembro': '12',
+  };
+  
+  const match3 = value.toLowerCase().match(/(\d{1,2})\s+(?:de\s+)?(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)(?:eiro|ereiro|ço|co|il|o|ho|sto|embro|ubro)?\.?\s+(?:de\s+)?(\d{4})/i);
+  if (match3) {
+    const day = match3[1].padStart(2, '0');
+    const mesKey = match3[2].toLowerCase();
+    const month = mesesPT[mesKey] || '01';
+    const year = match3[3];
+    return `${day}/${month}/${year}`;
   }
   
   return null;
