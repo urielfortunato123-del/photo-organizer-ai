@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2 } from 'lucide-react';
 import { LocationMap, parseDMSCoordinates } from '@/components/LocationMap';
 import {
   Dialog,
@@ -29,6 +29,17 @@ import { ProcessingResult, MONTH_NAMES } from '@/services/api';
 import { useAprendizadoOCR } from '@/hooks/useAprendizadoOCR';
 import { toast } from 'sonner';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
 interface EditableResultsTableProps {
   results: ProcessingResult[];
   isProcessing: boolean;
@@ -36,6 +47,7 @@ interface EditableResultsTableProps {
   onViewPhoto?: (result: ProcessingResult, imageUrl?: string) => void;
   onUpdateResult?: (updated: ProcessingResult) => void;
   onBulkUpdate?: (updates: ProcessingResult[]) => void;
+  onDeletePhotos?: (filenames: string[]) => void;
 }
 
 const DISCIPLINAS = [
@@ -91,13 +103,15 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
   fileUrls,
   onViewPhoto,
   onUpdateResult,
-  onBulkUpdate
+  onBulkUpdate,
+  onDeletePhotos
 }) => {
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<ProcessingResult>>({});
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [originalValues, setOriginalValues] = useState<Partial<ProcessingResult>>({});
   const [mapResult, setMapResult] = useState<ProcessingResult | null>(null);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const { salvarCorrecao } = useAprendizadoOCR();
 
   // Extrai coordenadas do resultado (EXIF ou OCR)
@@ -203,6 +217,14 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
     }
   };
 
+  const handleBulkDelete = () => {
+    if (onDeletePhotos && selectedRows.size > 0) {
+      onDeletePhotos(Array.from(selectedRows));
+      setSelectedRows(new Set());
+      setShowBulkDeleteConfirm(false);
+      toast.success(`${selectedRows.size} foto(s) excluída(s)`);
+    }
+  };
   return (
     <div className="glass-card overflow-hidden">
       <div className="p-4 border-b border-border flex items-center justify-between">
@@ -219,6 +241,17 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {selectedRows.size > 0 && onDeletePhotos && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              className="gap-1"
+            >
+              <Trash2 className="w-4 h-4" />
+              Excluir ({selectedRows.size})
+            </Button>
+          )}
           {isProcessing && (
             <div className="flex items-center gap-2 text-primary">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -227,6 +260,28 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
           )}
         </div>
       </div>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão em lote</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir {selectedRows.size} foto(s) selecionada(s)?
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleBulkDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir {selectedRows.size} foto(s)
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="overflow-x-auto scrollbar-thin">
         <Table>
