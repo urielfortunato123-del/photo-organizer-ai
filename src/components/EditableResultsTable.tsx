@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2, Filter, RefreshCw, ExternalLink, Map } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { CheckCircle2, XCircle, Loader2, FileImage, Edit2, Check, X, Eye, Download, AlertTriangle, Brain, MapPin, Trash2, Filter, RefreshCw, ExternalLink, Map, Globe, FileDown } from 'lucide-react';
 import { LocationMap, parseDMSCoordinates } from '@/components/LocationMap';
 import { MiniMap } from '@/components/MiniMap';
+import { exportToKML, exportToGPX, extractGPSFromResult } from '@/utils/exportGPS';
 import {
   Dialog,
   DialogContent,
@@ -171,6 +172,11 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
     
     return null;
   };
+
+  // Count results with GPS
+  const gpsCount = useMemo(() => {
+    return results.filter(r => extractGPSFromResult(r) !== null).length;
+  }, [results]);
 
   if (results.length === 0 && !isProcessing) {
     return null;
@@ -342,6 +348,51 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
             <div className="flex items-center gap-2 text-primary">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span className="text-sm font-medium">Processando...</span>
+            </div>
+          )}
+          
+          {/* GPS Export Buttons */}
+          {gpsCount > 0 && !isProcessing && (
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const count = exportToKML(results, 'fotos_obra');
+                      toast.success(`${count} localização(ões) exportada(s) para KML`);
+                    }}
+                    className="gap-1"
+                  >
+                    <Globe className="w-4 h-4" />
+                    KML
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">Exportar {gpsCount} localização(ões) para Google Earth (KML)</p>
+                </TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const count = exportToGPX(results, 'fotos_obra');
+                      toast.success(`${count} localização(ões) exportada(s) para GPX`);
+                    }}
+                    className="gap-1"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    GPX
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">Exportar {gpsCount} localização(ões) para GPS (GPX)</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
           )}
         </div>
