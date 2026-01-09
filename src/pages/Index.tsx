@@ -872,6 +872,28 @@ const Index: React.FC = () => {
     });
   }, [toast, imageCache]);
 
+  const handleDeletePhotos = useCallback((filenames: string[]) => {
+    // Remove from files
+    setFiles(prev => prev.filter(f => !filenames.includes(f.name)));
+    // Remove from results
+    setResults(prev => prev.filter(r => !filenames.includes(r.filename)));
+    // Remove from processed files
+    setProcessedFiles(prev => {
+      const updated = new Set(prev);
+      filenames.forEach(fn => updated.delete(fn));
+      return updated;
+    });
+    // Remove from cache
+    results
+      .filter(r => filenames.includes(r.filename) && r.hash)
+      .forEach(r => imageCache.removeFromCache(r.hash!));
+    
+    toast({
+      title: "Fotos excluídas",
+      description: `${filenames.length} foto(s) removida(s) da lista.`,
+    });
+  }, [toast, imageCache, results]);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header with UX controls */}
@@ -1135,6 +1157,7 @@ const Index: React.FC = () => {
                     fileUrls={fileUrls}
                     onViewPhoto={handleViewPhoto}
                     onUpdateResult={handleUpdateResult}
+                    onDeletePhotos={handleDeletePhotos}
                   />
                   
                   {/* Show reprocess button for errors OR incomplete results */}
