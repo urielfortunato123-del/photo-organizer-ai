@@ -43,6 +43,50 @@ const createNumberedIcon = (number: number, color: string = '#3b82f6') => {
   });
 };
 
+// Arrow icon for direction
+const createArrowIcon = (rotation: number) => {
+  return L.divIcon({
+    className: 'arrow-marker',
+    html: `
+      <div style="
+        transform: rotate(${rotation}deg);
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      ">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 4L20 12L12 20L10.6 18.6L16.2 13H4V11H16.2L10.6 5.4L12 4Z" fill="#3b82f6"/>
+        </svg>
+      </div>
+    `,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+};
+
+// Calculate bearing between two points
+const calculateBearing = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+  
+  const dLng = toRad(lng2 - lng1);
+  const y = Math.sin(dLng) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+            Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLng);
+  
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+};
+
+// Get midpoint between two coordinates
+const getMidpoint = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+  return {
+    lat: (lat1 + lat2) / 2,
+    lng: (lng1 + lng2) / 2
+  };
+};
+
 interface PhotoPoint {
   lat: number;
   lng: number;
@@ -159,6 +203,29 @@ export const AllPhotosMap: React.FC<AllPhotosMapProps> = ({
   // Generate polyline coordinates
   const polylinePositions = useMemo(() => {
     return points.map(p => [p.lat, p.lng] as [number, number]);
+  }, [points]);
+
+  // Generate arrow positions and rotations
+  const arrowMarkers = useMemo(() => {
+    if (points.length < 2) return [];
+    
+    const arrows: { lat: number; lng: number; rotation: number }[] = [];
+    
+    for (let i = 0; i < points.length - 1; i++) {
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      
+      const midpoint = getMidpoint(p1.lat, p1.lng, p2.lat, p2.lng);
+      const bearing = calculateBearing(p1.lat, p1.lng, p2.lat, p2.lng);
+      
+      arrows.push({
+        lat: midpoint.lat,
+        lng: midpoint.lng,
+        rotation: bearing - 90 // Adjust for SVG arrow orientation
+      });
+    }
+    
+    return arrows;
   }, [points]);
 
   // Default center (São Paulo)
@@ -341,6 +408,16 @@ export const AllPhotosMap: React.FC<AllPhotosMapProps> = ({
               }}
             />
           )}
+          
+          {/* Direction arrows */}
+          {arrowMarkers.map((arrow, idx) => (
+            <Marker
+              key={`arrow-${idx}`}
+              position={[arrow.lat, arrow.lng]}
+              icon={createArrowIcon(arrow.rotation)}
+              interactive={false}
+            />
+          ))}
           
           <MapBoundsUpdater points={points} />
         </MapContainer>
