@@ -1080,42 +1080,38 @@ const Index: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-semibold text-foreground">Upload de Fotos</h2>
-                  <p className="text-muted-foreground">Adicione fotos de obra para análise automática com IA</p>
-                </div>
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-foreground tracking-tight">Upload de Fotos</h2>
+                <p className="text-sm text-muted-foreground">Adicione fotos de obra para análise automática com IA</p>
               </div>
 
-              <div className="grid lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="gnome-card p-6">
+              <div className="grid lg:grid-cols-3 gap-5">
+                <div className="lg:col-span-2 space-y-4">
+                  <div className="gnome-card p-5">
                     <UploadZone files={files} onFilesChange={setFiles} />
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <Button
-                      onClick={handleProcess}
-                      disabled={isProcessing || files.length === 0}
-                      className="gnome-btn-primary flex-1 h-12 text-base"
-                    >
-                      {isProcessing ? (
-                        <>
-                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Analisando...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-5 h-5" />
-                          {files.filter(f => !processedFiles.has(f.name)).length > 0 
-                            ? `Analisar ${files.filter(f => !processedFiles.has(f.name)).length} Novas Fotos`
-                            : files.length > 0 
-                              ? 'Todas já processadas'
-                              : 'Adicionar Fotos'}
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={handleProcess}
+                    disabled={isProcessing || files.length === 0}
+                    className="gnome-btn-primary w-full h-11 text-sm font-medium"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Analisando...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        {files.filter(f => !processedFiles.has(f.name)).length > 0 
+                          ? `Adicionar Fotos`
+                          : files.length > 0 
+                            ? 'Todas já processadas'
+                            : 'Adicionar Fotos'}
+                      </>
+                    )}
+                  </Button>
                 </div>
 
                 <div className="lg:col-span-1">

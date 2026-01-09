@@ -219,7 +219,7 @@
 
   /* Glass Cards */
   .glass-card {
-    @apply rounded-2xl;
+    @apply rounded-xl;
     background: var(--glass-bg);
     backdrop-filter: blur(var(--glass-blur)) saturate(180%);
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
@@ -253,16 +253,16 @@
     box-shadow: 4px 0 24px hsla(0, 0%, 0%, 0.2);
   }
 
-  .glass-sidebar-item {
-    @apply flex items-center gap-3 px-4 py-2.5 text-sm rounded-xl mx-2 transition-all duration-200 cursor-pointer;
+  .gnome-sidebar-item {
+    @apply flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg transition-all duration-200 cursor-pointer;
     color: hsl(var(--sidebar-foreground));
   }
 
-  .glass-sidebar-item:hover {
+  .gnome-sidebar-item:hover {
     background: hsla(0, 0%, 100%, 0.06);
   }
 
-  .glass-sidebar-item.active {
+  .gnome-sidebar-item.active {
     background: hsla(var(--primary), 0.2);
     color: hsl(var(--primary));
     box-shadow: inset 0 0 0 1px hsla(var(--primary), 0.3);
@@ -270,7 +270,7 @@
 
   /* Glass Buttons */
   .glass-btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all duration-200;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-all duration-200;
     background: var(--glass-bg);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
@@ -284,16 +284,23 @@
     box-shadow: 0 4px 16px hsla(0, 0%, 0%, 0.3);
   }
 
-  .glass-btn-primary {
+  .gnome-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200;
     background: var(--gradient-primary);
     border: none;
     color: white;
     box-shadow: 0 4px 16px hsla(211, 100%, 50%, 0.4);
   }
 
-  .glass-btn-primary:hover {
+  .gnome-btn-primary:hover {
     box-shadow: 0 6px 24px hsla(211, 100%, 50%, 0.5);
     filter: brightness(1.1);
+  }
+
+  .gnome-btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    filter: none;
   }
 
   /* Glass Input */
@@ -340,7 +347,7 @@
   }
 
   .gnome-card {
-    @apply rounded-2xl border-0 transition-all duration-300;
+    @apply rounded-xl border-0 transition-all duration-300;
     background: var(--glass-bg);
     backdrop-filter: blur(var(--glass-blur)) saturate(180%);
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);

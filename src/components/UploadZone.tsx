@@ -186,40 +186,43 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
   }, [files, onFilesChange]);
 
   return (
-    <div className="space-y-4">
-      {/* Folder Selection - Main Feature */}
+    <div className="space-y-5">
+      {/* Folder Selection - Two Cards Side by Side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Button
-            onClick={handleSelectFolder}
-            disabled={isScanning}
-            variant="outline"
-            className="w-full h-auto py-6 flex flex-col gap-2 border-dashed border-2 border-primary/50 hover:border-primary hover:bg-primary/5 transition-all"
-          >
+        {/* Main Folder Button */}
+        <div 
+          onClick={!isScanning ? handleSelectFolder : undefined}
+          className={cn(
+            "relative group cursor-pointer rounded-xl border-2 border-dashed p-6 transition-all duration-200",
+            "border-primary/40 bg-primary/5 hover:border-primary hover:bg-primary/10",
+            isScanning && "pointer-events-none opacity-70"
+          )}
+        >
+          <div className="flex flex-col items-center gap-3 text-center">
             {isScanning ? (
               <>
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <span className="text-sm font-medium">Escaneando...</span>
-                <span className="text-xs text-muted-foreground">
-                  {scanStats.folders} pastas | {scanStats.images} imagens
-                </span>
-                {scanStats.current && (
-                  <span className="text-xs text-muted-foreground/70 truncate max-w-full">
-                    📁 {scanStats.current}
-                  </span>
-                )}
+                <div>
+                  <p className="text-sm font-medium text-foreground">Escaneando...</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {scanStats.folders} pastas | {scanStats.images} imagens
+                  </p>
+                </div>
               </>
             ) : (
               <>
-                <FolderTree className="h-8 w-8 text-primary" />
-                <span className="text-sm font-medium">Selecionar Pasta</span>
-                <span className="text-xs text-muted-foreground">Lê todas as subpastas automaticamente</span>
+                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <FolderTree className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Selecionar Pasta</p>
+                  <p className="text-xs text-muted-foreground mt-1">Lê todas as subpastas automaticamente</p>
+                </div>
               </>
             )}
-          </Button>
-
-          {isPreviewIframe && (
-            <p className="text-xs text-muted-foreground text-center">
+          </div>
+          {isPreviewIframe && !isScanning && (
+            <p className="text-[10px] text-muted-foreground text-center mt-3 leading-tight">
               No preview, o navegador bloqueia seleção de pastas. Publique/abra em uma aba ou use o método alternativo.
             </p>
           )}
@@ -237,17 +240,21 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
             disabled={isScanning}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
           />
-          <Button
-            variant="outline"
-            disabled={isScanning}
-            className="w-full h-full py-6 flex flex-col gap-2 border-dashed border-2 hover:border-primary/50 hover:bg-primary/5 transition-all pointer-events-none"
-          >
-            <FolderOpen className="h-8 w-8 text-muted-foreground" />
-            <span className="text-sm font-medium">Método Alternativo</span>
-            <span className="text-xs text-muted-foreground">
-              Para navegadores mais antigos
-            </span>
-          </Button>
+          <div className={cn(
+            "h-full rounded-xl border-2 border-dashed p-6 transition-all duration-200",
+            "border-border bg-secondary/30 hover:border-muted-foreground/50 hover:bg-secondary/50",
+            isScanning && "opacity-50 pointer-events-none"
+          )}>
+            <div className="flex flex-col items-center gap-3 text-center h-full justify-center">
+              <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center">
+                <FolderOpen className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Método Alternativo</p>
+                <p className="text-xs text-muted-foreground mt-1">Para navegadores mais antigos</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -257,8 +264,9 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
-          "upload-zone p-6 text-center cursor-pointer group",
-          isDragging && "drag-active"
+          "rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-all duration-200",
+          "border-border bg-secondary/20 hover:border-muted-foreground/40 hover:bg-secondary/30",
+          isDragging && "border-primary bg-primary/10"
         )}
       >
         <input
@@ -272,13 +280,11 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
         <label htmlFor="file-upload" className="cursor-pointer block">
           <div className="flex flex-col items-center gap-3">
             <div className={cn(
-              "w-12 h-12 rounded-xl bg-secondary flex items-center justify-center transition-all duration-300",
-              "group-hover:bg-primary/20 group-hover:scale-110",
-              isDragging && "bg-primary/20 scale-110"
+              "w-12 h-12 rounded-xl bg-secondary flex items-center justify-center transition-transform",
+              isDragging && "scale-110 bg-primary/20"
             )}>
               <Upload className={cn(
                 "w-6 h-6 text-muted-foreground transition-colors",
-                "group-hover:text-primary",
                 isDragging && "text-primary"
               )} />
             </div>
@@ -286,7 +292,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({ files, onFilesChange }) => {
               <p className="text-sm font-medium text-foreground">
                 Ou arraste fotos individuais aqui
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-1">
                 JPG, PNG, HEIC • Múltiplos arquivos
               </p>
             </div>
