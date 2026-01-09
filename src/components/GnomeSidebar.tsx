@@ -52,27 +52,37 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
   ];
 
   return (
-    <aside className="w-64 flex flex-col bg-sidebar border-r border-sidebar-border">
-      {/* Logo Section */}
-      <div className="p-6 border-b border-border/50">
+    <aside className="w-64 flex flex-col glass-sidebar h-full">
+      {/* Logo Section with macOS traffic lights */}
+      <div className="p-5 border-b border-glass">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="macos-traffic-lights">
+            <div className="macos-btn macos-btn-close" />
+            <div className="macos-btn macos-btn-minimize" />
+            <div className="macos-btn macos-btn-maximize" />
+          </div>
+        </div>
         <div className="flex items-center gap-3">
-          <img 
-            src={logoObraphoto} 
-            alt="ObraPhoto AI" 
-            className="w-12 h-12 object-contain"
-          />
+          <div className="relative">
+            <img 
+              src={logoObraphoto} 
+              alt="ObraPhoto AI" 
+              className="w-11 h-11 object-contain"
+            />
+            <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-success rounded-full border-2 border-background" />
+          </div>
           <div>
-            <h1 className="font-semibold text-foreground">ObraPhoto</h1>
+            <h1 className="font-semibold text-foreground tracking-tight">ObraPhoto</h1>
             <p className="text-xs text-muted-foreground">Análise com IA</p>
           </div>
         </div>
       </div>
 
-      {/* User Info */}
-      <div className="p-4 border-b border-border/50">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-            <User className="w-5 h-5 text-primary" />
+      {/* User Info with glass effect */}
+      <div className="p-4 border-b border-glass">
+        <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center ring-2 ring-white/10">
+            <User className="w-4 h-4 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-foreground truncate">
@@ -120,27 +130,32 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
         </button>
       </nav>
 
-      {/* AI Status Card */}
+      {/* AI Status Card with enhanced glass effect */}
       <div className="p-4 space-y-3">
-        <div className="gnome-card p-4 bg-gradient-to-br from-primary/10 to-accent/10">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium text-foreground">IA Integrada</span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Gemini 2.5 Flash para análise de imagens em tempo real
-          </p>
-          <div className="flex items-center gap-2 mt-3">
-            <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-            <span className="text-xs text-success font-medium">Online</span>
+        <div className="glass-card p-4 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10" />
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 rounded-lg bg-primary/20">
+                <Sparkles className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <span className="text-sm font-medium text-foreground">IA Integrada</span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Gemini 2.5 Flash para análise de imagens em tempo real
+            </p>
+            <div className="flex items-center gap-2 mt-3">
+              <div className="w-2 h-2 rounded-full bg-success animate-pulse shadow-[0_0_8px_hsl(142_76%_36%/0.6)]" />
+              <span className="text-xs text-success font-medium">Online</span>
+            </div>
           </div>
         </div>
 
-        {/* Auth Button */}
+        {/* Auth Button with glass style */}
         <Button 
           variant="outline" 
           size="sm" 
-          className="w-full"
+          className="w-full glass-btn text-sm"
           onClick={signOut}
         >
           <LogOut className="w-4 h-4 mr-2" />

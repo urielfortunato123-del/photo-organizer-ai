@@ -170,22 +170,29 @@ const Auth: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6">
-        {/* Logo */}
-        <div className="text-center space-y-2">
-          <img 
-            src={logoObraphoto} 
-            alt="ObraPhoto" 
-            className="h-16 mx-auto"
-          />
-          <h1 className="text-2xl font-bold text-foreground">ObraPhoto AI</h1>
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Ambient glow effects */}
+      <div className="ambient-glow" />
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background/50 pointer-events-none" />
+      
+      <div className="w-full max-w-md space-y-6 relative z-10">
+        {/* Logo with enhanced styling */}
+        <div className="text-center space-y-3">
+          <div className="relative inline-block">
+            <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" />
+            <img 
+              src={logoObraphoto} 
+              alt="ObraPhoto" 
+              className="h-16 mx-auto relative"
+            />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">ObraPhoto AI</h1>
           <p className="text-muted-foreground text-sm">
             Sistema Inteligente de Classificação de Fotos
           </p>
         </div>
 
-        <Card className="border-border">
+        <Card className="glass-card border-glass overflow-hidden">
           <CardHeader className="pb-4">
             <CardTitle className="text-center">
               {activeTab === 'login' && 'Entrar'}
@@ -403,7 +410,7 @@ const Auth: React.FC = () => {
         </Card>
 
         {/* Info about trial */}
-        <div className="text-center">
+        <div className="text-center glass-card px-4 py-3">
           <p className="text-xs text-muted-foreground">
             Ao se cadastrar, você recebe 2 sessões de degustação por dia (máx. 4 por semana) de 30 minutos cada.
           </p>
