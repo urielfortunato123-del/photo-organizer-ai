@@ -131,6 +131,25 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
     return null;
   };
 
+  // Gera URL do Google Maps para busca por rodovia + KM
+  const getLocationSearchUrl = (result: ProcessingResult): string | null => {
+    // Se tem coordenadas GPS, usa diretamente
+    const coords = getCoordinates(result);
+    if (coords) {
+      return `https://www.google.com/maps?q=${coords.lat},${coords.lng}`;
+    }
+    
+    // Se tem rodovia + KM, gera busca no Google Maps
+    if (result.rodovia && result.km_inicio) {
+      const rodovia = result.rodovia.replace('_', '-').replace('-', ' ');
+      const km = result.km_inicio.replace('+', ' ');
+      const searchQuery = encodeURIComponent(`${rodovia} km ${km} Brasil`);
+      return `https://www.google.com/maps/search/${searchQuery}`;
+    }
+    
+    return null;
+  };
+
   if (results.length === 0 && !isProcessing) {
     return null;
   }
@@ -574,27 +593,47 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                     )}
                   </TableCell>
                   
-                  {/* GPS Column */}
+                  {/* GPS / Location Column */}
                   <TableCell>
-                    {coords ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={() => window.open(`https://www.google.com/maps?q=${coords.lat},${coords.lng}`, '_blank')}
-                            className="flex items-center gap-1 text-primary hover:text-primary/80 transition-colors cursor-pointer"
-                          >
-                            <MapPin className="w-4 h-4" />
-                            <ExternalLink className="w-3 h-3" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="text-xs font-mono">{coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}</p>
-                          <p className="text-xs text-muted-foreground">Clique para abrir no Google Maps</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">-</span>
-                    )}
+                    {(() => {
+                      const locationUrl = getLocationSearchUrl(result);
+                      const hasGPS = coords !== null;
+                      const hasRodoviaKm = result.rodovia && result.km_inicio;
+                      
+                      if (locationUrl) {
+                        return (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                onClick={() => window.open(locationUrl, '_blank')}
+                                className={cn(
+                                  "flex items-center gap-1 transition-colors cursor-pointer",
+                                  hasGPS ? "text-primary hover:text-primary/80" : "text-warning hover:text-warning/80"
+                                )}
+                              >
+                                <MapPin className="w-4 h-4" />
+                                <ExternalLink className="w-3 h-3" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {hasGPS ? (
+                                <>
+                                  <p className="text-xs font-mono">{coords!.lat.toFixed(6)}, {coords!.lng.toFixed(6)}</p>
+                                  <p className="text-xs text-muted-foreground">📍 GPS exato - Clique para abrir</p>
+                                </>
+                              ) : hasRodoviaKm ? (
+                                <>
+                                  <p className="text-xs font-mono">{result.rodovia} KM {result.km_inicio}</p>
+                                  <p className="text-xs text-muted-foreground">🔍 Buscar no Google Maps</p>
+                                </>
+                              ) : null}
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      }
+                      
+                      return <span className="text-muted-foreground text-xs">-</span>;
+                    })()}
                   </TableCell>
                   
                   <TableCell>

@@ -607,9 +607,22 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
               };
 
               const coords = getCoords();
-              const googleMapsUrl = coords 
-                ? `https://www.google.com/maps?q=${coords.lat},${coords.lng}`
-                : null;
+              
+              // Gera URL: GPS direto ou busca por rodovia+km
+              const getLocationUrl = (): string | null => {
+                if (coords) {
+                  return `https://www.google.com/maps?q=${coords.lat},${coords.lng}`;
+                }
+                if (result.rodovia && result.km_inicio) {
+                  const rodovia = result.rodovia.replace('_', '-').replace('-', ' ');
+                  const km = result.km_inicio.replace('+', ' ');
+                  const searchQuery = encodeURIComponent(`${rodovia} km ${km} Brasil`);
+                  return `https://www.google.com/maps/search/${searchQuery}`;
+                }
+                return null;
+              };
+              
+              const locationUrl = getLocationUrl();
 
               const hasLocationInfo = result.rodovia || result.km_inicio || coords;
               if (!hasLocationInfo) return null;
@@ -624,19 +637,39 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
                         via {coords.source}
                       </Badge>
                     )}
+                    {!coords && result.rodovia && result.km_inicio && (
+                      <Badge variant="outline" className="text-xs ml-2 border-warning/50 text-warning">
+                        via Rodovia
+                      </Badge>
+                    )}
                   </h4>
                   
                   <div className="grid sm:grid-cols-3 gap-3">
                     {result.rodovia && (
-                      <div>
+                      <div 
+                        className={locationUrl && !coords ? "cursor-pointer hover:bg-primary/5 rounded p-1 -m-1 transition-colors" : ""}
+                        onClick={() => !coords && locationUrl && window.open(locationUrl, '_blank')}
+                      >
                         <p className="text-xs text-muted-foreground">Rodovia</p>
-                        <p className="font-mono text-sm font-medium text-primary">{result.rodovia}</p>
+                        <p className={cn(
+                          "font-mono text-sm font-medium flex items-center gap-1",
+                          !coords && locationUrl ? "text-primary" : ""
+                        )}>
+                          {result.rodovia}
+                          {!coords && locationUrl && <ExternalLink className="w-3 h-3" />}
+                        </p>
                       </div>
                     )}
                     {result.km_inicio && (
-                      <div>
+                      <div 
+                        className={locationUrl && !coords ? "cursor-pointer hover:bg-primary/5 rounded p-1 -m-1 transition-colors" : ""}
+                        onClick={() => !coords && locationUrl && window.open(locationUrl, '_blank')}
+                      >
                         <p className="text-xs text-muted-foreground">KM</p>
-                        <p className="font-mono text-sm font-medium">
+                        <p className={cn(
+                          "font-mono text-sm font-medium",
+                          !coords && locationUrl ? "text-primary" : ""
+                        )}>
                           {result.km_inicio}{result.km_fim ? ` - ${result.km_fim}` : ''}
                         </p>
                       </div>
@@ -653,7 +686,7 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
                     {coords && (
                       <div 
                         className="sm:col-span-3 cursor-pointer hover:bg-primary/5 rounded p-1 -m-1 transition-colors"
-                        onClick={() => googleMapsUrl && window.open(googleMapsUrl, '_blank')}
+                        onClick={() => locationUrl && window.open(locationUrl, '_blank')}
                         title="Clique para abrir no Google Maps"
                       >
                         <p className="text-xs text-muted-foreground">GPS</p>
@@ -661,6 +694,18 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
                           📍 {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}
                           <ExternalLink className="w-3 h-3 ml-1" />
                           <span className="text-muted-foreground">(abrir no Google Maps)</span>
+                        </p>
+                      </div>
+                    )}
+                    {!coords && locationUrl && (
+                      <div 
+                        className="sm:col-span-3 cursor-pointer hover:bg-warning/5 rounded p-1 -m-1 transition-colors border border-warning/20 bg-warning/5"
+                        onClick={() => window.open(locationUrl, '_blank')}
+                        title="Clique para buscar no Google Maps"
+                      >
+                        <p className="font-mono text-xs text-warning flex items-center gap-1">
+                          🔍 Buscar {result.rodovia} KM {result.km_inicio} no Google Maps
+                          <ExternalLink className="w-3 h-3 ml-1" />
                         </p>
                       </div>
                     )}
