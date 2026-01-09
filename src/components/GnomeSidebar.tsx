@@ -52,7 +52,7 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
   ];
 
   return (
-    <aside className="w-64 flex flex-col" style={{ backgroundColor: 'hsl(220, 30%, 10%)' }}>
+    <aside className="w-64 flex flex-col bg-sidebar border-r border-sidebar-border">
       {/* Logo Section */}
       <div className="p-6 border-b border-border/50">
         <div className="flex items-center gap-3">
