@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Roboto', 'sans-serif'],
-        mono: ['Roboto Mono', 'monospace'],
+        sans: ['Rajdhani', 'sans-serif'],
+        mono: ['monospace'],
       },
       colors: {
         border: "hsl(var(--border))",
