@@ -3,6 +3,7 @@ import { Cpu, HelpCircle } from 'lucide-react';
 import logoObraphoto from '@/assets/logo-obraphoto.png';
 import ThemeToggle from './ThemeToggle';
 import SoundToggle from './SoundToggle';
+import IntelligenceIndicator from './IntelligenceIndicator';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -12,6 +13,12 @@ interface HeaderProps {
   soundEnabled?: boolean;
   onToggleSound?: () => void;
   onStartTour?: () => void;
+  intelligenceStats?: {
+    totalObras: number;
+    totalVariacoes: number;
+    totalIdentificacoes: number;
+    ultimaAtualizacao: string | null;
+  };
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -20,6 +27,7 @@ const Header: React.FC<HeaderProps> = ({
   soundEnabled = true,
   onToggleSound,
   onStartTour,
+  intelligenceStats,
 }) => {
   return (
     <header className="bg-card border-b border-border/50 sticky top-0 z-50">
@@ -33,6 +41,16 @@ const Header: React.FC<HeaderProps> = ({
 
         {/* Controls - posicionados à direita */}
         <div className="hidden md:flex items-center gap-2 absolute right-6">
+          {/* Intelligence Indicator */}
+          {intelligenceStats && (
+            <IntelligenceIndicator
+              totalObras={intelligenceStats.totalObras}
+              totalVariacoes={intelligenceStats.totalVariacoes}
+              totalIdentificacoes={intelligenceStats.totalIdentificacoes}
+              ultimaAtualizacao={intelligenceStats.ultimaAtualizacao}
+            />
+          )}
+
           {/* Status Pills */}
           <div className="gnome-pill bg-success/15 text-success text-xs">
             <div className="w-2 h-2 rounded-full bg-success animate-pulse" />

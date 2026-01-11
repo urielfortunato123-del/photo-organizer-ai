@@ -38,6 +38,7 @@ import EnhancedTreeView from '@/components/EnhancedTreeView';
 import EnhancedResultsView from '@/components/EnhancedResultsView';
 import TourOverlay from '@/components/TourOverlay';
 import Header from '@/components/Header';
+import IntelligenceIndicator from '@/components/IntelligenceIndicator';
 import { exportToExcelXML } from '@/utils/exportExcel';
 import { exportResultsJSON, importResultsJSON, mergeResults, exportFullBackup, importFullBackup } from '@/utils/exportResults';
 import { useImageCache } from '@/hooks/useImageCache';
@@ -49,6 +50,7 @@ import { useSoundFeedback } from '@/hooks/useSoundFeedback';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useTheme } from '@/hooks/useTheme';
 import { useTour } from '@/hooks/useTour';
+import { useAprendizadoOCR } from '@/hooks/useAprendizadoOCR';
 import { 
   api, 
   ProcessingResult, 
@@ -90,6 +92,9 @@ const Index: React.FC = () => {
   const { soundEnabled, setSoundEnabled, playSuccess, playError } = useSoundFeedback();
   const { theme, toggleTheme } = useTheme();
   const { isActive: tourActive, step: tourStep, currentStep, totalSteps, startTour, nextStep, prevStep, skipTour } = useTour();
+  
+  // Aprendizado e inteligência do sistema
+  const { estatisticas, carregarEstatisticas } = useAprendizadoOCR();
   
   // Cooldown for reprocess button (30 seconds)
   const [reprocessCooldown, setReprocessCooldown] = useState(0);
@@ -441,6 +446,9 @@ const Index: React.FC = () => {
           setProcessingProgress({ current: 0, total: 0, currentFile: '' });
           setProcessingStartTime(undefined);
           setPendingProcessFiles([]);
+          
+          // Atualiza estatísticas de aprendizado após processamento
+          carregarEstatisticas();
         }
       );
     } catch (error) {
@@ -1198,6 +1206,7 @@ const Index: React.FC = () => {
         soundEnabled={soundEnabled}
         onToggleSound={() => setSoundEnabled(!soundEnabled)}
         onStartTour={startTour}
+        intelligenceStats={estatisticas}
       />
 
       {/* Tour Overlay */}

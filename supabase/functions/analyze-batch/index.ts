@@ -512,7 +512,11 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Batch complete: ${results.length} success, ${errors.length} errors`);
+console.log(`Batch complete: ${results.length} success, ${errors.length} errors`);
+
+    // === APRENDIZADO AUTOMÁTICO ===
+    // Salva identificações bem-sucedidas no banco de conhecimento
+    await salvarAprendizadoAutomatico(results, supabaseUrl, supabaseKey);
 
     return new Response(
       JSON.stringify({ results, errors, partial: false }),
@@ -528,3 +532,97 @@ serve(async (req) => {
     );
   }
 });
+
+// === FUNÇÃO DE APRENDIZADO AUTOMÁTICO ===
+async function salvarAprendizadoAutomatico(
+  results: { hash: string; result: Record<string, unknown> }[],
+  supabaseUrl: string,
+  supabaseKey: string
+): Promise<void> {
+  try {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    for (const item of results) {
+      const result = item.result;
+      const ocrText = result.ocr_text as string;
+      const portico = result.portico as string;
+      const confidence = result.confidence as number;
+      const method = result.method as string;
+      
+      // Só aprende se:
+      // 1. Tem texto OCR significativo
+      // 2. Portico foi identificado (não é NAO_IDENTIFICADO)
+      // 3. Confiança >= 70%
+      // 4. Método não é já do banco (evita duplicar)
+      if (
+        ocrText && 
+        ocrText.length >= 5 &&
+        portico && 
+        portico !== 'NAO_IDENTIFICADO' &&
+        confidence >= 0.7 &&
+        method !== 'banco_conhecimento'
+      ) {
+        // Verifica se já existe no conhecimento
+        const { data: existente } = await supabase
+          .from('obras_conhecimento')
+          .select('id, variacoes, vezes_identificado')
+          .eq('codigo_normalizado', portico)
+          .maybeSingle();
+        
+        const textoNormalizado = ocrText.toLowerCase().trim().substring(0, 100);
+        
+        if (existente) {
+          // Adiciona variação se não existir
+          const variacoes = (existente.variacoes || []) as string[];
+          if (!variacoes.some(v => v.toLowerCase() === textoNormalizado)) {
+            const novasVariacoes = [...variacoes, textoNormalizado];
+            
+            await supabase
+              .from('obras_conhecimento')
+              .update({ 
+                variacoes: novasVariacoes,
+                vezes_identificado: (existente.vezes_identificado || 0) + 1
+              })
+              .eq('id', existente.id);
+            
+            console.log(`📚 Aprendizado: Nova variação "${textoNormalizado}" → ${portico}`);
+          } else {
+            // Só incrementa contador
+            await supabase
+              .from('obras_conhecimento')
+              .update({ 
+                vezes_identificado: (existente.vezes_identificado || 0) + 1
+              })
+              .eq('id', existente.id);
+          }
+        } else {
+          // Cria nova entrada no conhecimento
+          const rodovia = result.rodovia as string;
+          
+          await supabase
+            .from('obras_conhecimento')
+            .insert({
+              codigo_normalizado: portico,
+              nome_exibicao: portico.replace(/_/g, ' '),
+              tipo: 'auto_aprendido',
+              variacoes: [textoNormalizado],
+              origem: 'aprendizado_automatico',
+              confianca: Math.round(confidence * 100),
+              vezes_identificado: 1,
+              rodovia: rodovia || null,
+              ativo: true
+            });
+          
+          console.log(`🧠 Aprendizado: Nova obra criada "${portico}" a partir de "${textoNormalizado}"`);
+        }
+      }
+    }
+    
+    // Invalida cache para próximas requisições usarem dados atualizados
+    obrasCacheTime = 0;
+    
+  } catch (err) {
+    console.error('Erro no aprendizado automático:', err);
+    // Não bloqueia o fluxo principal
+  }
+}
