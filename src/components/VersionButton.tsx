@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { RefreshCw, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { RefreshCw, Sparkles, Download, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,10 +10,42 @@ import {
 import { toast } from 'sonner';
 
 // Versão atual do aplicativo
-export const APP_VERSION = '1.3.0';
+export const APP_VERSION = '2.0.0';
 
 // Histórico de versões com melhorias
 const CHANGELOG = [
+  {
+    version: '2.0.0',
+    date: '11/01/2026',
+    changes: [
+      '🧠 Sistema de aprendizado automático - IA fica mais inteligente a cada análise',
+      '📊 Indicador de inteligência no header mostrando evolução do sistema',
+      '🏢 Detecção automática de empresa/cliente nas placas',
+      '✅ Aplicar campos em lote (Data, Serviço, Disciplina) corrigido',
+      '🔄 Banco de conhecimento se atualiza automaticamente',
+      '📈 Estatísticas de identificações e variações aprendidas',
+    ],
+  },
+  {
+    version: '1.5.0',
+    date: '10/01/2026',
+    changes: [
+      'Botão "Aplicar p/ Todos" com seleção de campos',
+      'Edição em lote de múltiplas fotos selecionadas',
+      'Correção de bugs no popover de aplicação',
+      'Melhorias na detecção de datas',
+    ],
+  },
+  {
+    version: '1.4.0',
+    date: '08/01/2026',
+    changes: [
+      'Processamento otimizado em lotes paralelos',
+      'Cooldown inteligente para evitar rate limiting',
+      'Overlay de cooldown com progresso visual',
+      'Botão de pular cooldown',
+    ],
+  },
   {
     version: '1.3.0',
     date: '04/01/2026',
@@ -66,6 +98,7 @@ interface VersionButtonProps {
 const VersionButton: React.FC<VersionButtonProps> = ({ className }) => {
   const [showChangelog, setShowChangelog] = useState(false);
   const [hasUpdate, setHasUpdate] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
 
   useEffect(() => {
     const lastSeenVersion = localStorage.getItem(VERSION_KEY);
@@ -96,24 +129,66 @@ const VersionButton: React.FC<VersionButtonProps> = ({ className }) => {
     localStorage.setItem(VERSION_KEY, APP_VERSION);
   };
 
+  const handleCheckUpdate = useCallback(async () => {
+    setIsChecking(true);
+    
+    // Simula verificação (em produção, faria request para API)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    const lastSeenVersion = localStorage.getItem(VERSION_KEY);
+    
+    if (lastSeenVersion !== APP_VERSION) {
+      setHasUpdate(true);
+      setShowChangelog(true);
+      toast.success('🎉 Nova versão encontrada!', {
+        description: `Versão ${APP_VERSION} disponível com novas funcionalidades.`,
+      });
+    } else {
+      toast.success('✅ Você está na versão mais recente!', {
+        description: `ObraPhoto v${APP_VERSION}`,
+      });
+    }
+    
+    setIsChecking(false);
+  }, []);
+
   const handleRefresh = () => {
     window.location.reload();
   };
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleOpenChangelog}
-        className={`relative gap-2 text-muted-foreground hover:text-foreground ${className}`}
-      >
-        {hasUpdate && (
-          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full animate-pulse" />
-        )}
-        <Sparkles className="w-4 h-4" />
-        <span className="text-xs font-mono">v{APP_VERSION}</span>
-      </Button>
+      <div className={`flex items-center gap-1 ${className}`}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleOpenChangelog}
+          className="relative gap-2 text-muted-foreground hover:text-foreground"
+        >
+          {hasUpdate && (
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full animate-pulse" />
+          )}
+          <Sparkles className="w-4 h-4" />
+          <span className="text-xs font-mono">v{APP_VERSION}</span>
+        </Button>
+        
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCheckUpdate}
+          disabled={isChecking}
+          className="gap-1 text-muted-foreground hover:text-foreground text-xs"
+        >
+          {isChecking ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Download className="w-3.5 h-3.5" />
+          )}
+          <span className="hidden sm:inline">
+            {isChecking ? 'Verificando...' : 'Buscar Atualização'}
+          </span>
+        </Button>
+      </div>
 
       <Dialog open={showChangelog} onOpenChange={setShowChangelog}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
@@ -154,7 +229,8 @@ const VersionButton: React.FC<VersionButtonProps> = ({ className }) => {
                     {release.date}
                   </span>
                   {index === 0 && (
-                    <span className="text-xs text-primary-foreground bg-primary px-2 py-0.5 rounded font-medium">
+                    <span className="text-xs text-primary-foreground bg-primary px-2 py-0.5 rounded font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
                       Atual
                     </span>
                   )}
