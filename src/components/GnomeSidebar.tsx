@@ -293,10 +293,8 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
           </Button>
         </motion.div>
         
-        {/* Version Button */}
-        <div className="flex justify-center">
-          <VersionButton />
-        </div>
+        {/* Version Button - Inside container */}
+        <VersionButton />
       </motion.div>
     </motion.aside>
   );
