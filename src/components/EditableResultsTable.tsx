@@ -537,6 +537,111 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Selection counter badge */}
+          {selectedRows.size > 0 && (
+            <span className="px-2 py-1 text-xs font-medium bg-primary/10 text-primary rounded-md">
+              Selecionadas: {selectedRows.size}
+            </span>
+          )}
+          
+          {/* Apply to selected button - only shows when items are selected */}
+          {selectedRows.size > 0 && onBulkUpdate && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="gap-1"
+                >
+                  <CopyCheck className="w-4 h-4" />
+                  Aplicar nas selecionadas ({selectedRows.size})
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-3" align="end">
+                <div className="space-y-3">
+                  <p className="text-xs font-medium text-muted-foreground">Preencha e selecione os campos:</p>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Checkbox 
+                        checked={applyFields.frente} 
+                        onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, frente: !!checked }))}
+                        disabled={!editValues.portico}
+                      />
+                      <Input
+                        placeholder="Frente (ex: FR08_FLOW_P09)"
+                        value={editValues.portico || ''}
+                        onChange={(e) => setEditValues({...editValues, portico: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
+                        className="h-7 text-xs flex-1"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Checkbox 
+                        checked={applyFields.disciplina} 
+                        onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, disciplina: !!checked }))}
+                        disabled={!editValues.disciplina}
+                      />
+                      <Select 
+                        value={editValues.disciplina || ''} 
+                        onValueChange={(v) => setEditValues({...editValues, disciplina: v})}
+                      >
+                        <SelectTrigger className="h-7 text-xs flex-1">
+                          <SelectValue placeholder="Disciplina" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DISCIPLINAS.map(d => (
+                            <SelectItem key={d} value={d} className="text-xs">{d}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Checkbox 
+                        checked={applyFields.servico} 
+                        onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, servico: !!checked }))}
+                        disabled={!editValues.service}
+                      />
+                      <Input
+                        placeholder="Serviço"
+                        value={editValues.service || ''}
+                        onChange={(e) => setEditValues({...editValues, service: e.target.value})}
+                        className="h-7 text-xs flex-1"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Checkbox 
+                        checked={applyFields.data} 
+                        onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, data: !!checked }))}
+                        disabled={!editValues.data_detectada}
+                      />
+                      <Input
+                        placeholder="Data (DD/MM/AAAA)"
+                        value={editValues.data_detectada || ''}
+                        onChange={(e) => setEditValues({...editValues, data_detectada: e.target.value})}
+                        className="h-7 text-xs flex-1"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="pt-2 border-t border-border">
+                    <Button
+                      size="sm"
+                      onClick={() => handleApplySelectedFields(true)}
+                      disabled={!Object.values(applyFields).some(Boolean)}
+                      className="w-full gap-1"
+                    >
+                      <CopyCheck className="w-3.5 h-3.5" />
+                      Aplicar em {selectedRows.size} foto(s)
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+          
           {selectedRows.size > 0 && onReprocessSelected && !isProcessing && (
             <Button
               variant="outline"
@@ -723,10 +828,18 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="w-10">
-                <Checkbox 
-                  checked={selectedRows.size === results.length && results.length > 0}
-                  onCheckedChange={toggleAllSelection}
-                />
+                <div className="flex items-center gap-2">
+                  <Checkbox 
+                    checked={selectedRows.size === results.length && results.length > 0}
+                    indeterminate={selectedRows.size > 0 && selectedRows.size < results.length}
+                    onCheckedChange={toggleAllSelection}
+                  />
+                  {results.length > 0 && (
+                    <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
+                      {selectedRows.size > 0 ? `${selectedRows.size}/${results.length}` : 'Todos'}
+                    </span>
+                  )}
+                </div>
               </TableHead>
               <TableHead className="text-muted-foreground font-semibold w-16">Preview</TableHead>
               <TableHead className="text-muted-foreground font-semibold w-20">Status</TableHead>
@@ -758,7 +871,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   )}
                   style={{ animationDelay: `${index * 30}ms` }}
                 >
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <Checkbox 
                       checked={selectedRows.has(result.filename)}
                       onCheckedChange={() => toggleRowSelection(result.filename)}
