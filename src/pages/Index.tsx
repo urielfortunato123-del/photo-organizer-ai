@@ -380,6 +380,7 @@ const Index: React.FC = () => {
           hora: result.hora,
           hasPlaca: result.hasPlaca,
           confidence: result.confidence,
+          empresa: result.empresa, // Passa empresa detectada pelo OCR
         };
       } catch {
         return null;
@@ -397,6 +398,15 @@ const Index: React.FC = () => {
           setResults(prev => [...prev, ...batchResults]);
           batchResults.forEach(r => {
             setProcessedFiles(prev => new Set([...prev, r.filename]));
+            
+            // Auto-preenche empresa se detectada no OCR e campo ainda está vazio ou é o default
+            if (r.empresa && (empresa === 'HABITECHENE' || empresa === '')) {
+              setEmpresa(r.empresa);
+              toast({
+                title: "Empresa detectada!",
+                description: `Campo preenchido automaticamente: ${r.empresa}`,
+              });
+            }
           });
           setActiveTab('results');
           

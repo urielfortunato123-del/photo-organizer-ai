@@ -63,6 +63,7 @@ export interface PreProcessedOCR {
   hasPlaca?: boolean;
   confidence?: number;
   contratada?: string; // Usado para armazenar a frente/pórtico identificado pelo OCR
+  empresa?: string; // Empresa/cliente detectado na placa
 }
 
 export interface TreeNode {
@@ -329,6 +330,8 @@ export const api = {
 
       const results: ProcessingResult[] = (data.results || []).map((r: { hash: string; result: Record<string, unknown> }) => {
         const originalFile = files.find(f => f.hash === r.hash);
+        // Usa empresa detectada no OCR/IA, ou fallback para empresaNome do config
+        const empresaDetectada = (r.result.empresa as string) || (originalFile?.ocrData as Record<string, unknown>)?.empresa as string || empresaNome;
         return {
           filename: originalFile?.file.name || 'unknown',
           hash: r.hash,
@@ -336,7 +339,7 @@ export const api = {
           portico: r.result.portico as string,
           disciplina: r.result.disciplina as string,
           service: r.result.servico as string,
-          empresa: empresaNome,
+          empresa: empresaDetectada,
           data_detectada: r.result.data as string | undefined,
           hora: r.result.hora as string | undefined,
           tecnico: r.result.analise_tecnica as string,
@@ -354,7 +357,7 @@ export const api = {
           atividade: r.result.atividade as string | undefined,
           alertas: r.result.alertas as ProcessingResult['alertas'],
           dest: buildDestPath(
-            empresaNome,
+            empresaDetectada,
             r.result.portico as string,
             r.result.disciplina as string,
             r.result.servico as string,

@@ -21,6 +21,9 @@ export interface OCRResult {
   frenteServico?: string;  // BSO_01, PORTICO_03, PASSARELA_02, etc.
   frenteServicoInfo?: FrenteServico; // Informações detalhadas da frente
   
+  // === EMPRESA/CLIENTE (nome da empresa na placa) ===
+  empresa?: string;       // HABITECHENE, CCR, ECORODOVIAS, etc.
+  
   // === METADADOS ===
   data?: string;
   hora?: string;
@@ -59,6 +62,9 @@ const PATTERNS = {
   dataExtenso: /\b(\d{1,2})[\s]+(?:de[\s]+)?(jan(?:eiro)?|fev(?:ereiro)?|mar(?:ço|co)?|abr(?:il)?|mai(?:o)?|jun(?:ho)?|jul(?:ho)?|ago(?:sto)?|set(?:embro)?|out(?:ubro)?|nov(?:embro)?|dez(?:embro)?)\.?[\s]+(?:de[\s]+)?(\d{4})\b/gi,
   hora: /\b(\d{1,2})[:\s]?h?[:\s]?(\d{2})(?:[:\s](\d{2}))?\b/g,
   contrato: /\b(?:contrato|ct|contr?)[\s\.\-:]*(?:n[°º]?[\s]*)?(\d+[\-\/]?\d*)\b/gi,
+  
+  // === EMPRESAS CONHECIDAS ===
+  empresa: /\b(HABITECHENE|HABITECH|ECORODOVIAS|CCR|ARTERIS|RUMO|VIA\s*BRASIL|AUTOBAN|ECOVIAS|CART|RENOVIAS|INTERVIAS|RODOVIAS|CONCESSIONARIA|SPVias|ABVias|ViaRondon|TEBE|TRIÂNGULO DO SOL|CENTROVIAS|RODOVIAS DAS COLINAS|VIAOESTE|AB\s*NASCENTES|ENTREVIAS|ROTA\s*DAS\s*BANDEIRAS|TAMOIOS|RODOANEL|EIXO\s*SP|LITORAL\s*SUL|REGIS\s*BITTENCOURT|FERNAO\s*DIAS|FLUMINENSE|PRESIDENTE\s*DUTRA|RAPOSO\s*TAVARES|PLANALTO\s*SUL|LITORAL\s*NORTE)\b/gi,
 };
 
 // Mapa de meses em português para números
@@ -273,6 +279,14 @@ export function extractStructuredData(text: string): Omit<OCRResult, 'rawText' |
   PATTERNS.contrato.lastIndex = 0;
   if (contratoMatch) {
     result.contrato = contratoMatch[1];
+  }
+
+  // === EMPRESA/CLIENTE ===
+  const empresaMatch = PATTERNS.empresa.exec(normalizedText);
+  PATTERNS.empresa.lastIndex = 0;
+  if (empresaMatch) {
+    // Normaliza o nome da empresa (maiúsculas, sem espaços extras)
+    result.empresa = empresaMatch[1].toUpperCase().replace(/\s+/g, '_');
   }
 
   return result;
