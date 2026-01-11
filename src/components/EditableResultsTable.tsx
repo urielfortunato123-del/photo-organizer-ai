@@ -557,21 +557,24 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   Aplicar nas selecionadas ({selectedRows.size})
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-72 p-3" align="end">
+              <PopoverContent className="w-72 p-3" align="end" sideOffset={5}>
                 <div className="space-y-3">
-                  <p className="text-xs font-medium text-muted-foreground">Preencha e selecione os campos:</p>
+                  <p className="text-xs font-medium text-muted-foreground">Preencha e marque os campos que deseja aplicar:</p>
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <Checkbox 
                         checked={applyFields.frente} 
                         onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, frente: !!checked }))}
-                        disabled={!editValues.portico}
                       />
                       <Input
                         placeholder="Frente (ex: FR08_FLOW_P09)"
                         value={editValues.portico || ''}
-                        onChange={(e) => setEditValues({...editValues, portico: e.target.value.toUpperCase().replace(/\s+/g, '_')})}
+                        onChange={(e) => {
+                          const val = e.target.value.toUpperCase().replace(/\s+/g, '_');
+                          setEditValues({...editValues, portico: val});
+                          if (val) setApplyFields(prev => ({ ...prev, frente: true }));
+                        }}
                         className="h-7 text-xs flex-1"
                       />
                     </div>
@@ -580,11 +583,13 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                       <Checkbox 
                         checked={applyFields.disciplina} 
                         onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, disciplina: !!checked }))}
-                        disabled={!editValues.disciplina}
                       />
                       <Select 
                         value={editValues.disciplina || ''} 
-                        onValueChange={(v) => setEditValues({...editValues, disciplina: v})}
+                        onValueChange={(v) => {
+                          setEditValues({...editValues, disciplina: v});
+                          if (v) setApplyFields(prev => ({ ...prev, disciplina: true }));
+                        }}
                       >
                         <SelectTrigger className="h-7 text-xs flex-1">
                           <SelectValue placeholder="Disciplina" />
@@ -601,12 +606,14 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                       <Checkbox 
                         checked={applyFields.servico} 
                         onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, servico: !!checked }))}
-                        disabled={!editValues.service}
                       />
                       <Input
                         placeholder="Serviço"
                         value={editValues.service || ''}
-                        onChange={(e) => setEditValues({...editValues, service: e.target.value})}
+                        onChange={(e) => {
+                          setEditValues({...editValues, service: e.target.value});
+                          if (e.target.value) setApplyFields(prev => ({ ...prev, servico: true }));
+                        }}
                         className="h-7 text-xs flex-1"
                       />
                     </div>
@@ -615,27 +622,42 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                       <Checkbox 
                         checked={applyFields.data} 
                         onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, data: !!checked }))}
-                        disabled={!editValues.data_detectada}
                       />
                       <Input
                         placeholder="Data (DD/MM/AAAA)"
                         value={editValues.data_detectada || ''}
-                        onChange={(e) => setEditValues({...editValues, data_detectada: e.target.value})}
+                        onChange={(e) => {
+                          setEditValues({...editValues, data_detectada: e.target.value});
+                          if (e.target.value) setApplyFields(prev => ({ ...prev, data: true }));
+                        }}
                         className="h-7 text-xs flex-1"
                       />
                     </div>
                   </div>
                   
-                  <div className="pt-2 border-t border-border">
+                  <div className="pt-2 border-t border-border space-y-2">
                     <Button
                       size="sm"
-                      onClick={() => handleApplySelectedFields(true)}
+                      onClick={() => {
+                        console.log('Applying to selected:', { applyFields, editValues, selectedRows: Array.from(selectedRows) });
+                        handleApplySelectedFields(true);
+                      }}
                       disabled={!Object.values(applyFields).some(Boolean)}
                       className="w-full gap-1"
                     >
                       <CopyCheck className="w-3.5 h-3.5" />
                       Aplicar em {selectedRows.size} foto(s)
                     </Button>
+                    {Object.values(applyFields).some(Boolean) && (
+                      <p className="text-[10px] text-muted-foreground text-center">
+                        Campos: {[
+                          applyFields.frente && 'Frente',
+                          applyFields.disciplina && 'Disciplina', 
+                          applyFields.servico && 'Serviço',
+                          applyFields.data && 'Data'
+                        ].filter(Boolean).join(', ')}
+                      </p>
+                    )}
                   </div>
                 </div>
               </PopoverContent>
