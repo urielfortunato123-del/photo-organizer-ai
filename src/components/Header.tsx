@@ -33,15 +33,23 @@ const Header: React.FC<HeaderProps> = ({
   return (
     <header className="bg-card border-b border-border/50 sticky top-0 z-50">
       <div className="flex items-center justify-center px-6 py-3">
-        {/* Logo centralizada com animação */}
-        <motion.img 
-          src={logoObraphotosIA} 
-          alt="ObraPhotos IA" 
-          className="h-14 object-contain cursor-pointer"
-          whileHover={{ scale: 1.05, filter: 'brightness(1.1)' }}
+        {/* Logo centralizada com animação e glow */}
+        <motion.div
+          className="relative group cursor-pointer"
+          whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.98 }}
           transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-        />
+        >
+          {/* Glow effect */}
+          <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/20 blur-xl rounded-full transition-all duration-500 scale-150" />
+          <motion.img 
+            src={logoObraphotosIA} 
+            alt="ObraPhotos IA" 
+            className="h-14 object-contain relative z-10"
+            whileHover={{ filter: 'brightness(1.15) drop-shadow(0 0 8px hsl(var(--primary) / 0.5))' }}
+            transition={{ duration: 0.3 }}
+          />
+        </motion.div>
 
         {/* Controls - posicionados à direita */}
         <div className="hidden md:flex items-center gap-2 absolute right-6">
