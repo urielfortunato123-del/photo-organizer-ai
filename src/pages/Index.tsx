@@ -240,6 +240,57 @@ const Index: React.FC = () => {
   // Track processed filenames to avoid duplicates
   const [processedFiles, setProcessedFiles] = useState<Set<string>>(new Set());
 
+  // Auto-save key for localStorage
+  const AUTO_SAVE_KEY = 'obraphoto_autosave';
+  const [autoSaveRestored, setAutoSaveRestored] = useState(false);
+
+  // Restore auto-saved results on mount
+  useEffect(() => {
+    if (autoSaveRestored) return;
+    
+    try {
+      const saved = localStorage.getItem(AUTO_SAVE_KEY);
+      if (saved) {
+        const { results: savedResults, empresa: savedEmpresa, processedFiles: savedProcessed, savedAt } = JSON.parse(saved);
+        
+        if (savedResults && savedResults.length > 0) {
+          setResults(savedResults);
+          if (savedEmpresa) setEmpresa(savedEmpresa);
+          if (savedProcessed) setProcessedFiles(new Set(savedProcessed));
+          
+          const savedDate = new Date(savedAt);
+          const timeAgo = Math.round((Date.now() - savedDate.getTime()) / 60000);
+          
+          toast({
+            title: "📁 Sessão restaurada automaticamente",
+            description: `${savedResults.length} classificações de ${timeAgo < 60 ? `${timeAgo} min` : `${Math.round(timeAgo/60)}h`} atrás.`,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao restaurar auto-save:', e);
+    }
+    setAutoSaveRestored(true);
+  }, [autoSaveRestored, toast]);
+
+  // Auto-save results whenever they change
+  useEffect(() => {
+    if (!autoSaveRestored || results.length === 0) return;
+    
+    const saveData = {
+      results,
+      empresa,
+      processedFiles: Array.from(processedFiles),
+      savedAt: new Date().toISOString(),
+    };
+    
+    try {
+      localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(saveData));
+    } catch (e) {
+      console.warn('Erro ao salvar automaticamente:', e);
+    }
+  }, [results, empresa, processedFiles, autoSaveRestored]);
+
   // Cooldown timer effect
   useEffect(() => {
     if (reprocessCooldown <= 0) return;
@@ -1107,8 +1158,12 @@ const Index: React.FC = () => {
                       <p className="font-medium text-foreground">
                         {results.length} fotos já processadas
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        Adicione mais fotos e continue processando. Cache: {imageCache.getCacheStats().total} itens ({imageCache.getCacheStats().size})
+                      <p className="text-sm text-muted-foreground flex items-center gap-2">
+                        Adicione mais fotos e continue processando. 
+                        <span className="inline-flex items-center gap-1 text-green-500">
+                          <Save className="w-3 h-3" />
+                          Auto-save ativo
+                        </span>
                       </p>
                     </div>
                   </div>
@@ -1134,7 +1189,8 @@ const Index: React.FC = () => {
                         setFiles([]);
                         setTreeData([]);
                         await clearFiles(); // Clear from IndexedDB too
-                        toast({ title: "Sessão limpa", description: "Todos os resultados e arquivos foram removidos." });
+                        localStorage.removeItem(AUTO_SAVE_KEY); // Clear auto-save
+                        toast({ title: "Sessão limpa", description: "Todos os resultados, arquivos e auto-save foram removidos." });
                       }}
                       className="text-destructive hover:text-destructive"
                     >
