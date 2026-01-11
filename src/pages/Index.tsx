@@ -39,7 +39,7 @@ import EnhancedResultsView from '@/components/EnhancedResultsView';
 import TourOverlay from '@/components/TourOverlay';
 import Header from '@/components/Header';
 import { exportToExcelXML } from '@/utils/exportExcel';
-import { exportResultsJSON, importResultsJSON, mergeResults } from '@/utils/exportResults';
+import { exportResultsJSON, importResultsJSON, mergeResults, exportFullBackup, importFullBackup } from '@/utils/exportResults';
 import { useImageCache } from '@/hooks/useImageCache';
 import { useAuth } from '@/hooks/useAuth';
 import { useOCR, extractStructuredData } from '@/hooks/useOCR';
@@ -990,6 +990,112 @@ const Index: React.FC = () => {
     event.target.value = '';
   }, [results, toast]);
 
+  // Estado para backup em progresso
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [backupProgress, setBackupProgress] = useState({ current: 0, total: 0 });
+
+  // Exportar backup completo
+  const handleExportFullBackup = useCallback(async () => {
+    if (results.length === 0) {
+      toast({
+        title: "Nenhum dado para backup",
+        description: "Processe algumas fotos primeiro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsBackingUp(true);
+    setBackupProgress({ current: 0, total: files.length });
+
+    try {
+      await exportFullBackup(
+        results,
+        files,
+        {
+          empresa,
+          defaultPortico,
+          organizeByDate,
+          economicMode,
+          useLocalOCR,
+        },
+        (current, total) => setBackupProgress({ current, total })
+      );
+
+      toast({
+        title: "✅ Backup completo exportado!",
+        description: `${results.length} classificações + ${files.length} arquivos salvos.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Erro no backup",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBackingUp(false);
+      setBackupProgress({ current: 0, total: 0 });
+    }
+  }, [results, files, empresa, defaultPortico, organizeByDate, economicMode, useLocalOCR, toast]);
+
+  // Importar backup completo
+  const handleImportFullBackup = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    toast({
+      title: "Importando backup...",
+      description: "Extraindo arquivos, aguarde.",
+    });
+
+    const imported = await importFullBackup(file, (stage, current, total) => {
+      console.log(`${stage}: ${current}/${total}`);
+    });
+
+    if (!imported) {
+      toast({
+        title: "Erro ao importar",
+        description: "O arquivo não é um backup válido do ObraPhoto.",
+        variant: "destructive",
+      });
+      event.target.value = '';
+      return;
+    }
+
+    // Merge results
+    const merged = mergeResults(results, imported.results);
+    setResults(merged);
+    
+    // Merge files (add new ones)
+    const existingNames = new Set(files.map(f => f.name));
+    const newFiles = imported.files.filter(f => !existingNames.has(f.name));
+    if (newFiles.length > 0) {
+      setFiles(prev => [...prev, ...newFiles]);
+    }
+
+    // Apply config
+    setEmpresa(imported.config.empresa);
+    setDefaultPortico(imported.config.defaultPortico);
+    setOrganizeByDate(imported.config.organizeByDate);
+    setEconomicMode(imported.config.economicMode);
+    setUseLocalOCR(imported.config.useLocalOCR);
+
+    // Mark imported filenames as processed
+    const importedNames = imported.results.map(r => r.filename);
+    setProcessedFiles(prev => {
+      const updated = new Set(prev);
+      importedNames.forEach(name => updated.add(name));
+      return updated;
+    });
+
+    toast({
+      title: "✅ Backup importado!",
+      description: `${imported.results.length} classificações + ${imported.files.length} arquivos restaurados.`,
+    });
+
+    event.target.value = '';
+  }, [results, files, toast]);
+
   const handleDeletePhotos = useCallback((filenames: string[]) => {
     // Remove from files
     setFiles(prev => prev.filter(f => !filenames.includes(f.name)));
@@ -1266,7 +1372,7 @@ const Index: React.FC = () => {
                       <p className="text-muted-foreground">{results.length} fotos processadas</p>
                     </div>
                     <div className="flex gap-3 flex-wrap">
-                      {/* Hidden file input for import */}
+                      {/* Hidden file inputs for import */}
                       <input
                         type="file"
                         id="import-session"
@@ -1274,16 +1380,37 @@ const Index: React.FC = () => {
                         className="hidden"
                         onChange={handleImportSession}
                       />
+                      <input
+                        type="file"
+                        id="import-backup"
+                        accept=".zip"
+                        className="hidden"
+                        onChange={handleImportFullBackup}
+                      />
+                      
+                      {/* Import buttons dropdown */}
+                      <Button
+                        variant="outline"
+                        onClick={() => document.getElementById('import-backup')?.click()}
+                        disabled={isProcessing || isBackingUp}
+                        className="rounded-xl border-purple-500/50 text-purple-600 hover:bg-purple-500/10"
+                        title="Carregar backup completo (ZIP com fotos + classificações)"
+                      >
+                        <FolderArchive className="w-4 h-4" />
+                        Restaurar Backup
+                      </Button>
+                      
                       <Button
                         variant="outline"
                         onClick={() => document.getElementById('import-session')?.click()}
                         disabled={isProcessing}
                         className="rounded-xl border-blue-500/50 text-blue-600 hover:bg-blue-500/10"
-                        title="Carregar sessão salva anteriormente"
+                        title="Carregar sessão salva anteriormente (só classificações)"
                       >
                         <FileUp className="w-4 h-4" />
-                        Carregar
+                        Carregar JSON
                       </Button>
+                      
                       <Button
                         variant="outline"
                         onClick={() => setShowDetailedReport(true)}
@@ -1291,18 +1418,41 @@ const Index: React.FC = () => {
                         className="rounded-xl border-primary/50 text-primary hover:bg-primary/10"
                       >
                         <FileText className="w-4 h-4" />
-                        Relatório Detalhado
+                        Relatório
                       </Button>
+                      
+                      {/* Export buttons */}
+                      <Button
+                        variant="outline"
+                        onClick={handleExportFullBackup}
+                        disabled={isProcessing || isBackingUp}
+                        className="rounded-xl border-purple-500/50 text-purple-600 hover:bg-purple-500/10"
+                        title="Salva classificações + fotos originais em um ZIP"
+                      >
+                        {isBackingUp ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+                            {backupProgress.total > 0 ? `${backupProgress.current}/${backupProgress.total}` : '...'}
+                          </>
+                        ) : (
+                          <>
+                            <FolderArchive className="w-4 h-4" />
+                            Backup Completo
+                          </>
+                        )}
+                      </Button>
+                      
                       <Button
                         variant="outline"
                         onClick={() => exportResultsJSON(results, empresa)}
                         disabled={isProcessing}
                         className="rounded-xl border-green-500/50 text-green-600 hover:bg-green-500/10"
-                        title="Salva as classificações para continuar depois"
+                        title="Salva só as classificações (precisa re-upload das fotos)"
                       >
                         <Save className="w-4 h-4" />
-                        Salvar
+                        Salvar JSON
                       </Button>
+                      
                       <Button
                         variant="outline"
                         onClick={() => exportToExcelXML(results, `obraphoto_${new Date().toISOString().split('T')[0]}.xls`)}
