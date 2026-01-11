@@ -930,6 +930,19 @@ const Index: React.FC = () => {
     });
   }, [toast]);
 
+  const handleBulkUpdateResults = useCallback((updates: ProcessingResult[]) => {
+    if (!updates || updates.length === 0) return;
+
+    // IMPORTANTE: EditableResultsTable recebe `filteredResults`.
+    // Aqui nós mesclamos os updates no `results` completo para não perder itens fora do filtro.
+    setResults(prev => mergeResults(prev, updates));
+
+    toast({
+      title: "Atualização em lote",
+      description: `${updates.length} foto(s) atualizada(s).`,
+    });
+  }, [toast]);
+
   const handleDeletePhoto = useCallback((result: ProcessingResult) => {
     // Remove from files
     setFiles(prev => prev.filter(f => f.name !== result.filename));
@@ -1502,6 +1515,7 @@ const Index: React.FC = () => {
                     fileUrls={fileUrls}
                     onViewPhoto={handleViewPhoto}
                     onUpdateResult={handleUpdateResult}
+                    onBulkUpdate={handleBulkUpdateResults}
                     onDeletePhotos={handleDeletePhotos}
                     onReprocessSelected={handleReprocessSelected}
                     recentlyReprocessed={recentlyReprocessed}
