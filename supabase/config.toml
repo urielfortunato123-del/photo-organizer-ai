@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.check-version]
 verify_jwt = false
+
+[functions.suggest-caption]
+verify_jwt = false

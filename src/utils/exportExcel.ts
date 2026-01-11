@@ -1,5 +1,10 @@
 import { ProcessingResult } from '@/services/api';
-import { normalizeAnalysisResult, normalizeTechnicalText, cleanFieldValue } from './normalizationValidation';
+import { 
+  normalizeAnalysisResult, 
+  normalizeTechnicalText, 
+  cleanFieldValue,
+  prepareResultsForExport 
+} from './normalizationValidation';
 
 // Mapeamento de frentes para categorias
 function getCategoryFromPortico(portico: string): string {
