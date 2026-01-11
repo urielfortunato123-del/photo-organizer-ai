@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Eye, EyeOff, Mail, Lock, User, Building2, ArrowLeft, Loader2 } from 'lucide-react';
 import { z } from 'zod';
-import logoObraphoto from '@/assets/logo-obraphoto.png';
+import logoObraphotosIA from '@/assets/logo-obraphotos-ia.png';
 
 // Validation schemas
 const loginSchema = z.object({
@@ -177,19 +177,15 @@ const Auth: React.FC = () => {
       
       <div className="w-full max-w-md space-y-6 relative z-10">
         {/* Logo with enhanced styling */}
-        <div className="text-center space-y-3">
+        <div className="text-center space-y-2">
           <div className="relative inline-block">
-            <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full" />
+            <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full scale-110" />
             <img 
-              src={logoObraphoto} 
-              alt="ObraPhoto" 
-              className="h-16 mx-auto relative"
+              src={logoObraphotosIA} 
+              alt="ObraPhotos IA" 
+              className="h-40 mx-auto relative"
             />
           </div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">ObraPhoto AI</h1>
-          <p className="text-muted-foreground text-sm">
-            Sistema Inteligente de Classificação de Fotos
-          </p>
         </div>
 
         <Card className="glass-card border-glass overflow-hidden">
