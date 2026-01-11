@@ -1,4 +1,5 @@
 import { ProcessingResult } from '@/services/api';
+import { normalizeAnalysisResult, normalizeTechnicalText, cleanFieldValue } from './normalizationValidation';
 
 // Mapeamento de frentes para categorias
 function getCategoryFromPortico(portico: string): string {
@@ -60,6 +61,9 @@ const CATEGORY_NAMES: Record<string, string> = {
 };
 
 export function exportToCSV(results: ProcessingResult[], filename: string = 'resultados_obraphoto.csv'): void {
+  // Normaliza todos os resultados antes de exportar
+  const normalizedResults = results.map(r => normalizeAnalysisResult(r as unknown as Record<string, unknown>)) as unknown as ProcessingResult[];
+
   const headers = [
     'Arquivo',
     'Status',
@@ -78,24 +82,24 @@ export function exportToCSV(results: ProcessingResult[], filename: string = 'res
     'Análise Técnica'
   ];
 
-  const rows = results.map(r => {
+  const rows = normalizedResults.map(r => {
     const category = getCategoryFromPortico(r.portico || '');
     return [
       r.filename || '',
       r.status || '',
       CATEGORY_NAMES[category] || category,
-      r.portico || '',
-      r.disciplina || '',
-      r.service || '',
+      normalizeTechnicalText(r.portico) || '',
+      normalizeTechnicalText(r.disciplina) || '',
+      normalizeTechnicalText(r.service) || '',
       r.data_detectada || '',
-      r.rodovia || '',
-      r.km_inicio || '',
+      cleanFieldValue(r.rodovia) || '',
+      cleanFieldValue(r.km_inicio) || '',
       r.gps_lat?.toString() || '',
       r.gps_lon?.toString() || '',
       r.method === 'heuristica' ? 'Manual' : r.method === 'ia_forcada' ? 'IA' : r.method || '',
       r.confidence ? Math.round(r.confidence * 100).toString() : '0',
       r.dest || '',
-      (r.tecnico || '').replace(/"/g, '""')
+      normalizeTechnicalText(r.tecnico || '').replace(/"/g, '""')
     ];
   });
 
@@ -118,6 +122,9 @@ export function exportToCSV(results: ProcessingResult[], filename: string = 'res
 }
 
 export function exportToExcelXML(results: ProcessingResult[], filename: string = 'resultados_obraphoto.xls'): void {
+  // Normaliza todos os resultados antes de exportar
+  const normalizedResults = results.map(r => normalizeAnalysisResult(r as unknown as Record<string, unknown>)) as unknown as ProcessingResult[];
+
   const escapeXml = (str: string) => str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -127,7 +134,7 @@ export function exportToExcelXML(results: ProcessingResult[], filename: string =
 
   // Agrupa por categoria
   const groupedResults: Record<string, ProcessingResult[]> = {};
-  results.forEach(r => {
+  normalizedResults.forEach(r => {
     const category = getCategoryFromPortico(r.portico || '');
     if (!groupedResults[category]) {
       groupedResults[category] = [];
@@ -166,18 +173,18 @@ export function exportToExcelXML(results: ProcessingResult[], filename: string =
         const cells = [
           r.filename || '',
           r.status || '',
-          r.portico || '',
-          r.disciplina || '',
-          r.service || '',
+          normalizeTechnicalText(r.portico) || '',
+          normalizeTechnicalText(r.disciplina) || '',
+          normalizeTechnicalText(r.service) || '',
           r.data_detectada || '',
-          r.rodovia || '',
-          r.km_inicio || '',
+          cleanFieldValue(r.rodovia) || '',
+          cleanFieldValue(r.km_inicio) || '',
           r.gps_lat?.toString() || '',
           r.gps_lon?.toString() || '',
           r.method === 'heuristica' ? 'Manual' : r.method === 'ia_forcada' ? 'IA' : r.method || '',
           r.confidence ? Math.round(r.confidence * 100).toString() : '0',
           r.dest || '',
-          r.tecnico || ''
+          normalizeTechnicalText(r.tecnico) || ''
         ];
         
         return `<Row>${cells.map(cell => 
@@ -250,20 +257,23 @@ export function exportToExcelXML(results: ProcessingResult[], filename: string =
 }
 
 export function generateSummaryReport(results: ProcessingResult[]): string {
-  const total = results.length;
-  const success = results.filter(r => r.status === 'Sucesso').length;
-  const errors = results.filter(r => r.status.includes('Erro')).length;
+  // Normaliza todos os resultados antes de gerar relatório
+  const normalizedResults = results.map(r => normalizeAnalysisResult(r as unknown as Record<string, unknown>)) as unknown as ProcessingResult[];
+
+  const total = normalizedResults.length;
+  const success = normalizedResults.filter(r => r.status === 'Sucesso').length;
+  const errors = normalizedResults.filter(r => r.status.includes('Erro')).length;
   
   // Group by discipline
   const byDiscipline: Record<string, number> = {};
-  results.forEach(r => {
-    const disc = r.disciplina || 'NAO_IDENTIFICADO';
+  normalizedResults.forEach(r => {
+    const disc = normalizeTechnicalText(r.disciplina) || 'NAO_IDENTIFICADO';
     byDiscipline[disc] = (byDiscipline[disc] || 0) + 1;
   });
 
   // Group by category
   const byCategory: Record<string, number> = {};
-  results.forEach(r => {
+  normalizedResults.forEach(r => {
     const category = getCategoryFromPortico(r.portico || '');
     const categoryName = CATEGORY_NAMES[category] || category;
     byCategory[categoryName] = (byCategory[categoryName] || 0) + 1;
@@ -271,8 +281,8 @@ export function generateSummaryReport(results: ProcessingResult[]): string {
 
   // Group by portico
   const byPortico: Record<string, number> = {};
-  results.forEach(r => {
-    const port = r.portico || 'NAO_IDENTIFICADO';
+  normalizedResults.forEach(r => {
+    const port = normalizeTechnicalText(r.portico) || 'NAO_IDENTIFICADO';
     byPortico[port] = (byPortico[port] || 0) + 1;
   });
 

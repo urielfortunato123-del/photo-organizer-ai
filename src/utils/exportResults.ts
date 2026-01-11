@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { ProcessingResult } from '@/services/api';
+import { normalizeAnalysisResult, prepareResultsForExport } from './normalizationValidation';
 
 interface SavedSession {
   version: string;
@@ -20,13 +21,16 @@ interface FullBackup {
   fileCount: number;
 }
 
-// Exporta os resultados para um arquivo JSON
+// Exporta os resultados para um arquivo JSON (com normalização)
 export function exportResultsJSON(results: ProcessingResult[], empresa: string): void {
+  // Normaliza todos os resultados antes de exportar
+  const { normalized } = prepareResultsForExport(results as unknown as Record<string, unknown>[]);
+  
   const session: SavedSession = {
     version: '1.0',
     savedAt: new Date().toISOString(),
     empresa,
-    results,
+    results: normalized as unknown as ProcessingResult[],
   };
 
   const content = JSON.stringify(session, null, 2);
@@ -41,7 +45,7 @@ export function exportResultsJSON(results: ProcessingResult[], empresa: string):
   URL.revokeObjectURL(url);
 }
 
-// Exporta backup completo (resultados + config + arquivos) como ZIP
+// Exporta backup completo (resultados + config + arquivos) como ZIP (com normalização)
 export async function exportFullBackup(
   results: ProcessingResult[],
   files: File[],
@@ -54,6 +58,9 @@ export async function exportFullBackup(
   },
   onProgress?: (current: number, total: number) => void
 ): Promise<void> {
+  // Normaliza todos os resultados antes de exportar
+  const { normalized } = prepareResultsForExport(results as unknown as Record<string, unknown>[]);
+  
   const zip = new JSZip();
   const dateStr = new Date().toISOString().split('T')[0];
 
@@ -66,7 +73,7 @@ export async function exportFullBackup(
     organizeByDate: config.organizeByDate,
     economicMode: config.economicMode,
     useLocalOCR: config.useLocalOCR,
-    results,
+    results: normalized as unknown as ProcessingResult[],
     fileCount: files.length,
   };
 
