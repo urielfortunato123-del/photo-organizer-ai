@@ -409,6 +409,16 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
     const allFieldsSelected = applyFields.frente && applyFields.disciplina && applyFields.servico && applyFields.data;
     const hasAnyFieldValue = editValues.portico || editValues.disciplina || editValues.service || editValues.data_detectada;
     
+    // Valida se os campos marcados têm valores
+    const canApply = () => {
+      if (selectedFieldCount === 0) return false;
+      if (applyFields.frente && !editValues.portico) return false;
+      if (applyFields.disciplina && !editValues.disciplina) return false;
+      if (applyFields.servico && !editValues.service) return false;
+      if (applyFields.data && !editValues.data_detectada) return false;
+      return true;
+    };
+    
     return (
       <Popover open={showApplyAllPopover} onOpenChange={setShowApplyAllPopover}>
         <PopoverTrigger asChild>
@@ -443,48 +453,44 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
               </Button>
             </div>
             
-            {/* Field checkboxes */}
+            {/* Field checkboxes - não mais desabilitados */}
             <div className="space-y-2">
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={cn("flex items-center gap-2 cursor-pointer", !editValues.portico && "opacity-50")}>
                 <Checkbox 
                   checked={applyFields.frente} 
                   onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, frente: !!checked }))}
-                  disabled={!editValues.portico}
                 />
-                <span className={cn("text-sm", !editValues.portico && "text-muted-foreground")}>
+                <span className="text-sm">
                   Frente {editValues.portico ? `(${editValues.portico})` : '(vazio)'}
                 </span>
               </label>
               
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={cn("flex items-center gap-2 cursor-pointer", !editValues.disciplina && "opacity-50")}>
                 <Checkbox 
                   checked={applyFields.disciplina} 
                   onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, disciplina: !!checked }))}
-                  disabled={!editValues.disciplina}
                 />
-                <span className={cn("text-sm", !editValues.disciplina && "text-muted-foreground")}>
+                <span className="text-sm">
                   Disciplina {editValues.disciplina ? `(${editValues.disciplina})` : '(vazio)'}
                 </span>
               </label>
               
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={cn("flex items-center gap-2 cursor-pointer", !editValues.service && "opacity-50")}>
                 <Checkbox 
                   checked={applyFields.servico} 
                   onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, servico: !!checked }))}
-                  disabled={!editValues.service}
                 />
-                <span className={cn("text-sm", !editValues.service && "text-muted-foreground")}>
+                <span className="text-sm">
                   Serviço {editValues.service ? `(${editValues.service.substring(0, 20)}${editValues.service.length > 20 ? '...' : ''})` : '(vazio)'}
                 </span>
               </label>
               
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className={cn("flex items-center gap-2 cursor-pointer", !editValues.data_detectada && "opacity-50")}>
                 <Checkbox 
                   checked={applyFields.data} 
                   onCheckedChange={(checked) => setApplyFields(prev => ({ ...prev, data: !!checked }))}
-                  disabled={!editValues.data_detectada}
                 />
-                <span className={cn("text-sm", !editValues.data_detectada && "text-muted-foreground")}>
+                <span className="text-sm">
                   Data {editValues.data_detectada ? `(${editValues.data_detectada})` : '(vazio)'}
                 </span>
               </label>
@@ -496,8 +502,11 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                 variant="default"
                 size="sm"
                 className="w-full justify-center text-xs gap-2 h-8"
-                onClick={() => handleApplySelectedFields(selectedRows.size > 0)}
-                disabled={selectedFieldCount === 0}
+                onClick={() => {
+                  console.log('ApplyAllButton: Applying fields', { applyFields, editValues, selectedRows: Array.from(selectedRows) });
+                  handleApplySelectedFields(selectedRows.size > 0);
+                }}
+                disabled={!canApply()}
               >
                 <CopyCheck className="w-3.5 h-3.5" />
                 Aplicar em {selectedRows.size > 0 ? `Selecionados (${selectedRows.size})` : `Todos (${results.length})`}
@@ -507,12 +516,20 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   variant="outline"
                   size="sm"
                   className="w-full justify-center text-xs gap-2 h-8"
-                  onClick={() => handleApplySelectedFields(false)}
-                  disabled={selectedFieldCount === 0}
+                  onClick={() => {
+                    console.log('ApplyAllButton: Applying to ALL', { applyFields, editValues });
+                    handleApplySelectedFields(false);
+                  }}
+                  disabled={!canApply()}
                 >
                   <CopyCheck className="w-3.5 h-3.5" />
                   Aplicar em Todos ({results.length})
                 </Button>
+              )}
+              {!canApply() && selectedFieldCount > 0 && (
+                <p className="text-[10px] text-destructive text-center">
+                  Preencha os campos marcados antes de aplicar
+                </p>
               )}
             </div>
           </div>
