@@ -36,7 +36,7 @@ const Header: React.FC<HeaderProps> = ({
         <img 
           src={logoObraphotosIA} 
           alt="ObraPhotos IA" 
-          className="h-12 object-contain"
+          className="h-10 object-contain"
         />
 
         {/* Controls - posicionados à direita */}
