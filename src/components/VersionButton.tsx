@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Sparkles, Download, CheckCircle2, Loader2 } from 'lucide-react';
+import { RefreshCw, Sparkles, Download, CheckCircle2, Loader2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -8,12 +8,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
-// Versão atual do aplicativo
+// Versão local do aplicativo
 export const APP_VERSION = '2.0.0';
 
-// Histórico de versões com melhorias
-const CHANGELOG = [
+// Changelog local (fallback)
+const LOCAL_CHANGELOG = [
   {
     version: '2.0.0',
     date: '11/01/2026',
@@ -24,6 +25,7 @@ const CHANGELOG = [
       '✅ Aplicar campos em lote (Data, Serviço, Disciplina) corrigido',
       '🔄 Banco de conhecimento se atualiza automaticamente',
       '📈 Estatísticas de identificações e variações aprendidas',
+      '🔍 Verificação de atualização via API',
     ],
   },
   {
@@ -36,60 +38,24 @@ const CHANGELOG = [
       'Melhorias na detecção de datas',
     ],
   },
-  {
-    version: '1.4.0',
-    date: '08/01/2026',
-    changes: [
-      'Processamento otimizado em lotes paralelos',
-      'Cooldown inteligente para evitar rate limiting',
-      'Overlay de cooldown com progresso visual',
-      'Botão de pular cooldown',
-    ],
-  },
-  {
-    version: '1.3.0',
-    date: '04/01/2026',
-    changes: [
-      'Sistema de login com confirmação por email',
-      'Modo degustação: 30 min gratuitos (2x/dia)',
-      'Página "Como Usar" com tutorial completo',
-      'Perfil de usuário com nome e empresa',
-      'Recuperação de senha por email',
-    ],
-  },
-  {
-    version: '1.2.0',
-    date: '04/01/2026',
-    changes: [
-      'Resultados aparecem em tempo real durante o processamento',
-      'Otimização com cache de imagens para reduzir chamadas à IA',
-      'Processamento em lote para maior eficiência',
-      'Sistema de versões e changelog',
-    ],
-  },
-  {
-    version: '1.1.0',
-    date: '03/01/2026',
-    changes: [
-      'Análise de fotos com IA integrada',
-      'Exportação para Excel e ZIP',
-      'Edição de resultados inline',
-      'Preview de fotos em modal',
-    ],
-  },
-  {
-    version: '1.0.0',
-    date: '01/01/2026',
-    changes: [
-      'Lançamento inicial do ObraPhoto',
-      'Upload de múltiplas fotos',
-      'Classificação por disciplina e serviço',
-      'Estrutura de pastas automática',
-    ],
-  },
 ];
 
+interface VersionRelease {
+  version: string;
+  date: string;
+  changes: string[];
+}
+
+interface VersionCheckResponse {
+  currentVersion: string;
+  hasUpdate: boolean;
+  changelog: VersionRelease[];
+  newVersions: VersionRelease[];
+  checkedAt: string;
+}
+
 const VERSION_KEY = 'obraphoto_last_seen_version';
+const LAST_CHECK_KEY = 'obraphoto_last_version_check';
 
 interface VersionButtonProps {
   className?: string;
@@ -99,58 +65,101 @@ const VersionButton: React.FC<VersionButtonProps> = ({ className }) => {
   const [showChangelog, setShowChangelog] = useState(false);
   const [hasUpdate, setHasUpdate] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [changelog, setChangelog] = useState<VersionRelease[]>(LOCAL_CHANGELOG);
+  const [serverVersion, setServerVersion] = useState<string | null>(null);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
 
+  // Verifica atualização via API
+  const checkForUpdates = useCallback(async (showToast = true) => {
+    setIsChecking(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke<VersionCheckResponse>('check-version', {
+        body: null,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const response = data as VersionCheckResponse | null;
+      
+      if (error || !response) {
+        console.error('Error checking version:', error);
+        if (showToast) {
+          toast.error('Erro ao verificar atualizações', {
+            description: 'Usando dados locais.',
+          });
+        }
+        setChangelog(LOCAL_CHANGELOG);
+        return;
+      }
+
+      setServerVersion(response.currentVersion);
+      setChangelog(response.changelog || LOCAL_CHANGELOG);
+      setLastChecked(new Date().toLocaleString('pt-BR'));
+      localStorage.setItem(LAST_CHECK_KEY, new Date().toISOString());
+
+      const needsUpdate = response.currentVersion !== APP_VERSION;
+      setHasUpdate(needsUpdate);
+
+      if (showToast) {
+        if (needsUpdate) {
+          toast.success('🎉 Nova versão disponível!', {
+            description: `Versão ${response.currentVersion} disponível. Recarregue para atualizar.`,
+            action: {
+              label: 'Ver novidades',
+              onClick: () => setShowChangelog(true),
+            },
+          });
+          setShowChangelog(true);
+        } else {
+          toast.success('✅ Você está na versão mais recente!', {
+            description: `ObraPhoto v${APP_VERSION}`,
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to check version:', err);
+      if (showToast) {
+        toast.error('Falha na verificação', {
+          description: 'Não foi possível conectar ao servidor.',
+        });
+      }
+      setChangelog(LOCAL_CHANGELOG);
+    } finally {
+      setIsChecking(false);
+    }
+  }, []);
+
+  // Verifica no mount e a cada 30 min
   useEffect(() => {
+    const lastCheck = localStorage.getItem(LAST_CHECK_KEY);
+    const now = Date.now();
+    const thirtyMinutes = 30 * 60 * 1000;
+    
+    // Verifica na primeira vez ou se passou 30 min
+    if (!lastCheck || (now - new Date(lastCheck).getTime()) > thirtyMinutes) {
+      checkForUpdates(false);
+    }
+    
+    // Verifica se é primeira visita
     const lastSeenVersion = localStorage.getItem(VERSION_KEY);
     if (!lastSeenVersion) {
-      // First visit - show changelog
       setHasUpdate(true);
       toast.info('Bem-vindo ao ObraPhoto!', {
-        description: `Versão ${APP_VERSION} - Clique no botão de versão para ver as novidades.`,
+        description: `Versão ${APP_VERSION} - Clique para ver as novidades.`,
         duration: 5000,
       });
     } else if (lastSeenVersion !== APP_VERSION) {
-      // New version available
       setHasUpdate(true);
-      toast.success('Nova versão disponível!', {
-        description: `ObraPhoto atualizado para v${APP_VERSION}. Clique para ver as novidades.`,
-        duration: 6000,
-        action: {
-          label: 'Ver novidades',
-          onClick: () => handleOpenChangelog(),
-        },
-      });
     }
-  }, []);
+  }, [checkForUpdates]);
 
   const handleOpenChangelog = () => {
     setShowChangelog(true);
     setHasUpdate(false);
     localStorage.setItem(VERSION_KEY, APP_VERSION);
   };
-
-  const handleCheckUpdate = useCallback(async () => {
-    setIsChecking(true);
-    
-    // Simula verificação (em produção, faria request para API)
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    const lastSeenVersion = localStorage.getItem(VERSION_KEY);
-    
-    if (lastSeenVersion !== APP_VERSION) {
-      setHasUpdate(true);
-      setShowChangelog(true);
-      toast.success('🎉 Nova versão encontrada!', {
-        description: `Versão ${APP_VERSION} disponível com novas funcionalidades.`,
-      });
-    } else {
-      toast.success('✅ Você está na versão mais recente!', {
-        description: `ObraPhoto v${APP_VERSION}`,
-      });
-    }
-    
-    setIsChecking(false);
-  }, []);
 
   const handleRefresh = () => {
     window.location.reload();
@@ -175,7 +184,7 @@ const VersionButton: React.FC<VersionButtonProps> = ({ className }) => {
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleCheckUpdate}
+          onClick={() => checkForUpdates(true)}
           disabled={isChecking}
           className="gap-1 text-muted-foreground hover:text-foreground text-xs"
         >
@@ -197,14 +206,30 @@ const VersionButton: React.FC<VersionButtonProps> = ({ className }) => {
               <Sparkles className="w-5 h-5 text-primary" />
               Novidades do ObraPhoto
             </DialogTitle>
+            {lastChecked && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                <Clock className="w-3 h-3" />
+                Última verificação: {lastChecked}
+              </p>
+            )}
+            {serverVersion && serverVersion !== APP_VERSION && (
+              <div className="mt-2 p-2 bg-primary/10 rounded-lg border border-primary/30">
+                <p className="text-sm text-primary font-medium">
+                  🎉 Nova versão disponível: v{serverVersion}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Recarregue o app para atualizar
+                </p>
+              </div>
+            )}
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto pr-2 space-y-6">
-            {CHANGELOG.map((release, index) => (
+            {changelog.map((release, index) => (
               <div
                 key={release.version}
                 className={`relative pl-6 pb-6 ${
-                  index < CHANGELOG.length - 1 ? 'border-l-2 border-border' : ''
+                  index < changelog.length - 1 ? 'border-l-2 border-border' : ''
                 }`}
               >
                 {/* Version dot */}
@@ -228,7 +253,7 @@ const VersionButton: React.FC<VersionButtonProps> = ({ className }) => {
                   <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
                     {release.date}
                   </span>
-                  {index === 0 && (
+                  {release.version === APP_VERSION && (
                     <span className="text-xs text-primary-foreground bg-primary px-2 py-0.5 rounded font-medium flex items-center gap-1">
                       <CheckCircle2 className="w-3 h-3" />
                       Atual

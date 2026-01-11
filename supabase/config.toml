@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.analyze-batch]
 verify_jwt = false
+
+[functions.check-version]
+verify_jwt = false
