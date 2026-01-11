@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -9,7 +9,51 @@ interface AprendizadoData {
   obraId?: string;
 }
 
+interface EstatisticasAprendizado {
+  totalObras: number;
+  totalVariacoes: number;
+  totalIdentificacoes: number;
+  ultimaAtualizacao: string | null;
+}
+
 export function useAprendizadoOCR() {
+  const [estatisticas, setEstatisticas] = useState<EstatisticasAprendizado>({
+    totalObras: 0,
+    totalVariacoes: 0,
+    totalIdentificacoes: 0,
+    ultimaAtualizacao: null
+  });
+
+  // Carrega estatísticas do banco de conhecimento
+  const carregarEstatisticas = useCallback(async () => {
+    try {
+      const { data: obras } = await supabase
+        .from('obras_conhecimento')
+        .select('variacoes, vezes_identificado, updated_at')
+        .eq('ativo', true);
+
+      if (obras) {
+        const totalVariacoes = obras.reduce((acc, o) => acc + (o.variacoes?.length || 0), 0);
+        const totalIdentificacoes = obras.reduce((acc, o) => acc + (o.vezes_identificado || 0), 0);
+        const ultimaAtualizacao = obras.length > 0 
+          ? obras.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0]?.updated_at
+          : null;
+
+        setEstatisticas({
+          totalObras: obras.length,
+          totalVariacoes,
+          totalIdentificacoes,
+          ultimaAtualizacao
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao carregar estatísticas:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregarEstatisticas();
+  }, [carregarEstatisticas]);
   // Salvar correção para aprendizado
   const salvarCorrecao = useCallback(async (data: AprendizadoData) => {
     try {
@@ -165,6 +209,8 @@ export function useAprendizadoOCR() {
 
   return {
     salvarCorrecao,
-    buscarSugestoes
+    buscarSugestoes,
+    estatisticas,
+    carregarEstatisticas
   };
 }
