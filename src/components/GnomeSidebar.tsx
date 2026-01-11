@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import logoObraphoto from '@/assets/logo-obraphoto.png';
+import logoObraphotosIA from '@/assets/logo-obraphotos-ia.png';
 import VersionButton from './VersionButton';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -111,27 +111,23 @@ const GnomeSidebar: React.FC<GnomeSidebarProps> = ({
           </div>
         </div>
         <motion.div 
-          className="flex items-center gap-2.5"
+          className="flex items-center justify-center"
           whileHover={{ scale: 1.02 }}
           transition={{ type: "spring", stiffness: 400, damping: 25 }}
         >
           <div className="relative">
             <motion.img 
-              src={logoObraphoto} 
-              alt="ObraPhoto AI" 
-              className="w-10 h-10 object-contain"
-              whileHover={{ rotate: [0, -5, 5, 0] }}
+              src={logoObraphotosIA} 
+              alt="ObraPhotos IA" 
+              className="w-36 h-auto object-contain"
+              whileHover={{ rotate: [0, -2, 2, 0] }}
               transition={{ duration: 0.5 }}
             />
             <motion.div 
-              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-success rounded-full border-2 border-background"
+              className="absolute bottom-2 right-4 w-2.5 h-2.5 bg-success rounded-full border-2 border-background"
               animate={{ scale: [1, 1.2, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
             />
-          </div>
-          <div>
-            <h1 className="font-semibold text-foreground tracking-tight text-sm">ObraPhoto</h1>
-            <p className="text-[10px] text-muted-foreground">Análise com IA</p>
           </div>
         </motion.div>
       </motion.div>
