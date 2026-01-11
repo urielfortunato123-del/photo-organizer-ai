@@ -502,10 +502,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                 variant="default"
                 size="sm"
                 className="w-full justify-center text-xs gap-2 h-8"
-                onClick={() => {
-                  console.log('ApplyAllButton: Applying fields', { applyFields, editValues, selectedRows: Array.from(selectedRows) });
-                  handleApplySelectedFields(selectedRows.size > 0);
-                }}
+                onClick={() => handleApplySelectedFields(selectedRows.size > 0)}
                 disabled={!canApply()}
               >
                 <CopyCheck className="w-3.5 h-3.5" />
@@ -516,10 +513,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                   variant="outline"
                   size="sm"
                   className="w-full justify-center text-xs gap-2 h-8"
-                  onClick={() => {
-                    console.log('ApplyAllButton: Applying to ALL', { applyFields, editValues });
-                    handleApplySelectedFields(false);
-                  }}
+                  onClick={() => handleApplySelectedFields(false)}
                   disabled={!canApply()}
                 >
                   <CopyCheck className="w-3.5 h-3.5" />
@@ -656,7 +650,6 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                     <Button
                       size="sm"
                       onClick={() => {
-                        console.log('Applying to selected:', { applyFields, editValues, selectedRows: Array.from(selectedRows) });
                         handleApplySelectedFields(true);
                       }}
                       disabled={!Object.values(applyFields).some(Boolean)}
