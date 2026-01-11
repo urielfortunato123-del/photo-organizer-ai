@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Cpu, HelpCircle } from 'lucide-react';
 import logoObraphotosIA from '@/assets/logo-obraphotos-ia.png';
 import ThemeToggle from './ThemeToggle';
@@ -32,11 +33,14 @@ const Header: React.FC<HeaderProps> = ({
   return (
     <header className="bg-card border-b border-border/50 sticky top-0 z-50">
       <div className="flex items-center justify-center px-6 py-3">
-        {/* Logo centralizada */}
-        <img 
+        {/* Logo centralizada com animação */}
+        <motion.img 
           src={logoObraphotosIA} 
           alt="ObraPhotos IA" 
-          className="h-14 object-contain"
+          className="h-14 object-contain cursor-pointer"
+          whileHover={{ scale: 1.05, filter: 'brightness(1.1)' }}
+          whileTap={{ scale: 0.98 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 25 }}
         />
 
         {/* Controls - posicionados à direita */}
