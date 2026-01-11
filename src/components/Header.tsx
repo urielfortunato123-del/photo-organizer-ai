@@ -1,6 +1,6 @@
 import React from 'react';
 import { Cpu, HelpCircle } from 'lucide-react';
-import logoObraphoto from '@/assets/logo-obraphoto.png';
+import logoObraphotosIA from '@/assets/logo-obraphotos-ia.png';
 import ThemeToggle from './ThemeToggle';
 import SoundToggle from './SoundToggle';
 import IntelligenceIndicator from './IntelligenceIndicator';
@@ -32,11 +32,11 @@ const Header: React.FC<HeaderProps> = ({
   return (
     <header className="bg-card border-b border-border/50 sticky top-0 z-50">
       <div className="flex items-center justify-center px-6 py-3">
-        {/* Logo centralizada e maior */}
+        {/* Logo centralizada */}
         <img 
-          src={logoObraphoto} 
-          alt="ObraPhoto AI" 
-          className="h-14 object-contain"
+          src={logoObraphotosIA} 
+          alt="ObraPhotos IA" 
+          className="h-12 object-contain"
         />
 
         {/* Controls - posicionados à direita */}
