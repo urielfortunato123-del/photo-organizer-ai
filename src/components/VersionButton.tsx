@@ -167,18 +167,18 @@ const VersionButton: React.FC<VersionButtonProps> = ({ className }) => {
 
   return (
     <>
-      <div className={`flex items-center gap-1 ${className}`}>
+      <div className={`flex flex-col gap-1.5 w-full ${className}`}>
         <Button
           variant="ghost"
           size="sm"
           onClick={handleOpenChangelog}
-          className="relative gap-2 text-muted-foreground hover:text-foreground"
+          className="relative gap-2 text-muted-foreground hover:text-foreground w-full justify-start h-7 px-2"
         >
           {hasUpdate && (
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full animate-pulse" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full animate-pulse" />
           )}
-          <Sparkles className="w-4 h-4" />
-          <span className="text-xs font-mono">v{APP_VERSION}</span>
+          <Sparkles className="w-3.5 h-3.5" />
+          <span className="text-[10px] font-mono">v{APP_VERSION}</span>
         </Button>
         
         <Button
@@ -186,14 +186,14 @@ const VersionButton: React.FC<VersionButtonProps> = ({ className }) => {
           size="sm"
           onClick={() => checkForUpdates(true)}
           disabled={isChecking}
-          className="gap-1 text-muted-foreground hover:text-foreground text-xs"
+          className="gap-1.5 text-muted-foreground hover:text-foreground text-[10px] w-full justify-start h-7 px-2"
         >
           {isChecking ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <Loader2 className="w-3 h-3 animate-spin" />
           ) : (
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-3 h-3" />
           )}
-          <span className="hidden sm:inline">
+          <span>
             {isChecking ? 'Verificando...' : 'Buscar Atualização'}
           </span>
         </Button>
