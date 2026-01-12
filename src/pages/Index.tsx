@@ -38,6 +38,7 @@ import EnhancedTreeView from '@/components/EnhancedTreeView';
 import EnhancedResultsView from '@/components/EnhancedResultsView';
 import TourOverlay from '@/components/TourOverlay';
 import Header from '@/components/Header';
+import AISmartFixIndicator from '@/components/AISmartFixIndicator';
 import IntelligenceIndicator from '@/components/IntelligenceIndicator';
 import { exportToExcelXML } from '@/utils/exportExcel';
 import { fixZeroBug, normalizeTechnicalText, countOCRErrors, applyAllOCRFixes } from '@/utils/normalizationValidation';
@@ -1586,6 +1587,9 @@ const Index: React.FC = () => {
                     porticos={uniquePorticos}
                     disciplinas={uniqueDisciplinas}
                   />
+
+                  {/* AI Smart Fix Indicator */}
+                  <AISmartFixIndicator stats={smartFixStats} />
 
                   {/* Statistics */}
                   <StatisticsCard results={results} />
