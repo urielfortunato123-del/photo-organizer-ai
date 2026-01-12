@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ProcessingResult, ProcessingConfig, PreProcessedOCR, api, hashFile } from '@/services/api';
 import { useImageCache } from '@/hooks/useImageCache';
-import { normalizeAnalysisResult, setCustomDictionary } from '@/utils/normalizationValidation';
+import { normalizeAnalysisResult, setCustomDictionary, fixZeroBug } from '@/utils/normalizationValidation';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface QueueStats {
@@ -354,6 +354,16 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
         for (const result of batchResults) {
           // Normalize text fields (fixes AMPLIAO -> AMPLIAÇÃO, etc.)
           const normalizedResult = normalizeAnalysisResult(result as unknown as Record<string, unknown>) as unknown as ProcessingResult;
+          
+          // Fix "0" bug in service field (AMPLIA0 -> AMPLIACAO)
+          if (normalizedResult.service && typeof normalizedResult.service === 'string') {
+            // Apply zero bug fix to the raw service code
+            const fixedService = fixZeroBug(normalizedResult.service);
+            if (fixedService !== normalizedResult.service) {
+              console.log(`[OCR] Fixed zero bug: "${normalizedResult.service}" → "${fixedService}"`);
+              normalizedResult.service = fixedService;
+            }
+          }
           
           if (!config.organize_by_date && normalizedResult.dest) {
             const parts = normalizedResult.dest.split('/');
