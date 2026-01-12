@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ProcessingResult } from '@/services/api';
 import { 
-  FileText, Printer, XCircle, Camera, LayoutTemplate
+  FileText, Printer, XCircle, Camera, LayoutTemplate, Grid2X2, Grid3X3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -76,6 +76,7 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
 }) => {
   const reportRef = useRef<HTMLDivElement>(null);
   const [template, setTemplate] = useState<ReportTemplate>('obra');
+  const [photosPerPage, setPhotosPerPage] = useState<4 | 6 | 8>(4);
   
   // Report metadata for all templates
   const [reportData, setReportData] = useState({
@@ -109,8 +110,16 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
 
   const allResults = results;
   const config = TEMPLATE_CONFIG[template];
-  const pages = chunkArray(allResults, config.photosPerPage);
+  const effectivePhotosPerPage = photosPerPage;
+  const pages = chunkArray(allResults, effectivePhotosPerPage);
   const totalPages = pages.length;
+  
+  // Determine grid class based on photos per page
+  const getGridClass = () => {
+    if (photosPerPage === 8) return 'photo-grid-4col';
+    if (photosPerPage === 6) return 'photo-grid-3col';
+    return 'photo-grid-2col';
+  };
 
   // Render photo item based on template
   const renderPhotoItem = (result: ProcessingResult, globalIndex: number) => {
@@ -585,6 +594,29 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
             </div>
           </div>
 
+          {/* Photos per page selector */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Grid2X2 className="w-4 h-4 text-muted-foreground" />
+              <Label className="text-sm font-semibold text-muted-foreground">Fotos por Página</Label>
+            </div>
+            <div className="flex gap-2">
+              {([4, 6, 8] as const).map((num) => (
+                <button
+                  key={num}
+                  onClick={() => setPhotosPerPage(num)}
+                  className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                    photosPerPage === num 
+                      ? 'border-primary bg-primary/10 text-primary' 
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  {num} fotos
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Template-specific fields */}
           <div className="pt-4 border-t border-border">
             <h3 className="text-sm font-semibold mb-3 text-muted-foreground">Dados do Relatório</h3>
@@ -601,9 +633,9 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
             <div key={pageIndex} className="report-page">
               {renderHeader(pageIndex)}
 
-              <div className={`photo-grid ${template === 'checklist' ? 'photo-grid-4col' : ''}`}>
+              <div className={`photo-grid ${getGridClass()}`}>
                 {pagePhotos.map((result, idx) => {
-                  const globalIndex = pageIndex * config.photosPerPage + idx;
+                  const globalIndex = pageIndex * effectivePhotosPerPage + idx;
                   return renderPhotoItem(result, globalIndex);
                 })}
               </div>
@@ -620,8 +652,27 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
       <style>{`
         .photo-grid {
           display: grid;
+          gap: 12px;
+        }
+        
+        .photo-grid-2col {
           grid-template-columns: repeat(2, 1fr);
           gap: 12px;
+        }
+        
+        .photo-grid-3col {
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+        }
+        
+        .photo-grid-3col .photo-wrapper {
+          aspect-ratio: 4/3;
+        }
+        
+        .photo-grid-3col .photo-caption {
+          font-size: 8px;
+          padding: 4px 6px;
+          min-height: 30px;
         }
         
         .photo-grid-4col {
@@ -815,8 +866,31 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
           
           .photo-grid {
             display: grid !important;
+            gap: 8px !important;
+          }
+          
+          .photo-grid-2col {
             grid-template-columns: repeat(2, 1fr) !important;
             gap: 8px !important;
+          }
+          
+          .photo-grid-2col .photo-wrapper {
+            height: 140px !important;
+          }
+          
+          .photo-grid-3col {
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 6px !important;
+          }
+          
+          .photo-grid-3col .photo-wrapper {
+            height: 110px !important;
+          }
+          
+          .photo-grid-3col .photo-caption {
+            font-size: 7px !important;
+            padding: 2px 4px !important;
+            min-height: 22px !important;
           }
           
           .photo-grid-4col {
