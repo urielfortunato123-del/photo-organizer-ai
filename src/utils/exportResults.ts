@@ -46,6 +46,7 @@ export function exportResultsJSON(results: ProcessingResult[], empresa: string):
 }
 
 // Exporta backup completo (resultados + config + arquivos) como ZIP (com normalização)
+// Estrutura: FOTOS/SERVICO/ESTRUTURA/ATIVIDADE/TIPO/MES_ANO/DIA_MES/foto.jpg
 export async function exportFullBackup(
   results: ProcessingResult[],
   files: File[],
@@ -80,18 +81,35 @@ export async function exportFullBackup(
   // Add metadata JSON
   zip.file('backup.json', JSON.stringify(backup, null, 2));
 
-  // Add original files
-  const photosFolder = zip.folder('fotos');
-  if (photosFolder) {
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        photosFolder.file(file.name, arrayBuffer);
-        onProgress?.(i + 1, files.length);
-      } catch (err) {
-        console.warn(`Erro ao adicionar ${file.name} ao backup:`, err);
+  // Cria um mapa de filename -> resultado para encontrar o caminho destino
+  const resultsByFilename = new Map<string, ProcessingResult>();
+  for (const result of normalized as unknown as ProcessingResult[]) {
+    resultsByFilename.set(result.filename, result);
+  }
+
+  // Add original files organized by the hierarchical structure
+  // Estrutura: FOTOS/SERVICO/ESTRUTURA/ATIVIDADE/TIPO/MES_ANO/DIA_MES/foto.jpg
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      
+      // Encontra o resultado correspondente para obter o caminho destino
+      const result = resultsByFilename.get(file.name);
+      let destPath: string;
+      
+      if (result?.dest) {
+        // Usa o caminho destino calculado (já inclui a hierarquia correta)
+        destPath = `${result.dest}/${file.name}`;
+      } else {
+        // Fallback: coloca em pasta não identificado
+        destPath = `FOTOS/NAO_IDENTIFICADO/${file.name}`;
       }
+      
+      zip.file(destPath, arrayBuffer);
+      onProgress?.(i + 1, files.length);
+    } catch (err) {
+      console.warn(`Erro ao adicionar ${file.name} ao backup:`, err);
     }
   }
 
