@@ -55,7 +55,7 @@ const TEMPLATE_CONFIG: Record<ReportTemplate, {
   checklist: {
     name: 'Checklist de Inspeção',
     description: 'Estilo inspeção com diagnóstico',
-    photosPerPage: 4,
+    photosPerPage: 8,
     primaryColor: '#059669',
     headerBg: '#D1FAE5',
   },
@@ -601,9 +601,7 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
             <div key={pageIndex} className="report-page">
               {renderHeader(pageIndex)}
 
-              <div className="photo-grid" style={{ 
-                gridTemplateColumns: template === 'simples' ? 'repeat(2, 1fr)' : 'repeat(2, 1fr)'
-              }}>
+              <div className={`photo-grid ${template === 'checklist' ? 'photo-grid-4col' : ''}`}>
                 {pagePhotos.map((result, idx) => {
                   const globalIndex = pageIndex * config.photosPerPage + idx;
                   return renderPhotoItem(result, globalIndex);
@@ -624,6 +622,21 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
           display: grid;
           grid-template-columns: repeat(2, 1fr);
           gap: 12px;
+        }
+        
+        .photo-grid-4col {
+          grid-template-columns: repeat(4, 1fr);
+          gap: 8px;
+        }
+        
+        .photo-grid-4col .photo-wrapper {
+          aspect-ratio: 4/3;
+        }
+        
+        .photo-grid-4col .photo-caption {
+          font-size: 7px;
+          padding: 4px;
+          min-height: 28px;
         }
         
         .photo-cell {
@@ -804,6 +817,21 @@ const DetailedReport: React.FC<DetailedReportProps> = ({
             display: grid !important;
             grid-template-columns: repeat(2, 1fr) !important;
             gap: 8px !important;
+          }
+          
+          .photo-grid-4col {
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 6px !important;
+          }
+          
+          .photo-grid-4col .photo-wrapper {
+            height: 90px !important;
+          }
+          
+          .photo-grid-4col .photo-caption {
+            font-size: 6px !important;
+            padding: 2px 3px !important;
+            min-height: 20px !important;
           }
           
           .photo-cell {
