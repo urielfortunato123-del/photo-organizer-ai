@@ -52,6 +52,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useTheme } from '@/hooks/useTheme';
 import { useTour } from '@/hooks/useTour';
 import { useAprendizadoOCR } from '@/hooks/useAprendizadoOCR';
+import { useOCRCorrection } from '@/hooks/useOCRCorrection';
 import { 
   api, 
   ProcessingResult, 
@@ -97,6 +98,9 @@ const Index: React.FC = () => {
   // Aprendizado e inteligência do sistema
   const { estatisticas, carregarEstatisticas } = useAprendizadoOCR();
   
+  // Hook de correção OCR com IA
+  const { corrigirResultadosBatch, stats: correctionStats } = useOCRCorrection();
+  
   // Cooldown for reprocess button (30 seconds)
   const [reprocessCooldown, setReprocessCooldown] = useState(0);
   const [filesLoaded, setFilesLoaded] = useState(false);
@@ -109,6 +113,7 @@ const Index: React.FC = () => {
   const [iaPriority, setIaPriority] = useState(true);
   const [economicMode, setEconomicMode] = useState(false);
   const [useLocalOCR, setUseLocalOCR] = useState(true); // OCR local ativado por padrão
+  const [useAICorrection, setUseAICorrection] = useState(false); // Correção IA automática
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState<ProcessingResult[]>([]);
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
@@ -424,9 +429,34 @@ const Index: React.FC = () => {
           });
         },
         // onComplete
-        (allResults) => {
+        async (allResults) => {
           const successCount = allResults.filter(r => r.status === 'Sucesso').length;
           const creditErrors = allResults.filter(r => r.status.includes('402') || r.status.includes('crédito')).length;
+          
+          // Se correção IA está ativada, aplica correções automáticas
+          let finalResults = allResults;
+          if (useAICorrection && successCount > 0) {
+            toast({
+              title: "🔍 Aplicando correção IA...",
+              description: "Analisando e corrigindo erros de OCR automaticamente",
+            });
+            
+            try {
+              const successResults = allResults.filter(r => r.status === 'Sucesso');
+              const correctedResults = await corrigirResultadosBatch(successResults, empresa);
+              
+              // Substitui os resultados corrigidos
+              finalResults = allResults.map(original => {
+                const corrected = correctedResults.find(c => c.filename === original.filename);
+                return corrected || original;
+              });
+              
+              // Atualiza os resultados no state
+              setResults(finalResults);
+            } catch (e) {
+              console.warn('Erro na correção IA:', e);
+            }
+          }
           
           if (creditErrors > 0) {
             playError();
@@ -1374,6 +1404,8 @@ const Index: React.FC = () => {
                     onEconomicModeChange={setEconomicMode}
                     useLocalOCR={useLocalOCR}
                     onUseLocalOCRChange={setUseLocalOCR}
+                    useAICorrection={useAICorrection}
+                    onUseAICorrectionChange={setUseAICorrection}
                   />
                 </div>
               </div>
