@@ -199,7 +199,81 @@ export function normalizeTechnicalText(
 }
 
 // ============================================================================
-// 2) VALIDAÇÃO FORTE DE DATAS
+// 2) CORREÇÃO DO BUG "0" (OCR lê ÇÃO/CAO como 0)
+// ============================================================================
+
+/**
+ * Remove acentos de forma segura (para gerar código máquina)
+ */
+export function removeAccents(text: string | null | undefined): string {
+  return String(text || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
+ * Gera código padrão corporativo: A-Z 0-9 _
+ * Exemplo: "Ampliação da Rede" → "AMPLIACAO_DA_REDE"
+ */
+export function generateServiceCode(text: string | null | undefined): string {
+  return removeAccents(text)
+    .toUpperCase()
+    .trim()
+    .replace(/[^A-Z0-9]+/g, "_")   // tudo que não é letra/número vira _
+    .replace(/_+/g, "_")           // tira ____
+    .replace(/^_+|_+$/g, "");      // tira _ nas bordas
+}
+
+/**
+ * Corrige BUG genérico: "ÇÃO/CAO" virando "0" (ex: AMPLIA0_ -> AMPLIACAO_)
+ * Heurísticas PT-BR: troca padrões comuns onde o "0" entrou no lugar de "CAO/ACAO/IACAO/UCAO"
+ */
+export function fixZeroBug(code: string | null | undefined): string {
+  if (!code) return "";
+  
+  let s = String(code).toUpperCase();
+  
+  // Correções específicas PT-BR onde OCR lê "0" em vez de "CAO/ACAO"
+  s = s.replace(/IA0_/g, "IACAO_").replace(/IA0$/g, "IACAO");
+  s = s.replace(/UA0_/g, "UACAO_").replace(/UA0$/g, "UACAO");
+  s = s.replace(/A0_/g, "ACAO_").replace(/A0$/g, "ACAO");
+  s = s.replace(/U0_/g, "UCAO_").replace(/U0$/g, "UCAO");
+  s = s.replace(/C0_/g, "CAO_").replace(/C0$/g, "CAO");
+  s = s.replace(/E0_/g, "ECAO_").replace(/E0$/g, "ECAO");
+  s = s.replace(/I0_/g, "ICAO_").replace(/I0$/g, "ICAO");
+  
+  // Correção genérica: "0_" solto depois de letra vira "CAO_"
+  s = s.replace(/([A-Z])0_/g, "$1CAO_");
+  s = s.replace(/([A-Z])0$/g, "$1CAO");
+  
+  return s;
+}
+
+/**
+ * Limpa texto legível (sem tirar acento) e deixa bonito
+ */
+export function cleanReadable(text: string | null | undefined): string {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Gera um serviço legível curto a partir do texto da IA (primeira frase)
+ */
+export function buildServicoLegivelFromAI(aiText: string | null | undefined): string {
+  const t = cleanReadable(aiText);
+  if (!t) return "";
+  
+  // Pega a primeira frase curta
+  const first = t.split(/[.?!]\s/)[0].trim();
+  
+  // Corta se ficar gigante
+  return first.length > 70 ? first.slice(0, 70).trim() : first;
+}
+
+// ============================================================================
+// 3) VALIDAÇÃO FORTE DE DATAS
 // ============================================================================
 
 /**
@@ -730,4 +804,164 @@ Texto bruto (OCR/nome de arquivo): ${foto.descricao || foto.filename || ""}
 
 Retorne apenas a legenda final (uma linha).
 `.trim();
+}
+
+// ============================================================================
+// 11) RELATÓRIO FINAL COM SERVIÇO LEGÍVEL + CÓDIGO
+// ============================================================================
+
+export interface ReportFinal {
+  cliente?: string;
+  razaoSocial?: string;
+  responsavel?: string;
+  objetivo?: string;
+  localizacao?: string;
+  observacoes?: string;
+  contratoKey?: string;
+  servico_legivel?: string;
+  servico_codigo?: string;
+  fotos?: FotoReport[];
+  stampText?: string;
+  [key: string]: unknown;
+}
+
+export interface PrepareReportFinalOptions {
+  aiText?: string;
+  strict?: boolean;
+  customDefaults?: Partial<ReportDefaults>;
+}
+
+const REPORT_FINAL_REQUIRED_FIELDS: RequiredFieldConfig[] = [
+  { key: "cliente", label: "Cliente" },
+  { key: "responsavel", label: "Responsável" },
+  { key: "localizacao", label: "Localização (GPS ou Rodovia/KM)" },
+  { key: "servico_legivel", label: "Serviço (Legível)" },
+  { key: "servico_codigo", label: "Serviço (Código)" },
+];
+
+/**
+ * FUNÇÃO PRINCIPAL PARA SALVAR E GERAR PDF
+ * 
+ * - Gera serviço legível e código máquina
+ * - Corrige bug do "0" genérico
+ * - Valida antes de salvar/exportar
+ * - Adiciona carimbo de emissão
+ */
+export function prepareReportFinal(
+  report: ReportFinal,
+  options: PrepareReportFinalOptions = {}
+): ReportFinal {
+  const r = { ...report };
+
+  // 1) Monte o serviço legível (prioridade: o que o usuário digitou; senão usa IA)
+  const legivel = cleanReadable(r.servico_legivel) ||
+    (options.aiText ? buildServicoLegivelFromAI(options.aiText) : "");
+  r.servico_legivel = legivel;
+
+  // 2) Gere o código SEMPRE do legível
+  let code = generateServiceCode(legivel);
+
+  // 3) Airbag: se algum bug trouxe "0", corrige
+  code = fixZeroBug(code);
+  r.servico_codigo = code;
+
+  // 4) Se o usuário digitou o código manual (não recomendado), normaliza e corrige também
+  if (report.servico_codigo && report.servico_codigo !== code) {
+    r.servico_codigo = fixZeroBug(generateServiceCode(report.servico_codigo));
+  }
+
+  // 5) Aplica defaults para campos vazios
+  if (!cleanFieldValue(r.objetivo)) {
+    r.objetivo = "Registro fotográfico das atividades executadas em campo";
+  }
+  if (!cleanFieldValue(r.observacoes)) {
+    r.observacoes = "Registro gerado automaticamente. Em caso de divergência, considerar as marcações de data/hora nas imagens e a frente identificada.";
+  }
+  if (!cleanFieldValue(r.razaoSocial)) {
+    r.razaoSocial = "—";
+  }
+  if (!cleanFieldValue(r.responsavel)) {
+    r.responsavel = "—";
+  }
+
+  // 6) Corrigir legendas das fotos + garantir strings
+  r.fotos = (r.fotos || []).map((f) => ({
+    ...f,
+    descricao: cleanReadable(f.descricao),
+    data: String(f.data || "").trim(),
+  }));
+
+  // 7) Carimbo de emissão (pra PDF)
+  r.stampText = `Documento gerado automaticamente • Emissão: ${new Date().toLocaleString("pt-BR")}`;
+
+  // 8) Validação final (trava tudo que for crítico)
+  if (options.strict !== false) {
+    validateReportFinalOrThrow(r);
+  }
+
+  return r;
+}
+
+/**
+ * Validação dura de campos mínimos para relatório final
+ */
+export function validateReportFinalOrThrow(report: ReportFinal): void {
+  for (const { key, label } of REPORT_FINAL_REQUIRED_FIELDS) {
+    const val = report[key];
+    if (!val || !cleanFieldValue(String(val))) {
+      throw new Error(`Campo obrigatório não preenchido: ${label}`);
+    }
+  }
+
+  // Valida se há fotos
+  if (!Array.isArray(report.fotos) || report.fotos.length === 0) {
+    throw new Error("Sem fotos no relatório.");
+  }
+
+  // Valida datas das fotos
+  for (const f of report.fotos) {
+    if (f?.data && !isValidDate(f.data)) {
+      throw new Error(`Data inválida na foto ${f.id ?? f.filename ?? ""}: "${f.data}"`);
+    }
+  }
+}
+
+/**
+ * Valida relatório final sem lançar erro (retorna resultado)
+ */
+export function validateReportFinal(report: ReportFinal): ValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Campos obrigatórios
+  for (const { key, label } of REPORT_FINAL_REQUIRED_FIELDS) {
+    const val = report[key];
+    if (!val || !cleanFieldValue(String(val))) {
+      errors.push(`Campo obrigatório não preenchido: ${label}`);
+    }
+  }
+
+  // Fotos
+  if (!Array.isArray(report.fotos) || report.fotos.length === 0) {
+    errors.push("Sem fotos no relatório.");
+  } else {
+    // Valida datas
+    for (const f of report.fotos) {
+      if (f?.data && !isValidDate(f.data)) {
+        errors.push(`Data inválida na foto ${f.id ?? f.filename ?? ""}: "${f.data}"`);
+      }
+    }
+
+    // Warnings para fotos sem descrição
+    const semDescricao = report.fotos.filter(f => !cleanFieldValue(f.descricao)).length;
+    if (semDescricao > 0) {
+      warnings.push(`${semDescricao} foto(s) sem descrição/legenda`);
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+  };
 }
