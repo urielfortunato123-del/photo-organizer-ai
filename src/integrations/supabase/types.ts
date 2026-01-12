@@ -285,6 +285,39 @@ export type Database = {
         }
         Relationships: []
       }
+      ocr_dictionary_terms: {
+        Row: {
+          ativo: boolean | null
+          contrato_key: string | null
+          created_at: string
+          criado_por: string | null
+          id: string
+          termo_correto: string
+          termo_errado: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          contrato_key?: string | null
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          termo_correto: string
+          termo_errado: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          contrato_key?: string | null
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          termo_correto?: string
+          termo_errado?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

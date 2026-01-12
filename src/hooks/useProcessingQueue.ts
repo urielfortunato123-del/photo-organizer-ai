@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { ProcessingResult, ProcessingConfig, PreProcessedOCR, api, hashFile } from '@/services/api';
 import { useImageCache } from '@/hooks/useImageCache';
-import { normalizeAnalysisResult } from '@/utils/normalizationValidation';
+import { normalizeAnalysisResult, setCustomDictionary } from '@/utils/normalizationValidation';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface QueueStats {
   total: number;
@@ -59,6 +60,40 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
     nextGroupSize: 0,
     errors: [],
   });
+
+  // Carregar dicionário customizado do banco ao montar
+  useEffect(() => {
+    const loadCustomDictionary = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('ocr_dictionary_terms')
+          .select('termo_errado, termo_correto, contrato_key')
+          .eq('ativo', true);
+        
+        if (error) {
+          console.warn('Erro ao carregar dicionário OCR customizado:', error);
+          return;
+        }
+        
+        const dictionary: Record<string, Record<string, string>> = {};
+        
+        for (const term of data || []) {
+          const key = term.contrato_key || 'GLOBAL';
+          if (!dictionary[key]) {
+            dictionary[key] = {};
+          }
+          dictionary[key][term.termo_errado] = term.termo_correto;
+        }
+        
+        setCustomDictionary(dictionary);
+        console.log(`[Queue] Dicionário OCR customizado carregado: ${data?.length || 0} termos`);
+      } catch (err) {
+        console.warn('Erro ao carregar dicionário OCR:', err);
+      }
+    };
+    
+    loadCustomDictionary();
+  }, []);
   
   const abortRef = useRef(false);
   const pausedRef = useRef(false);

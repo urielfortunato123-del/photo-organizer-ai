@@ -129,6 +129,27 @@ export const TECH_DICTIONARIES: Record<string, Record<string, string>> = {
   },
 };
 
+// Cache para termos customizados do banco
+let customDictionaryCache: Record<string, Record<string, string>> | null = null;
+let customDictionaryCacheTimestamp = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
+/**
+ * Limpa o cache do dicionário customizado
+ */
+export function clearCustomDictionaryCache(): void {
+  customDictionaryCache = null;
+  customDictionaryCacheTimestamp = 0;
+}
+
+/**
+ * Define o dicionário customizado (para uso sem banco)
+ */
+export function setCustomDictionary(dict: Record<string, Record<string, string>>): void {
+  customDictionaryCache = dict;
+  customDictionaryCacheTimestamp = Date.now();
+}
+
 /**
  * Escapa caracteres especiais para uso em regex
  */
@@ -138,11 +159,12 @@ function escapeRegExp(s: string): string {
 
 /**
  * Normaliza texto técnico corrigindo erros comuns de OCR
- * Usa dicionário GLOBAL + dicionário específico do contrato
+ * Usa dicionário GLOBAL + dicionário específico do contrato + dicionário customizado
  */
 export function normalizeTechnicalText(
   text: string | null | undefined,
-  contratoKey: string = "GLOBAL"
+  contratoKey: string = "GLOBAL",
+  customDict?: Record<string, string>
 ): string {
   if (!text) return "";
 
@@ -151,10 +173,13 @@ export function normalizeTechnicalText(
   // Remove placeholders ruins
   if (normalized === "-" || normalized === "—" || normalized === "--") return "";
 
-  // Mescla dicionário global com específico do contrato
+  // Mescla dicionários: built-in + cache customizado + parâmetro customDict
   const dict = {
     ...(TECH_DICTIONARIES.GLOBAL || {}),
     ...(TECH_DICTIONARIES[contratoKey] || {}),
+    ...(customDictionaryCache?.GLOBAL || {}),
+    ...(customDictionaryCache?.[contratoKey] || {}),
+    ...(customDict || {}),
   };
 
   // Aplica correções
