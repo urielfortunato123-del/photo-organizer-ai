@@ -773,9 +773,6 @@ const Index: React.FC = () => {
     };
 
     setIsExporting(true);
-    
-    const CHUNK_SIZE = 50;
-    const totalParts = Math.ceil(successResults.length / CHUNK_SIZE);
     const dateStr = new Date().toISOString().split('T')[0];
 
     const pickPhotoDate = (r: ProcessingResult) => {
@@ -847,58 +844,57 @@ const Index: React.FC = () => {
     };
 
     try {
-      for (let partIndex = 0; partIndex < totalParts; partIndex++) {
-        const startIdx = partIndex * CHUNK_SIZE;
-        const endIdx = Math.min(startIdx + CHUNK_SIZE, successResults.length);
-        const chunkResults = successResults.slice(startIdx, endIdx);
-        
-        setZipProgress({ current: startIdx, total: successResults.length });
-        
-        const zip = new JSZip();
-        let addedCount = 0;
-        
-        for (let i = 0; i < chunkResults.length; i++) {
-          const result = chunkResults[i];
-          const file = files.find((f) => f.name === result.filename);
-          if (!file || !result.dest) continue;
+      const zip = new JSZip();
+      let addedCount = 0;
+      
+      // Processa todas as fotos de uma vez só
+      for (let i = 0; i < successResults.length; i++) {
+        const result = successResults[i];
+        const file = files.find((f) => f.name === result.filename);
+        if (!file || !result.dest) continue;
 
-          try {
-            const arrayBuffer = await file.arrayBuffer();
+        try {
+          const arrayBuffer = await file.arrayBuffer();
 
-            const basePath = getFullPath(result);
-            const safeFilename = buildSafeFilename(result, startIdx + i + 1, result.filename);
+          const basePath = getFullPath(result);
+          const safeFilename = buildSafeFilename(result, i + 1, result.filename);
 
-            // Adiciona a foto
-            zip.file(`${basePath}/${safeFilename}`, arrayBuffer);
-            
-            addedCount++;
-            setZipProgress({ current: startIdx + i + 1, total: successResults.length });
-          } catch (err) {
-            console.warn(`Erro ao adicionar ${result.filename}:`, err);
+          // Adiciona a foto
+          zip.file(`${basePath}/${safeFilename}`, arrayBuffer);
+          
+          addedCount++;
+          setZipProgress({ current: i + 1, total: successResults.length });
+        } catch (err) {
+          console.warn(`Erro ao adicionar ${result.filename}:`, err);
+        }
+      }
+
+      if (addedCount > 0) {
+        // Gera o ZIP com compressão STORE (mais rápido, fotos já são comprimidas)
+        const zipBlob = await zip.generateAsync({ 
+          type: 'blob', 
+          compression: 'STORE',
+          // Callback de progresso para ZIPs grandes
+          streamFiles: true,
+        }, (metadata) => {
+          // Atualiza progresso durante a geração do ZIP
+          if (metadata.percent) {
+            setZipProgress({ 
+              current: Math.round(addedCount * metadata.percent / 100), 
+              total: addedCount 
+            });
           }
-        }
+        });
 
-        if (addedCount === 0) continue;
+        const filename = `obraphoto_organizado_${dateStr}.zip`;
 
-        const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
-        if (zipBlob.size < 100) continue;
-
-        const filename = totalParts > 1 
-          ? `obraphoto_${dateStr}_parte${partIndex + 1}de${totalParts}.zip`
-          : `obraphoto_organizado_${dateStr}.zip`;
-
-        // Mostra popup e aguarda (10s ou clique)
-        await showDownloadPopup(zipBlob, filename, partIndex + 1, totalParts);
-        
-        // Pausa extra entre partes
-        if (partIndex < totalParts - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
+        // Mostra popup para download único
+        await showDownloadPopup(zipBlob, filename, 1, 1);
       }
 
       toast({
         title: "Exportação concluída!",
-        description: `${successResults.length} fotos em ${totalParts} arquivo(s).`,
+        description: `${addedCount} fotos exportadas em um único arquivo ZIP.`,
       });
       
     } catch (error) {
