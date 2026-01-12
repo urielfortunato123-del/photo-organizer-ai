@@ -40,6 +40,7 @@ import TourOverlay from '@/components/TourOverlay';
 import Header from '@/components/Header';
 import IntelligenceIndicator from '@/components/IntelligenceIndicator';
 import { exportToExcelXML } from '@/utils/exportExcel';
+import { fixZeroBug, normalizeTechnicalText } from '@/utils/normalizationValidation';
 import { exportResultsJSON, importResultsJSON, mergeResults, exportFullBackup, importFullBackup } from '@/utils/exportResults';
 import { useImageCache } from '@/hooks/useImageCache';
 import { useAuth } from '@/hooks/useAuth';
@@ -1147,6 +1148,42 @@ const Index: React.FC = () => {
     await executeProcessing(selectedFiles);
   }, [files, results, toast, imageCache]);
 
+  // Apply zero bug fix to existing results (without reprocessing)
+  const handleApplyZeroBugFix = useCallback(() => {
+    let fixedCount = 0;
+    
+    const fixedResults = results.map(result => {
+      if (!result.service || typeof result.service !== 'string') return result;
+      
+      // Apply zero bug fix
+      const fixedService = fixZeroBug(result.service);
+      
+      // Also normalize the service text
+      const normalizedService = normalizeTechnicalText(fixedService);
+      
+      if (fixedService !== result.service || normalizedService !== result.service) {
+        console.log(`[ZeroBugFix] "${result.service}" → "${normalizedService}"`);
+        fixedCount++;
+        return { ...result, service: normalizedService };
+      }
+      
+      return result;
+    });
+    
+    if (fixedCount > 0) {
+      setResults(fixedResults);
+      toast({
+        title: "Correção aplicada!",
+        description: `${fixedCount} serviço(s) corrigido(s) (ex: AMPLIA0 → AMPLIAÇÃO).`,
+      });
+    } else {
+      toast({
+        title: "Nenhuma correção necessária",
+        description: "Todos os serviços já estão corretamente normalizados.",
+      });
+    }
+  }, [results, toast]);
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header with UX controls */}
@@ -1490,42 +1527,58 @@ const Index: React.FC = () => {
                     recentlyReprocessed={recentlyReprocessed}
                   />
                   
-                  {/* Show reprocess button for errors OR incomplete results */}
-                  {(() => {
-                    const incompleteCount = results.filter(isIncompleteResult).length;
-                    const totalNeedsReprocess = errorCount + incompleteCount;
+                  {/* Buttons for fixes and reprocessing */}
+                  <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
+                    {/* Apply zero bug fix button (always show if there are results) */}
+                    {results.length > 0 && (
+                      <Button
+                        variant="outline"
+                        onClick={handleApplyZeroBugFix}
+                        disabled={isProcessing}
+                        className="border-primary/50 text-primary hover:bg-primary/10 rounded-xl"
+                      >
+                        <Zap className="w-4 h-4" />
+                        Aplicar Correção OCR (Bug 0)
+                      </Button>
+                    )}
                     
-                    if (totalNeedsReprocess > 0) {
-                      return (
-                        <div className="flex flex-col items-center gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={handleRetryFailed}
-                            disabled={isProcessing || reprocessCooldown > 0}
-                            className="border-destructive/50 text-destructive hover:bg-destructive/10 rounded-xl"
-                          >
-                            <RefreshCw className={`w-4 h-4 ${reprocessCooldown > 0 ? '' : ''}`} />
-                            {reprocessCooldown > 0 
-                              ? `Aguarde ${reprocessCooldown}s`
-                              : `Reprocessar ${totalNeedsReprocess} ${totalNeedsReprocess === 1 ? 'Foto' : 'Fotos'}${
-                                  errorCount > 0 && incompleteCount > 0 
-                                    ? ` (${errorCount} erros + ${incompleteCount} incompletas)`
-                                    : errorCount > 0 
-                                      ? ' com Erro' 
-                                      : ' Incompletas'
-                                }`}
-                          </Button>
-                          {reprocessCooldown > 0 && (
-                            <p className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              Intervalo para evitar sobrecarga da IA
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
+                    {/* Show reprocess button for errors OR incomplete results */}
+                    {(() => {
+                      const incompleteCount = results.filter(isIncompleteResult).length;
+                      const totalNeedsReprocess = errorCount + incompleteCount;
+                      
+                      if (totalNeedsReprocess > 0) {
+                        return (
+                          <div className="flex flex-col items-center gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={handleRetryFailed}
+                              disabled={isProcessing || reprocessCooldown > 0}
+                              className="border-destructive/50 text-destructive hover:bg-destructive/10 rounded-xl"
+                            >
+                              <RefreshCw className={`w-4 h-4 ${reprocessCooldown > 0 ? '' : ''}`} />
+                              {reprocessCooldown > 0 
+                                ? `Aguarde ${reprocessCooldown}s`
+                                : `Reprocessar ${totalNeedsReprocess} ${totalNeedsReprocess === 1 ? 'Foto' : 'Fotos'}${
+                                    errorCount > 0 && incompleteCount > 0 
+                                      ? ` (${errorCount} erros + ${incompleteCount} incompletas)`
+                                      : errorCount > 0 
+                                        ? ' com Erro' 
+                                        : ' Incompletas'
+                                  }`}
+                            </Button>
+                            {reprocessCooldown > 0 && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                Intervalo para evitar sobrecarga da IA
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
                 </>
               ) : (
                 <div className="gnome-card p-16 text-center">
