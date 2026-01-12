@@ -656,4 +656,19 @@
   .shadow-glass {
     box-shadow: var(--glass-shadow);
   }
+
+  /* Animação de pulso vermelho para itens que precisam atenção */
+  @keyframes pulse-error {
+    0%, 100% {
+      background-color: transparent;
+    }
+    50% {
+      background-color: hsl(var(--destructive) / 0.15);
+    }
+  }
+
+  .animate-pulse-error {
+    animation: pulse-error 2s ease-in-out infinite;
+    border-left: 3px solid hsl(var(--destructive) / 0.6);
+  }
 }
