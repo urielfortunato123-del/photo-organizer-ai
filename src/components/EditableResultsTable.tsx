@@ -54,6 +54,7 @@ interface EditableResultsTableProps {
   onDeletePhotos?: (filenames: string[]) => void;
   onReprocessSelected?: (filenames: string[]) => void;
   recentlyReprocessed?: Set<string>;
+  naoCorrigidosIndices?: Set<number>; // Índices de resultados que a IA não conseguiu corrigir
 }
 
 const DISCIPLINAS = [
@@ -112,7 +113,8 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
   onBulkUpdate,
   onDeletePhotos,
   onReprocessSelected,
-  recentlyReprocessed = new Set()
+  recentlyReprocessed = new Set(),
+  naoCorrigidosIndices = new Set(),
 }) => {
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<ProcessingResult>>({});
@@ -891,6 +893,7 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
               const isEditing = editingRow === result.filename;
               const wasReprocessed = recentlyReprocessed.has(result.filename);
               const coords = getCoordinates(result);
+              const precisaAtencao = naoCorrigidosIndices.has(index);
               
               return (
                 <TableRow 
@@ -899,7 +902,8 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
                     "border-border animate-fade-in",
                     selectedRows.has(result.filename) && "bg-primary/5",
                     isEditing && "bg-warning/5",
-                    wasReprocessed && "bg-success/5 ring-1 ring-success/30"
+                    wasReprocessed && "bg-success/5 ring-1 ring-success/30",
+                    precisaAtencao && "animate-pulse-error"
                   )}
                   style={{ animationDelay: `${index * 30}ms` }}
                 >

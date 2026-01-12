@@ -4,7 +4,7 @@ import {
   Play, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree, Folder,
   User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet,
-  Plus, X, Database, Clock, FileText, AlertTriangle, Zap, Layers, Save, FileUp
+  Plus, X, Database, Clock, FileText, AlertTriangle, Zap, Layers, Save, FileUp, Brain
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -53,6 +53,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTour } from '@/hooks/useTour';
 import { useAprendizadoOCR } from '@/hooks/useAprendizadoOCR';
 import { useOCRCorrection } from '@/hooks/useOCRCorrection';
+import { useAISmartFix } from '@/hooks/useAISmartFix';
 import { 
   api, 
   ProcessingResult, 
@@ -100,6 +101,14 @@ const Index: React.FC = () => {
   
   // Hook de correção OCR com IA
   const { corrigirResultadosBatch, stats: correctionStats } = useOCRCorrection();
+  
+  // Hook de correção inteligente com IA (visão + ortografia)
+  const { 
+    stats: smartFixStats, 
+    naoCorrigidosIndices, 
+    executarCorrecaoInteligente,
+    limparNaoCorrigidos 
+  } = useAISmartFix();
   
   // Cooldown for reprocess button (30 seconds)
   const [reprocessCooldown, setReprocessCooldown] = useState(0);
@@ -1592,11 +1601,34 @@ const Index: React.FC = () => {
                     onDeletePhotos={handleDeletePhotos}
                     onReprocessSelected={handleReprocessSelected}
                     recentlyReprocessed={recentlyReprocessed}
+                    naoCorrigidosIndices={naoCorrigidosIndices}
                   />
                   
                   {/* Buttons for fixes and reprocessing */}
                   <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
-                    {/* Apply zero bug fix button (always show if there are results) */}
+                    {/* Botão de Correção Inteligente IA */}
+                    {results.length > 0 && (
+                      <Button
+                        variant="default"
+                        onClick={async () => {
+                          const { resultadosCorrigidos } = await executarCorrecaoInteligente(
+                            results,
+                            files,
+                            defaultPortico
+                          );
+                          setResults(resultadosCorrigidos);
+                        }}
+                        disabled={isProcessing || smartFixStats.emProgresso}
+                        className="bg-gradient-to-r from-primary to-accent text-white rounded-xl"
+                      >
+                        <Brain className="w-4 h-4" />
+                        {smartFixStats.emProgresso 
+                          ? `Corrigindo... ${smartFixStats.progresso}%`
+                          : 'Correção Inteligente IA'}
+                      </Button>
+                    )}
+                    
+                    {/* Apply OCR fix button */}
                     {results.length > 0 && (
                       <Button
                         variant="outline"
@@ -1606,8 +1638,8 @@ const Index: React.FC = () => {
                       >
                         <Zap className="w-4 h-4" />
                         {ocrErrorCount > 0 
-                          ? `Aplicar Correção OCR (${ocrErrorCount} erros)`
-                          : 'Correção OCR (0 erros)'}
+                          ? `Correção Rápida (${ocrErrorCount})`
+                          : 'Correção Rápida (0)'}
                       </Button>
                     )}
                     
