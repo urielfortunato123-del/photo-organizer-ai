@@ -40,7 +40,7 @@ import TourOverlay from '@/components/TourOverlay';
 import Header from '@/components/Header';
 import IntelligenceIndicator from '@/components/IntelligenceIndicator';
 import { exportToExcelXML } from '@/utils/exportExcel';
-import { fixZeroBug, normalizeTechnicalText } from '@/utils/normalizationValidation';
+import { fixZeroBug, normalizeTechnicalText, countOCRErrors, applyAllOCRFixes } from '@/utils/normalizationValidation';
 import { exportResultsJSON, importResultsJSON, mergeResults, exportFullBackup, importFullBackup } from '@/utils/exportResults';
 import { useImageCache } from '@/hooks/useImageCache';
 import { useAuth } from '@/hooks/useAuth';
@@ -1174,23 +1174,57 @@ const Index: React.FC = () => {
     await executeProcessing(selectedFiles);
   }, [files, results, toast, imageCache]);
 
-  // Apply zero bug fix to existing results (without reprocessing)
+  // Apply OCR fixes to existing results (without reprocessing)
   const handleApplyZeroBugFix = useCallback(() => {
     let fixedCount = 0;
     
     const fixedResults = results.map(result => {
-      if (!result.service || typeof result.service !== 'string') return result;
+      let changed = false;
+      const updates: Partial<ProcessingResult> = {};
       
-      // Apply zero bug fix
-      const fixedService = fixZeroBug(result.service);
+      // Corrige service
+      if (result.service && typeof result.service === 'string') {
+        const fixedService = applyAllOCRFixes(result.service);
+        if (fixedService !== result.service) {
+          console.log(`[OCRFix] service: "${result.service}" → "${fixedService}"`);
+          updates.service = fixedService;
+          changed = true;
+        }
+      }
       
-      // Also normalize the service text
-      const normalizedService = normalizeTechnicalText(fixedService);
+      // Corrige dest (estrutura)
+      if (result.dest && typeof result.dest === 'string') {
+        const fixedDest = applyAllOCRFixes(result.dest);
+        if (fixedDest !== result.dest) {
+          console.log(`[OCRFix] dest: "${result.dest}" → "${fixedDest}"`);
+          updates.dest = fixedDest;
+          changed = true;
+        }
+      }
       
-      if (fixedService !== result.service || normalizedService !== result.service) {
-        console.log(`[ZeroBugFix] "${result.service}" → "${normalizedService}"`);
+      // Corrige atividade
+      if (result.atividade && typeof result.atividade === 'string') {
+        const fixedAtividade = applyAllOCRFixes(result.atividade);
+        if (fixedAtividade !== result.atividade) {
+          console.log(`[OCRFix] atividade: "${result.atividade}" → "${fixedAtividade}"`);
+          updates.atividade = fixedAtividade;
+          changed = true;
+        }
+      }
+      
+      // Corrige rodovia
+      if (result.rodovia && typeof result.rodovia === 'string') {
+        const fixedRodovia = applyAllOCRFixes(result.rodovia);
+        if (fixedRodovia !== result.rodovia) {
+          console.log(`[OCRFix] rodovia: "${result.rodovia}" → "${fixedRodovia}"`);
+          updates.rodovia = fixedRodovia;
+          changed = true;
+        }
+      }
+      
+      if (changed) {
         fixedCount++;
-        return { ...result, service: normalizedService };
+        return { ...result, ...updates };
       }
       
       return result;
@@ -1199,16 +1233,21 @@ const Index: React.FC = () => {
     if (fixedCount > 0) {
       setResults(fixedResults);
       toast({
-        title: "Correção aplicada!",
-        description: `${fixedCount} serviço(s) corrigido(s) (ex: AMPLIA0 → AMPLIAÇÃO).`,
+        title: "Correção OCR aplicada!",
+        description: `${fixedCount} foto(s) corrigida(s).`,
       });
     } else {
       toast({
         title: "Nenhuma correção necessária",
-        description: "Todos os serviços já estão corretamente normalizados.",
+        description: "Todos os textos já estão corretamente normalizados.",
       });
     }
   }, [results, toast]);
+
+  // Conta erros OCR detectados
+  const ocrErrorCount = useMemo(() => {
+    return countOCRErrors(results);
+  }, [results]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -1562,11 +1601,13 @@ const Index: React.FC = () => {
                       <Button
                         variant="outline"
                         onClick={handleApplyZeroBugFix}
-                        disabled={isProcessing}
+                        disabled={isProcessing || ocrErrorCount === 0}
                         className="border-primary/50 text-primary hover:bg-primary/10 rounded-xl"
                       >
                         <Zap className="w-4 h-4" />
-                        Aplicar Correção OCR (Bug 0)
+                        {ocrErrorCount > 0 
+                          ? `Aplicar Correção OCR (${ocrErrorCount} erros)`
+                          : 'Correção OCR (0 erros)'}
                       </Button>
                     )}
                     

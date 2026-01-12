@@ -29,10 +29,12 @@ export const TECH_DICTIONARIES: Record<string, Record<string, string>> = {
     "MOVIMENTAO": "MOVIMENTAÇÃO",
     "MOVIMENTACAO": "MOVIMENTAÇÃO",
     "MOVIMENTAÇAO": "MOVIMENTAÇÃO",
+    "MOVIMENTA": "MOVIMENTAÇÃO", // incompleto
     "REGULARIZACAO": "REGULARIZAÇÃO",
     "REGULARIZAÇAO": "REGULARIZAÇÃO",
     "ESCAVACAO": "ESCAVAÇÃO",
     "ESCAVAÇAO": "ESCAVAÇÃO",
+    "ESCAVAO": "ESCAVAÇÃO", // OCR cortou
     "LANAMENTO": "LANÇAMENTO",
     "LANCAMENTO": "LANÇAMENTO",
     "LANÇAMENT0": "LANÇAMENTO",
@@ -56,6 +58,7 @@ export const TECH_DICTIONARIES: Record<string, Record<string, string>> = {
     "VEICUL0S": "VEÍCULOS",
     "REBOCO": "REBOCO",
     "REB0CO": "REBOCO",
+    "REBAIXO": "REBAIXO",
     "DRENAGM": "DRENAGEM",
     "DRENAGEN": "DRENAGEM",
     "SINALIZACAO": "SINALIZAÇÃO",
@@ -65,6 +68,7 @@ export const TECH_DICTIONARIES: Record<string, Record<string, string>> = {
     "PAVIMENTAO": "PAVIMENTAÇÃO",
     "TERRAPLENAGM": "TERRAPLENAGEM",
     "TERRAPLENAGEN": "TERRAPLENAGEM",
+    "TERRAPLANAGEM": "TERRAPLENAGEM", // erro comum
     "CONCRETAGEN": "CONCRETAGEM",
     "CONCRETAGM": "CONCRETAGEM",
     "CONCRETAES": "CONCRETAGEM",
@@ -76,6 +80,7 @@ export const TECH_DICTIONARIES: Record<string, Record<string, string>> = {
     "DEMOLIÇAO": "DEMOLIÇÃO",
     "MANUTENCAO": "MANUTENÇÃO",
     "MANUTENÇAO": "MANUTENÇÃO",
+    "MANUTENO": "MANUTENÇÃO", // OCR cortou
     "RECUPERACAO": "RECUPERAÇÃO",
     "RECUPERAÇAO": "RECUPERAÇÃO",
     "FISCALIZACAO": "FISCALIZAÇÃO",
@@ -109,6 +114,12 @@ export const TECH_DICTIONARIES: Record<string, Record<string, string>> = {
     "INSPECAÇAO": "INSPEÇÃO",
     "SUBSTITUICAO": "SUBSTITUIÇÃO",
     "SUBSTITUIÇAO": "SUBSTITUIÇÃO",
+    // Correções de segurança
+    "SEGURANCA": "SEGURANÇA",
+    "SEGURANA": "SEGURANÇA",
+    // Obras acessórias
+    "OBRAS_ACESSORIAS": "OBRAS ACESSÓRIAS",
+    "ACESSORIAS": "ACESSÓRIAS",
   },
 
   // Contratos específicos - expandir conforme necessidade
@@ -247,6 +258,110 @@ export function fixZeroBug(code: string | null | undefined): string {
   s = s.replace(/([A-Z])0$/g, "$1CAO");
   
   return s;
+}
+
+/**
+ * Corrige case misto (ex: "FRee_FLOW" → "FREE_FLOW", "teRRaplenagem" → "TERRAPLENAGEM")
+ */
+export function fixMixedCase(text: string | null | undefined): string {
+  if (!text) return "";
+  
+  // Converte tudo para uppercase e normaliza
+  return String(text).toUpperCase();
+}
+
+/**
+ * Detecta erros OCR em um texto baseado nos padrões conhecidos
+ * Retorna lista de erros encontrados
+ */
+export function detectOCRErrors(text: string | null | undefined, contratoKey: string = "GLOBAL"): string[] {
+  if (!text) return [];
+  
+  const errors: string[] = [];
+  const upper = String(text).toUpperCase();
+  const original = String(text);
+  
+  // 1. Detecta case misto (letras maiúsculas e minúsculas misturadas)
+  if (original !== upper && original !== original.toLowerCase()) {
+    // Verifica se tem padrão de case misto como "FRee" ou "teRRa"
+    if (/[a-z][A-Z]|[A-Z][a-z][A-Z]/.test(original)) {
+      errors.push(`Case misto: "${original}"`);
+    }
+  }
+  
+  // 2. Detecta termos do dicionário que precisam correção
+  const dict = {
+    ...(TECH_DICTIONARIES.GLOBAL || {}),
+    ...(TECH_DICTIONARIES[contratoKey] || {}),
+  };
+  
+  for (const wrong of Object.keys(dict)) {
+    const regex = new RegExp(`\\b${escapeRegExp(wrong)}\\b`, "gi");
+    if (regex.test(upper)) {
+      errors.push(`Termo incorreto: "${wrong}" → "${dict[wrong]}"`);
+    }
+  }
+  
+  // 3. Detecta padrões de bug zero (0 no lugar de CAO/ACAO)
+  if (/[A-Z]0[_$]?/.test(upper)) {
+    if (/IA0|UA0|A0|U0|C0|E0|I0/.test(upper)) {
+      errors.push(`Bug zero (0 no lugar de ÇÃO): "${upper}"`);
+    }
+  }
+  
+  // 4. Detecta texto truncado (termina com ...)
+  if (original.endsWith('...') || original.endsWith('…')) {
+    errors.push(`Texto truncado: "${original}"`);
+  }
+  
+  return errors;
+}
+
+/**
+ * Conta quantos resultados têm erros OCR detectáveis
+ */
+export function countOCRErrors(
+  results: Array<{ service?: string; dest?: string; atividade?: string; rodovia?: string }>,
+  contratoKey: string = "GLOBAL"
+): number {
+  let count = 0;
+  
+  for (const result of results) {
+    const textsToCheck = [
+      result.service,
+      result.dest,
+      result.atividade,
+      result.rodovia
+    ].filter(Boolean);
+    
+    for (const text of textsToCheck) {
+      const errors = detectOCRErrors(text, contratoKey);
+      if (errors.length > 0) {
+        count++;
+        break; // Conta cada resultado apenas uma vez
+      }
+    }
+  }
+  
+  return count;
+}
+
+/**
+ * Aplica todas as correções OCR de uma vez
+ */
+export function applyAllOCRFixes(text: string | null | undefined, contratoKey: string = "GLOBAL"): string {
+  if (!text) return "";
+  
+  // 1. Corrige case misto primeiro
+  let result = fixMixedCase(text);
+  
+  // 2. Aplica correção de bug zero
+  result = fixZeroBug(result);
+  
+  // 3. Normaliza texto técnico (aplica dicionário)
+  result = normalizeTechnicalText(result, contratoKey);
+  
+  return result;
 }
 
 /**
