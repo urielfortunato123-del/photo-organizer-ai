@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { ProcessingResult, ProcessingConfig, PreProcessedOCR, api, hashFile } from '@/services/api';
 import { useImageCache } from '@/hooks/useImageCache';
+import { normalizeAnalysisResult } from '@/utils/normalizationValidation';
 
 export interface QueueStats {
   total: number;
@@ -313,20 +314,25 @@ export const useProcessingQueue = (options: UseProcessingQueueOptions = {}) => {
           config.economicMode
         );
 
-        // Process results
+        // Process results - apply normalization to fix OCR errors
+        const normalizedResults: ProcessingResult[] = [];
         for (const result of batchResults) {
-          if (!config.organize_by_date && result.dest) {
-            const parts = result.dest.split('/');
-            result.dest = parts.slice(0, 5).join('/');
+          // Normalize text fields (fixes AMPLIAO -> AMPLIAÇÃO, etc.)
+          const normalizedResult = normalizeAnalysisResult(result as unknown as Record<string, unknown>) as unknown as ProcessingResult;
+          
+          if (!config.organize_by_date && normalizedResult.dest) {
+            const parts = normalizedResult.dest.split('/');
+            normalizedResult.dest = parts.slice(0, 5).join('/');
           }
-          allResults.push(result);
-          if (result.hash) {
-            imageCache.setCache(result.hash, result);
+          normalizedResults.push(normalizedResult);
+          allResults.push(normalizedResult);
+          if (normalizedResult.hash) {
+            imageCache.setCache(normalizedResult.hash, normalizedResult);
           }
         }
 
-        setResults(prev => [...prev, ...batchResults]);
-        onBatchComplete?.(batchResults);
+        setResults(prev => [...prev, ...normalizedResults]);
+        onBatchComplete?.(normalizedResults);
 
         // Handle errors - track them
         const errorResults: ProcessingResult[] = [];

@@ -91,6 +91,24 @@ export const TECH_DICTIONARIES: Record<string, Record<string, string>> = {
     "MODULOS": "MÓDULOS",
     "PRFABRICADOS": "PRÉ-FABRICADOS",
     "PREFABRICADOS": "PRÉ-FABRICADOS",
+    // Correções de AMPLIAO (faltando Ç)
+    "AMPLIAO": "AMPLIAÇÃO",
+    "AMPLIAÇAO": "AMPLIAÇÃO",
+    "AMPLIACAO": "AMPLIAÇÃO",
+    // Correções adicionais comuns
+    "EXTENSAO": "EXTENSÃO",
+    "EXTENSAÇAO": "EXTENSÃO",
+    "ILUMINACAO": "ILUMINAÇÃO",
+    "ILUMINAÇAO": "ILUMINAÇÃO",
+    "LIMPZA": "LIMPEZA",
+    "LIMPEZ": "LIMPEZA",
+    "REVSAO": "REVISÃO",
+    "REVISAO": "REVISÃO",
+    "REVISAÇAO": "REVISÃO",
+    "INSPECAO": "INSPEÇÃO",
+    "INSPECAÇAO": "INSPEÇÃO",
+    "SUBSTITUICAO": "SUBSTITUIÇÃO",
+    "SUBSTITUIÇAO": "SUBSTITUIÇÃO",
   },
 
   // Contratos específicos - expandir conforme necessidade
