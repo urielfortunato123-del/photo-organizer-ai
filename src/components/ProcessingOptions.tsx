@@ -4,6 +4,7 @@ import { Settings, MapPin, Calendar, Brain, Building2, Zap, ScanText } from 'luc
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import OCRDictionaryPanel from '@/components/OCRDictionaryPanel';
 
 interface ProcessingOptionsProps {
   defaultPortico: string;
@@ -279,6 +280,17 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Dicionário OCR */}
+        <motion.div 
+          className="pt-3 border-t border-border"
+          variants={optionVariants}
+          custom={5}
+          initial="hidden"
+          animate="visible"
+        >
+          <OCRDictionaryPanel />
+        </motion.div>
       </div>
     </motion.div>
   );
