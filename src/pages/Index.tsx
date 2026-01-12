@@ -1589,7 +1589,10 @@ const Index: React.FC = () => {
                   />
 
                   {/* AI Smart Fix Indicator */}
-                  <AISmartFixIndicator stats={smartFixStats} />
+                  <AISmartFixIndicator 
+                    stats={smartFixStats} 
+                    onLimparSinalizacoes={limparNaoCorrigidos}
+                  />
 
                   {/* Statistics */}
                   <StatisticsCard results={results} />

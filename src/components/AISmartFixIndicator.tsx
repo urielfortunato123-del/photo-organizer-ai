@@ -1,15 +1,21 @@
 import React from 'react';
-import { Brain, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Brain, CheckCircle2, AlertTriangle, Loader2, X } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 import { SmartFixStats } from '@/hooks/useAISmartFix';
 import { cn } from '@/lib/utils';
 
 interface AISmartFixIndicatorProps {
   stats: SmartFixStats;
+  onLimparSinalizacoes?: () => void;
   className?: string;
 }
 
-const AISmartFixIndicator: React.FC<AISmartFixIndicatorProps> = ({ stats, className }) => {
+const AISmartFixIndicator: React.FC<AISmartFixIndicatorProps> = ({ 
+  stats, 
+  onLimparSinalizacoes,
+  className 
+}) => {
   // Não mostra nada se nunca foi executado
   if (stats.total === 0 && !stats.emProgresso) {
     return null;
@@ -88,6 +94,20 @@ const AISmartFixIndicator: React.FC<AISmartFixIndicatorProps> = ({ stats, classN
           </div>
         )}
       </div>
+
+      {/* Botão para limpar sinalizações */}
+      {!stats.emProgresso && stats.naoCorrigidos > 0 && onLimparSinalizacoes && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onLimparSinalizacoes}
+          className="text-amber-600 hover:text-amber-700 hover:bg-amber-100 dark:text-amber-400 dark:hover:text-amber-300 dark:hover:bg-amber-900/30"
+          title="Limpar sinalizações após revisão manual"
+        >
+          <X className="w-4 h-4 mr-1" />
+          <span className="hidden sm:inline">Limpar sinalizações</span>
+        </Button>
+      )}
     </div>
   );
 };
