@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, MapPin, Calendar, Brain, Building2, Zap, ScanText } from 'lucide-react';
+import { Settings, MapPin, Calendar, Brain, Building2, Zap, ScanText, Sparkles } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +19,8 @@ interface ProcessingOptionsProps {
   onEconomicModeChange?: (value: boolean) => void;
   useLocalOCR?: boolean;
   onUseLocalOCRChange?: (value: boolean) => void;
+  useAICorrection?: boolean;
+  onUseAICorrectionChange?: (value: boolean) => void;
 }
 
 const cardVariants = {
@@ -61,6 +63,8 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
   onEconomicModeChange,
   useLocalOCR = true,
   onUseLocalOCRChange,
+  useAICorrection = false,
+  onUseAICorrectionChange,
 }) => {
   return (
     <motion.div 
@@ -276,6 +280,44 @@ const ProcessingOptions: React.FC<ProcessingOptionsProps> = ({
               <Switch
                 checked={economicMode}
                 onCheckedChange={onEconomicModeChange}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* AI Correction - only show when AI is enabled */}
+        <AnimatePresence>
+          {iaPriority && onUseAICorrectionChange && (
+            <motion.div 
+              className="flex items-center justify-between p-3 rounded-lg bg-purple-500/10 border border-purple-500/20"
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: "auto", marginTop: 16 }}
+              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              whileHover={{ 
+                scale: 1.01,
+                backgroundColor: "hsla(270, 76%, 50%, 0.15)",
+                transition: { type: "spring", stiffness: 400, damping: 25 }
+              }}
+            >
+              <div className="flex items-center gap-2.5">
+                <motion.div 
+                  className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center"
+                  animate={useAICorrection ? { scale: [1, 1.2, 1] } : {}}
+                  transition={{ duration: 0.5, repeat: useAICorrection ? Infinity : 0, repeatDelay: 2 }}
+                >
+                  <Sparkles className="w-4 h-4 text-purple-500" />
+                </motion.div>
+                <div>
+                  <p className="text-xs font-medium text-foreground">Correção IA</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Corrige erros de OCR automaticamente
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={useAICorrection}
+                onCheckedChange={onUseAICorrectionChange}
               />
             </motion.div>
           )}
