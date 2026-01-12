@@ -4,6 +4,17 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { SmartFixStats } from '@/hooks/useAISmartFix';
 import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface AISmartFixIndicatorProps {
   stats: SmartFixStats;
@@ -95,18 +106,36 @@ const AISmartFixIndicator: React.FC<AISmartFixIndicatorProps> = ({
         )}
       </div>
 
-      {/* Botão para limpar sinalizações */}
+      {/* Botão para limpar sinalizações com confirmação */}
       {!stats.emProgresso && stats.naoCorrigidos > 0 && onLimparSinalizacoes && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onLimparSinalizacoes}
-          className="text-amber-600 hover:text-amber-700 hover:bg-amber-100 dark:text-amber-400 dark:hover:text-amber-300 dark:hover:bg-amber-900/30"
-          title="Limpar sinalizações após revisão manual"
-        >
-          <X className="w-4 h-4 mr-1" />
-          <span className="hidden sm:inline">Limpar sinalizações</span>
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-amber-600 hover:text-amber-700 hover:bg-amber-100 dark:text-amber-400 dark:hover:text-amber-300 dark:hover:bg-amber-900/30"
+              title="Limpar sinalizações após revisão manual"
+            >
+              <X className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Limpar sinalizações</span>
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Limpar sinalizações?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja limpar as {stats.naoCorrigidos} {stats.naoCorrigidos === 1 ? 'sinalização' : 'sinalizações'}? 
+                Esta ação indica que você revisou manualmente os itens que a IA não conseguiu corrigir automaticamente.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={onLimparSinalizacoes}>
+                Confirmar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   );
