@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { useToast } from '@/hooks/use-toast';
 import { useBMImport, BMItem, findBestMatch } from '@/hooks/useBMImport';
 import { supabase } from '@/integrations/supabase/client';
+import * as XLSX from 'xlsx';
 
 interface RDAItem {
   id: string;
@@ -66,33 +67,92 @@ export default function RDACalculator({ isOpen, onClose }: RDACalculatorProps) {
     }
   };
 
-  // Importa RDA (planilha de atividades)
+  // Importa RDA (planilha de atividades) - suporta Excel e CSV
   const handleRDAUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
-      const content = await file.text();
-      const lines = content.split('\n').filter(l => l.trim());
+      let rows: Record<string, unknown>[] = [];
+      
+      // Usa xlsx para arquivos Excel
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' });
+      } else {
+        // Fallback para CSV/TXT
+        const content = await file.text();
+        const lines = content.split('\n').filter(l => l.trim());
+        const headers = lines[0]?.split(/[;,\t]/) || [];
+        
+        for (let i = 1; i < lines.length; i++) {
+          const cells = lines[i].split(/[;,\t]/);
+          const row: Record<string, unknown> = {};
+          headers.forEach((h, idx) => {
+            row[h.trim()] = cells[idx]?.trim() || '';
+          });
+          rows.push(row);
+        }
+      }
+
       const items: RDAItem[] = [];
-
-      // Pula header e processa linhas
-      for (let i = 1; i < lines.length; i++) {
-        const cells = lines[i].split(/[;,\t]/);
-        if (cells.length >= 4) {
-          const data = cells[0]?.trim() || '';
-          const obra = cells[3]?.trim() || '';
-          const atividade = cells[10]?.trim() || ''; // Coluna de atividades
-
-          if (atividade && atividade !== 'Sem atividades') {
-            items.push({
-              id: `rda_${i}`,
-              data,
-              obra,
-              atividade,
-              status: 'pendente',
-            });
+      
+      // Detecta automaticamente as colunas pela nomenclatura
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const keys = Object.keys(row);
+        
+        let data = '';
+        let obra = '';
+        let atividade = '';
+        let contratada = '';
+        
+        for (const key of keys) {
+          const keyLower = key.toLowerCase();
+          const value = String(row[key] ?? '').trim();
+          
+          if (!value || value === 'Sem atividades') continue;
+          
+          // Detecta coluna de data
+          if (keyLower.includes('data') || keyLower === 'date') {
+            data = value;
           }
+          // Detecta coluna de obra/local
+          else if (keyLower.includes('obra') || keyLower.includes('local') || keyLower.includes('portico') || keyLower.includes('pórtico')) {
+            obra = value;
+          }
+          // Detecta coluna de atividade
+          else if (keyLower.includes('atividade') || keyLower.includes('descri') || keyLower.includes('serviço') || keyLower.includes('servico')) {
+            atividade = value;
+          }
+          // Detecta contratada
+          else if (keyLower.includes('contrat')) {
+            contratada = value;
+          }
+        }
+        
+        // Se não encontrou atividade por nome, procura a maior string na linha
+        if (!atividade) {
+          let maxLen = 0;
+          for (const key of keys) {
+            const value = String(row[key] ?? '').trim();
+            if (value.length > maxLen && value !== 'Sem atividades') {
+              maxLen = value.length;
+              atividade = value;
+            }
+          }
+        }
+        
+        if (atividade && atividade.length > 5) {
+          items.push({
+            id: `rda_${i}`,
+            data,
+            obra: obra || contratada,
+            atividade,
+            status: 'pendente',
+          });
         }
       }
 
