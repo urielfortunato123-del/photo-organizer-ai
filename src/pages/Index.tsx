@@ -4,7 +4,7 @@ import {
   Play, ImageIcon, CheckCircle2, XCircle, 
   Upload, Table as TableIcon, FolderTree, Folder,
   User, Sparkles, RefreshCw, FolderArchive, FileSpreadsheet,
-  Plus, X, Database, Clock, FileText, AlertTriangle, Zap, Layers, Save, FileUp, Brain
+  Plus, X, Database, Clock, FileText, AlertTriangle, Zap, Layers, Save, FileUp, Brain, Calculator
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,6 +41,7 @@ import TourOverlay from '@/components/TourOverlay';
 import Header from '@/components/Header';
 import AISmartFixIndicator from '@/components/AISmartFixIndicator';
 import IntelligenceIndicator from '@/components/IntelligenceIndicator';
+import RDACalculator from '@/components/RDACalculator';
 import { exportToExcelXML } from '@/utils/exportExcel';
 import { fixZeroBug, normalizeTechnicalText, countOCRErrors, applyAllOCRFixes } from '@/utils/normalizationValidation';
 import { exportResultsJSON, importResultsJSON, mergeResults, exportFullBackup, importFullBackup } from '@/utils/exportResults';
@@ -163,6 +164,9 @@ const Index: React.FC = () => {
   
   // Processing overlay completion state
   const [showProcessingOverlay, setShowProcessingOverlay] = useState(false);
+  
+  // RDA Calculator modal
+  const [showRDACalculator, setShowRDACalculator] = useState(false);
 
   // Track recently reprocessed photos (for visual indicator)
   const [recentlyReprocessed, setRecentlyReprocessed] = useState<Set<string>>(new Set());
@@ -1578,6 +1582,15 @@ const Index: React.FC = () => {
                         Excel
                       </Button>
                       <Button
+                        variant="outline"
+                        onClick={() => setShowRDACalculator(true)}
+                        className="rounded-xl border-orange-500/50 text-orange-600 hover:bg-orange-500/10"
+                        title="Calcular valores: cruzar atividades com tabela de preços BM"
+                      >
+                        <Calculator className="w-4 h-4" />
+                        Calcular RDA
+                      </Button>
+                      <Button
                         onClick={handleExportZIP}
                         disabled={isProcessing || isExporting}
                         className="gnome-btn-primary min-w-[140px]"
@@ -1892,6 +1905,12 @@ const Index: React.FC = () => {
         onClose={() => setShowErrorsReport(false)}
         errors={queueStats.errors}
         onRetryAll={handleRetryFailed}
+      />
+
+      {/* RDA Calculator Modal */}
+      <RDACalculator
+        isOpen={showRDACalculator}
+        onClose={() => setShowRDACalculator(false)}
       />
 
       {/* Download Popup com Countdown */}

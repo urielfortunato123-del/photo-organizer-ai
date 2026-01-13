@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.ai-smart-fix]
 verify_jwt = false
+
+[functions.extract-quantities]
+verify_jwt = false
