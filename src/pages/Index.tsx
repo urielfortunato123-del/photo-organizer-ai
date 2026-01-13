@@ -802,6 +802,33 @@ const Index: React.FC = () => {
       return truncatedName + ext;
     };
 
+    // Sanitiza segmentos de caminho do ZIP para máxima compatibilidade no Windows/Explorer
+    // - remove acentos (PÓRTICO -> PORTICO)
+    // - remove caracteres inválidos e limita tamanho
+    const sanitizePathSegment = (segment: string, maxLen: number = 64) => {
+      const cleaned = (segment || '')
+        .normalize('NFD')
+        // remove diacríticos (acentos)
+        .replace(/\p{Diacritic}/gu, '')
+        // caracteres inválidos em caminhos do Windows
+        .replace(/[\\/:*?"<>|]/g, '_')
+        // evita pontos finais/espacos no fim (problema clássico no Windows)
+        .replace(/[.\s]+$/g, '')
+        .replace(/^\s+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      const safe = cleaned.length > maxLen ? cleaned.slice(0, maxLen) : cleaned;
+      return safe || 'SEM_CLASSIFICACAO';
+    };
+
+    const sanitizeZipPath = (path: string) =>
+      path
+        .split('/')
+        .filter(Boolean)
+        .map((seg) => sanitizePathSegment(seg))
+        .join('/');
+
     setIsExporting(true);
     const dateStr = new Date().toISOString().split('T')[0];
 
@@ -851,20 +878,14 @@ const Index: React.FC = () => {
       return null;
     };
 
-    // Usa a estrutura completa do result.dest e garante que o caminho sempre comece em "FOTOS/..."
+    // Usa a estrutura completa do result.dest e sanitiza o caminho (compatibilidade Windows)
     const getFullPath = (r: ProcessingResult) => {
-      if (r.dest) {
-        const idx = r.dest.indexOf('FOTOS/');
-        if (idx >= 0) {
-          const clean = r.dest.slice(idx);
-          return clean || 'SEM_CLASSIFICACAO';
-        }
-        return r.dest || 'SEM_CLASSIFICACAO';
-      }
+      if (r.dest) return sanitizeZipPath(r.dest);
+
       // Fallback: se não tem dest, usa a data
       const d = pickPhotoDate(r);
       if (!d) return 'SEM_DATA';
-      return `FOTOS/NAO_IDENTIFICADO/GERAL/${d.dd}_${d.mm}`;
+      return sanitizeZipPath(`NAO_IDENTIFICADO/GERAL/${d.dd}_${d.mm}`);
     };
 
     // Renomeia arquivos no ZIP para data/hora (evita nomes enormes tipo WhatsApp_Unknown...)
@@ -879,7 +900,7 @@ const Index: React.FC = () => {
     try {
       const zip = new JSZip();
       let addedCount = 0;
-      
+
       // Processa todas as fotos de uma vez só
       for (let i = 0; i < successResults.length; i++) {
         const result = successResults[i];
@@ -894,7 +915,7 @@ const Index: React.FC = () => {
 
           // Adiciona a foto
           zip.file(`${basePath}/${safeFilename}`, arrayBuffer);
-          
+
           addedCount++;
           setZipProgress({ current: i + 1, total: successResults.length });
         } catch (err) {
@@ -903,20 +924,11 @@ const Index: React.FC = () => {
       }
 
       if (addedCount > 0) {
-        // Gera o ZIP com compressão STORE (mais rápido, fotos já são comprimidas)
-        const zipBlob = await zip.generateAsync({ 
-          type: 'blob', 
+        // Gera o ZIP sem streamFiles para maximizar compatibilidade com o Windows Explorer
+        const zipBlob = await zip.generateAsync({
+          type: 'blob',
           compression: 'STORE',
-          // Callback de progresso para ZIPs grandes
-          streamFiles: true,
-        }, (metadata) => {
-          // Atualiza progresso durante a geração do ZIP
-          if (metadata.percent) {
-            setZipProgress({ 
-              current: Math.round(addedCount * metadata.percent / 100), 
-              total: addedCount 
-            });
-          }
+          mimeType: 'application/zip',
         });
 
         const filename = `obraphoto_organizado_${dateStr}.zip`;
@@ -929,7 +941,7 @@ const Index: React.FC = () => {
         title: "Exportação concluída!",
         description: `${addedCount} fotos exportadas em um único arquivo ZIP.`,
       });
-      
+
     } catch (error) {
       console.error('Export error:', error);
       toast({
