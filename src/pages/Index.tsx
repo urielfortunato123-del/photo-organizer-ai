@@ -34,6 +34,7 @@ import ErrorsReport from '@/components/ErrorsReport';
 import PhotoPreviewGrid from '@/components/PhotoPreviewGrid';
 import ProcessingOverlay from '@/components/ProcessingOverlay';
 import ValidationModal from '@/components/ValidationModal';
+import PreDownloadValidation from '@/components/PreDownloadValidation';
 import EnhancedTreeView from '@/components/EnhancedTreeView';
 import EnhancedResultsView from '@/components/EnhancedResultsView';
 import TourOverlay from '@/components/TourOverlay';
@@ -156,6 +157,9 @@ const Index: React.FC = () => {
 
   // Validation modal
   const [showValidation, setShowValidation] = useState(false);
+  
+  // Pre-download validation modal
+  const [showPreDownloadValidation, setShowPreDownloadValidation] = useState(false);
   
   // Processing overlay completion state
   const [showProcessingOverlay, setShowProcessingOverlay] = useState(false);
@@ -734,6 +738,7 @@ const Index: React.FC = () => {
     }
   }, [executeDownload]);
 
+  // Mostra modal de validação pré-download
   const handleExportZIP = async () => {
     const successResults = results.filter((r) => r.status === 'Sucesso' && r.dest);
 
@@ -766,6 +771,17 @@ const Index: React.FC = () => {
         variant: "destructive",
       });
     }
+
+    // Abre modal de validação pré-download
+    setShowPreDownloadValidation(true);
+  };
+
+  // Executa o download do ZIP após validação
+  const executeExportZIP = async () => {
+    setShowPreDownloadValidation(false);
+    
+    const successResults = results.filter((r) => r.status === 'Sucesso' && r.dest);
+    const availableResults = successResults.filter(r => files.find(f => f.name === r.filename));
 
     // Mantém nomes curtos/seguros para ZIP (evita caracteres inválidos no Windows)
     const sanitizeFilename = (filename: string, maxLen: number = 32) => {
@@ -1848,6 +1864,15 @@ const Index: React.FC = () => {
           onClose={() => setShowDetailedReport(false)}
         />
       )}
+
+      {/* Pre-Download Validation Modal */}
+      <PreDownloadValidation
+        isOpen={showPreDownloadValidation}
+        onClose={() => setShowPreDownloadValidation(false)}
+        results={results}
+        onBulkUpdate={handleBulkUpdateResults}
+        onContinue={executeExportZIP}
+      />
 
       {/* Cooldown Overlay */}
       <CooldownOverlay
