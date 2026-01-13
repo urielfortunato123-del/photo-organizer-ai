@@ -831,12 +831,15 @@ const Index: React.FC = () => {
       return null;
     };
 
-    // Usa a estrutura completa do result.dest (FOTOS/SERVICO/ESTRUTURA/ATIVIDADE/TIPO/MES/DIA)
+    // Usa a estrutura completa do result.dest e garante que o caminho sempre comece em "FOTOS/..."
     const getFullPath = (r: ProcessingResult) => {
       if (r.dest) {
-        // Remove o prefixo EMPRESA se existir (já está na raiz do ZIP)
-        const cleanDest = r.dest.replace(/^[^/]+\//, '');
-        return cleanDest || 'SEM_CLASSIFICACAO';
+        const idx = r.dest.indexOf('FOTOS/');
+        if (idx >= 0) {
+          const clean = r.dest.slice(idx);
+          return clean || 'SEM_CLASSIFICACAO';
+        }
+        return r.dest || 'SEM_CLASSIFICACAO';
       }
       // Fallback: se não tem dest, usa a data
       const d = pickPhotoDate(r);

@@ -115,41 +115,68 @@ export const hashFile = async (file: File): Promise<string> => {
 };
 
 // Build destination path based on classification
-// Format: FOTOS/SERVICO(ex: SP270)/ESTRUTURA(ex: SEGURANCA)/ATIVIDADE_DESENVOLVIDA(ex: ALAMBRADO)/TIPO_ATIVIDADE(disciplina)/MES/DIA
-// Agrupa por ESTRUTURA (categoria principal do serviço) - tudo de segurança fica junto
+// Estrutura desejada:
+//   FOTOS/
+//     (2) OBRA/LOCAL (portico: ex FREE_FLOW_P10, BSO_01, SP270, ...)
+//     (3) CATEGORIA (estrutura)
+//     (4) ITEM/ATIVIDADE (atividade desenvolvida)
+//     (5) MES
+//     (6) DIA_MES
+//
+// Obs: NÃO criamos uma pasta extra para "disciplina" aqui para evitar duplicações.
 const buildDestPath = (
-  empresa: string,
-  portico: string, // = Serviço/Contrato (ex: SP270)
-  disciplina: string, // = Tipo de atividade (ex: INSTALACAO, MANUTENCAO)
-  servico: string, // = Atividade desenvolvida (ex: ALAMBRADO E FECHADURA PORTA)
+  _empresa: string,
+  portico: string, // = Obra/Local (ex: SP270)
+  _disciplina: string, // mantido por compatibilidade, não usado no path
+  servico: string, // = Serviço/atividade (ex: "SEGURANÇA - ALAMBRADO E FECHADURA")
   dataStr: string | null,
   organizeByDate: boolean
 ): string => {
-  // Extrai a categoria/estrutura principal do serviço (primeira palavra)
-  // Ex: "SEGURANCA - ALAMBRADO E FECHADURA" -> "SEGURANCA"
-  // Ex: "TERRAPLENAGEM - CORTE" -> "TERRAPLENAGEM"
   const estrutura = extractEstrutura(servico);
-  
-  // Atividade desenvolvida é o serviço completo ou a parte após o "-"
   const atividadeDesenvolvida = extractAtividade(servico);
-  
-  // Estrutura: FOTOS / SERVICO(portico) / ESTRUTURA / ATIVIDADE_DESENVOLVIDA / TIPO_ATIVIDADE(disciplina)
-  let path = `FOTOS/${portico || 'NAO_IDENTIFICADO'}/${estrutura}/${atividadeDesenvolvida}/${disciplina || 'GERAL'}`;
-  
+
+  // Base: FOTOS / PORTICO / ESTRUTURA / ATIVIDADE
+  let path = `FOTOS/${portico || 'NAO_IDENTIFICADO'}/${estrutura}/${atividadeDesenvolvida}`;
+
+  // Data: aceita DD/MM/YYYY, YYYY-MM-DD e ISO (com ou sem hora)
   if (organizeByDate && dataStr) {
-    // Try DD/MM/YYYY format first
-    const match = dataStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    if (match) {
-      const day = match[1];
-      const month = parseInt(match[2], 10);
-      // Format: MES_NOME (e.g., 01_JANEIRO)
-      const monthName = MONTH_NAMES[month] || `${month.toString().padStart(2, '0')}_MES`;
-      // Format: DIA_MES (e.g., 12_10)
-      const dayMonth = `${day}_${month.toString().padStart(2, '0')}`;
+    const raw = String(dataStr).trim();
+
+    // DD/MM/YYYY
+    let m = raw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (m) {
+      const day = m[1];
+      const month = parseInt(m[2], 10);
+      const monthName = MONTH_NAMES[month] || `${String(month).padStart(2, '0')}_MES`;
+      const dayMonth = `${day}_${String(month).padStart(2, '0')}`;
       path += `/${monthName}/${dayMonth}`;
+      return path;
+    }
+
+    // YYYY-MM-DD or YYYY/MM/DD
+    m = raw.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
+    if (m) {
+      const year = m[1];
+      const month = parseInt(m[2], 10);
+      const day = m[3];
+      const monthName = MONTH_NAMES[month] || `${String(month).padStart(2, '0')}_MES`;
+      const dayMonth = `${day}_${String(month).padStart(2, '0')}`;
+      path += `/${monthName}/${dayMonth}`;
+      return path;
+    }
+
+    // ISO fallback via Date parsing
+    const d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) {
+      const month = d.getMonth() + 1;
+      const day = String(d.getDate()).padStart(2, '0');
+      const monthName = MONTH_NAMES[month] || `${String(month).padStart(2, '0')}_MES`;
+      const dayMonth = `${day}_${String(month).padStart(2, '0')}`;
+      path += `/${monthName}/${dayMonth}`;
+      return path;
     }
   }
-  
+
   return path;
 };
 
@@ -450,7 +477,8 @@ export const api = {
           empresa: empresaNome,
           method: 'heuristica',
           confidence: 0.5,
-          dest: `${empresaNome}/FOTOS/${config.default_portico || 'NAO_IDENTIFICADO'}/GERAL/REGISTRO`,
+          // Mantém a mesma estrutura de pastas do download ZIP
+          dest: `FOTOS/${config.default_portico || 'NAO_IDENTIFICADO'}/GERAL/REGISTRO`,
         };
         results.push(result);
         cache?.setCache(hash, result);
