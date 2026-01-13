@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
 
 export interface BMItem {
   id: string;
@@ -23,7 +24,7 @@ const extractKeywords = (descricao: string): string[] => {
   return [...new Set(words)];
 };
 
-// Parseia arquivo CSV/Excel para extrair dados BM
+// Parseia arquivo CSV para extrair dados BM
 const parseCSV = (content: string): BMItem[] => {
   const lines = content.split('\n').filter(line => line.trim());
   const items: BMItem[] = [];
@@ -54,6 +55,64 @@ const parseCSV = (content: string): BMItem[] => {
   return items;
 };
 
+// Parseia arquivo Excel para extrair dados BM
+export const parseExcel = async (file: File): Promise<BMItem[]> => {
+  const arrayBuffer = await file.arrayBuffer();
+  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+  const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' });
+  
+  const items: BMItem[] = [];
+  
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    const keys = Object.keys(row);
+    
+    // Tenta encontrar as colunas por nome ou posição
+    let codigo = '';
+    let descricao = '';
+    let unidade = '';
+    let valorUnitario = 0;
+    
+    for (const key of keys) {
+      const keyLower = key.toLowerCase();
+      const value = String(row[key] ?? '').trim();
+      
+      if (keyLower.includes('codigo') || keyLower.includes('código') || keyLower === 'cod') {
+        codigo = value;
+      } else if (keyLower.includes('descri') || keyLower.includes('item') || keyLower.includes('serviço')) {
+        descricao = value;
+      } else if (keyLower.includes('unid') || keyLower === 'un' || keyLower === 'und') {
+        unidade = value;
+      } else if (keyLower.includes('valor') || keyLower.includes('preco') || keyLower.includes('preço') || keyLower.includes('unit')) {
+        const valorStr = value.replace(',', '.').replace(/[^\d.-]/g, '');
+        valorUnitario = parseFloat(valorStr) || 0;
+      }
+    }
+    
+    // Fallback: usa posição se não encontrou por nome
+    if (!codigo && keys.length >= 1) codigo = String(row[keys[0]] ?? '').trim();
+    if (!descricao && keys.length >= 2) descricao = String(row[keys[1]] ?? '').trim();
+    if (!unidade && keys.length >= 3) unidade = String(row[keys[2]] ?? '').trim();
+    if (!valorUnitario && keys.length >= 4) {
+      const valorStr = String(row[keys[3]] ?? '').replace(',', '.').replace(/[^\d.-]/g, '');
+      valorUnitario = parseFloat(valorStr) || 0;
+    }
+    
+    if (codigo && descricao) {
+      items.push({
+        id: `bm_${i}`,
+        codigo,
+        descricao,
+        unidade,
+        valorUnitario,
+        keywords: extractKeywords(descricao),
+      });
+    }
+  }
+  
+  return items;
+};
 // Tenta encontrar o melhor match para uma atividade
 export const findBestMatch = (atividade: string, items: BMItem[]): BMItem | null => {
   if (!atividade || !items.length) return null;
@@ -104,8 +163,15 @@ export function useBMImport() {
     setIsLoading(true);
     
     try {
-      const content = await file.text();
-      const items = parseCSV(content);
+      let items: BMItem[];
+      
+      // Usa xlsx para arquivos Excel
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        items = await parseExcel(file);
+      } else {
+        const content = await file.text();
+        items = parseCSV(content);
+      }
       
       if (items.length === 0) {
         toast({
