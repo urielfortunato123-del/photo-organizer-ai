@@ -102,8 +102,8 @@ export async function exportFullBackup(
         // Usa o caminho destino calculado (já inclui a hierarquia correta)
         destPath = `${result.dest}/${file.name}`;
       } else {
-        // Fallback: coloca em pasta não identificado
-        destPath = `FOTOS/NAO_IDENTIFICADO/${file.name}`;
+        // Fallback: coloca em pasta não identificado (sem FOTOS/ na raiz)
+        destPath = `NAO_IDENTIFICADO/${file.name}`;
       }
       
       zip.file(destPath, arrayBuffer);
