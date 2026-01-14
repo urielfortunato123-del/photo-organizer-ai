@@ -19,7 +19,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { ProcessingResult } from '@/services/api';
+import { ProcessingResult, buildDestPath } from '@/services/api';
 
 // Icons by folder level
 const LEVEL_ICONS: Record<number, string> = {
@@ -54,9 +54,17 @@ const buildEnhancedTree = (results: ProcessingResult[]): EnhancedTreeNode[] => {
   const root: Record<string, EnhancedTreeNode> = {};
 
   results.forEach(result => {
-    if (!result.dest) return;
+    // Recalcula o caminho para evitar estruturas antigas/bugadas
+    const dest = result.dest || buildDestPath(
+      result.empresa || 'EMPRESA',
+      result.portico || 'NAO_IDENTIFICADO',
+      result.disciplina || 'GERAL',
+      result.service || 'REGISTRO',
+      (result.exif_date || result.data_detectada || null) as string | null,
+      true
+    );
     
-    const parts = result.dest.split('/').filter(Boolean);
+    const parts = dest.split('/').filter(Boolean);
     let current = root;
     let path = '';
 
@@ -106,7 +114,7 @@ const buildEnhancedTree = (results: ProcessingResult[]): EnhancedTreeNode[] => {
         count: 1,
         confidence: result.confidence,
         photoData: result,
-        path: result.dest + '/' + result.filename,
+        path: dest + '/' + result.filename,
         level: parts.length,
       });
     }
