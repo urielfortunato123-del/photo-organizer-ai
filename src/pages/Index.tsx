@@ -64,6 +64,7 @@ import {
   buildTreeFromResults,
   PreProcessedOCR
 } from '@/services/api';
+import { buildStandardFolders, adaptResultsToPhotos } from '@/lib/folderStandard';
 
 // Config (otimizado): lotes maiores + cooldown curto
 const PROCESSING_CONFIG = {
@@ -901,20 +902,39 @@ const Index: React.FC = () => {
       const zip = new JSZip();
       let addedCount = 0;
 
-      // Processa todas as fotos de uma vez só
+      // Usa o folderStandard para gerar caminhos consistentes
+      const photos = adaptResultsToPhotos(successResults);
+      const { filesIndex } = buildStandardFolders(photos, {
+        rootFolderName: empresa || 'FOTOS',
+        photosBaseFolder: undefined,
+        includeTipoLevel: false,
+        forceMonthLevel: false,
+      });
+
+      // Cria mapa de filename -> targetPath
+      const pathMap = new Map<string, string>();
+      filesIndex.forEach(item => {
+        // Encontra o result original pelo photoId (que é o filename)
+        pathMap.set(item.photoId, item.targetPath);
+      });
+
+      // Processa todas as fotos usando os caminhos do folderStandard
       for (let i = 0; i < successResults.length; i++) {
         const result = successResults[i];
         const file = files.find((f) => f.name === result.filename);
-        if (!file || !result.dest) continue;
+        if (!file) continue;
+
+        const targetPath = pathMap.get(result.filename);
+        if (!targetPath) continue;
 
         try {
           const arrayBuffer = await file.arrayBuffer();
 
-          const basePath = getFullPath(result);
-          const safeFilename = buildSafeFilename(result, i + 1, result.filename);
+          // Sanitiza o caminho para compatibilidade Windows
+          const safePath = sanitizeZipPath(targetPath);
 
           // Adiciona a foto
-          zip.file(`${basePath}/${safeFilename}`, arrayBuffer);
+          zip.file(safePath, arrayBuffer);
 
           addedCount++;
           setZipProgress({ current: i + 1, total: successResults.length });
