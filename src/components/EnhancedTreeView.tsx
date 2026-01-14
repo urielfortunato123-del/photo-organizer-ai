@@ -20,15 +20,20 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { ProcessingResult } from '@/services/api';
-import { buildTree, treeToDisplayNodes, DisplayTreeNode } from '@/utils/treeBuilder';
+import { 
+  buildStandardFolders, 
+  adaptResultsToPhotos, 
+  folderNodeToDisplayTree,
+  DisplayTreeNode 
+} from '@/lib/folderStandard';
 
 // Icons by folder level
 const LEVEL_ICONS: Record<number, string> = {
-  0: '🏗️', // Pórtico
-  1: '🔧', // Categoria
-  2: '📋', // Atividade
-  3: '📅', // Mês
-  4: '📆', // Dia
+  0: '📦', // Root/Empresa
+  1: '🏗️', // Pórtico/Frente
+  2: '🔧', // Disciplina
+  3: '📋', // Atividade
+  4: '📅', // Data
 };
 
 interface EnhancedTreeViewProps {
@@ -36,12 +41,33 @@ interface EnhancedTreeViewProps {
   fileUrls?: Map<string, string>;
   onPhotoClick?: (result: ProcessingResult, imageUrl?: string) => void;
   className?: string;
+  rootFolderName?: string;
 }
 
-// Build enhanced tree from results using centralized tree builder
-const buildEnhancedTree = (results: ProcessingResult[]): DisplayTreeNode[] => {
-  const tree = buildTree(results, { organizeByDate: true });
-  return treeToDisplayNodes(tree);
+// Build enhanced tree from results using centralized folder standard
+const buildEnhancedTree = (results: ProcessingResult[], rootName: string = 'FOTOS'): DisplayTreeNode[] => {
+  if (results.length === 0) return [];
+  
+  // Adapta os results para o formato PhotoClassified
+  const photos = adaptResultsToPhotos(results);
+  
+  // Constrói a árvore padronizada
+  const { tree } = buildStandardFolders(photos, {
+    rootFolderName: rootName,
+    photosBaseFolder: undefined, // Sem pasta FOTOS intermediária na visualização
+    includeTipoLevel: false,
+    forceMonthLevel: false,
+  });
+  
+  // Cria mapa de results por filename para obter confidence
+  const resultsMap = new Map<string, ProcessingResult>();
+  results.forEach(r => resultsMap.set(r.filename, r));
+  
+  // Converte para DisplayTreeNode
+  const displayTree = folderNodeToDisplayTree(tree, resultsMap as Map<string, { confidence?: number }>, 0);
+  
+  // Retorna os filhos do root (não mostra o root em si)
+  return displayTree.children || [];
 };
 
 // Recursive tree node component
