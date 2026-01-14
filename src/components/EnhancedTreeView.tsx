@@ -19,28 +19,17 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { ProcessingResult, buildDestPath } from '@/services/api';
+import { ProcessingResult } from '@/services/api';
+import { buildTree, treeToDisplayNodes, DisplayTreeNode } from '@/utils/treeBuilder';
 
 // Icons by folder level
 const LEVEL_ICONS: Record<number, string> = {
-  0: '🏗️', // Serviço
-  1: '🔧', // Estrutura
+  0: '🏗️', // Pórtico
+  1: '🔧', // Categoria
   2: '📋', // Atividade
-  3: '📁', // Tipo
-  4: '📅', // Mês
-  5: '📆', // Dia
+  3: '📅', // Mês
+  4: '📆', // Dia
 };
-
-export interface EnhancedTreeNode {
-  name: string;
-  type: 'folder' | 'photo';
-  count: number;
-  confidence?: number;
-  children?: EnhancedTreeNode[];
-  photoData?: ProcessingResult;
-  path?: string;
-  level: number;
-}
 
 interface EnhancedTreeViewProps {
   results: ProcessingResult[];
@@ -49,92 +38,15 @@ interface EnhancedTreeViewProps {
   className?: string;
 }
 
-// Build enhanced tree from results
-const buildEnhancedTree = (results: ProcessingResult[]): EnhancedTreeNode[] => {
-  const root: Record<string, EnhancedTreeNode> = {};
-
-  results.forEach(result => {
-    // Recalcula o caminho para evitar estruturas antigas/bugadas
-    const dest = result.dest || buildDestPath(
-      result.empresa || 'EMPRESA',
-      result.portico || 'NAO_IDENTIFICADO',
-      result.disciplina || 'GERAL',
-      result.service || 'REGISTRO',
-      (result.exif_date || result.data_detectada || null) as string | null,
-      true
-    );
-    
-    const parts = dest.split('/').filter(Boolean);
-    let current = root;
-    let path = '';
-
-    parts.forEach((part, index) => {
-      path += (path ? '/' : '') + part;
-      
-      if (!current[part]) {
-        current[part] = {
-          name: part,
-          type: index === parts.length - 1 && result.filename ? 'folder' : 'folder',
-          count: 0,
-          children: [],
-          path,
-          level: index,
-        };
-      }
-      
-      current[part].count++;
-      
-      // Accumulate confidence for averaging
-      if (result.confidence) {
-        const node = current[part];
-        if (node.confidence === undefined) {
-          node.confidence = result.confidence;
-        } else {
-          node.confidence = (node.confidence * (node.count - 1) + result.confidence) / node.count;
-        }
-      }
-
-      if (index < parts.length - 1) {
-        if (!current[part].children) {
-          current[part].children = [];
-        }
-        const childMap: Record<string, EnhancedTreeNode> = {};
-        current[part].children!.forEach(c => { childMap[c.name] = c; });
-        current = childMap;
-      }
-    });
-
-    // Add photo as leaf
-    const lastPart = parts[parts.length - 1];
-    if (current[lastPart]) {
-      current[lastPart].children = current[lastPart].children || [];
-      current[lastPart].children!.push({
-        name: result.filename,
-        type: 'photo',
-        count: 1,
-        confidence: result.confidence,
-        photoData: result,
-        path: dest + '/' + result.filename,
-        level: parts.length,
-      });
-    }
-  });
-
-  const toArray = (obj: Record<string, EnhancedTreeNode>): EnhancedTreeNode[] => {
-    return Object.values(obj).map(node => ({
-      ...node,
-      children: node.children ? toArray(
-        node.children.reduce((acc, c) => ({ ...acc, [c.name]: c }), {})
-      ) : undefined,
-    }));
-  };
-
-  return toArray(root);
+// Build enhanced tree from results using centralized tree builder
+const buildEnhancedTree = (results: ProcessingResult[]): DisplayTreeNode[] => {
+  const tree = buildTree(results, { organizeByDate: true });
+  return treeToDisplayNodes(tree);
 };
 
 // Recursive tree node component
 interface TreeNodeItemProps {
-  node: EnhancedTreeNode;
+  node: DisplayTreeNode;
   fileUrls?: Map<string, string>;
   onPhotoClick?: (result: ProcessingResult, imageUrl?: string) => void;
   searchTerm?: string;
