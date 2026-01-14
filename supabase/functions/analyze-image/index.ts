@@ -235,11 +235,11 @@ ${obrasConhecidas || ''}
 3. **SERVIÇO**: Específico (SIGA_PARE, ARMADURA, CONCRETAGEM, etc.)
 4. **MOTORISTA/COLABORADOR**: Extraia nomes se visíveis no texto da imagem
 5. **ATIVIDADE**: O que está sendo feito (SIGA/PARE, ROÇADA, INSTALAÇÃO, etc.)
-6. **DESCRIÇÃO**: O que você vê (1-2 frases)
+6. **DESCRIÇÃO DETALHADA**: Descreva em 2-4 frases o que você vê na imagem: equipamentos, materiais, trabalhadores, etapa da obra, condições do local.
 
 ## RESPOSTA JSON
 \`\`\`json
-{"portico":"${frenteIdentificada}","disciplina":"SINALIZACAO","servico":"SIGA_PARE","motorista":"Nome se visível","colaborador":"Nome se visível","atividade":"SIGA/PARE","analise_tecnica":"Descrição curta","confidence":0.85}
+{"portico":"${frenteIdentificada}","disciplina":"SINALIZACAO","servico":"SIGA_PARE","motorista":"Nome se visível","colaborador":"Nome se visível","atividade":"SIGA/PARE","analise_tecnica":"Trabalhador com colete de segurança segurando placa SIGA em rodovia. Controle de tráfego em zona de obra com veículos ao fundo. Sinalização adequada visível na área.","confidence":0.85}
 \`\`\`
 
 Responda APENAS com JSON.`;
@@ -297,6 +297,7 @@ COLABORADOR: DAVI               ← NOME DO COLABORADOR
 2. **EXTRAIA TODOS OS CAMPOS** listados acima
 3. **IDENTIFIQUE** o tipo de trabalho sendo realizado
 4. **CLASSIFIQUE** a disciplina corretamente
+5. **DESCREVA EM DETALHES** o que você vê: equipamentos, materiais, trabalhadores, etapa da obra, condições
 
 ## RESPOSTA JSON (TODOS OS CAMPOS ENCONTRADOS)
 
@@ -313,14 +314,17 @@ COLABORADOR: DAVI               ← NOME DO COLABORADOR
   "motorista":"RODRIGO",
   "colaborador":"DAVI",
   "atividade":"SIGA/PARE - Controle de tráfego",
-  "analise_tecnica":"Trabalhador com placa SIGA controlando tráfego em obra rodoviária",
+  "analise_tecnica":"Foto mostra trabalhador com colete de segurança amarelo segurando placa SIGA para controle de tráfego em rodovia. Ao fundo é possível ver veículos aguardando e maquinário de obra. A área está devidamente sinalizada com cones e fitas de segurança. Condições climáticas boas, período diurno.",
   "confidence":0.95,
   "ocr_text":"9 DE OUT. DE 2025 05:53:08 24.048... SIGA/PARE SP 079 KM 167 MOTORISTA: RODRIGO COLABORADOR: DAVI",
   "alertas":{"sem_placa":false,"texto_ilegivel":false}
 }
 \`\`\`
 
-⚠️ IMPORTANTE: Extraia TODOS os nomes e informações visíveis. Não deixe campos vazios se a informação estiver na imagem!
+⚠️ IMPORTANTE: 
+- Extraia TODOS os nomes e informações visíveis
+- A analise_tecnica deve ter 2-4 frases descrevendo a cena em detalhes
+- Não deixe campos vazios se a informação estiver na imagem!
 
 Se não encontrar frente de serviço, use "${defaultPortico || 'NAO_IDENTIFICADO'}" como portico.
 

@@ -209,11 +209,11 @@ ${obrasConhecidas || ''}
 - portico: Use "${frenteIdentificada}" se já identificado
 - disciplina: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
 - servico: específico
-- analise_tecnica: 1 frase
+- analise_tecnica: 2-4 frases descrevendo o que você vê (equipamentos, trabalhadores, materiais, etapa da obra, condições)
 
 JSON apenas:
 \`\`\`json
-{"portico":"${frenteIdentificada}","disciplina":"","servico":"","analise_tecnica":"","confidence":0.8}
+{"portico":"${frenteIdentificada}","disciplina":"SINALIZACAO","servico":"SIGA_PARE","analise_tecnica":"Trabalhador com colete de segurança segurando placa SIGA em rodovia. Controle de tráfego em zona de obra com veículos ao fundo. Área devidamente sinalizada.","confidence":0.8}
 \`\`\``;
   }
 
@@ -233,10 +233,11 @@ ${obrasConhecidas || ''}
 - disciplina: FUNDACAO|ESTRUTURA|PORTICO_FREE_FLOW|CONTENCAO|TERRAPLENAGEM|DRENAGEM|PAVIMENTACAO|SINALIZACAO|BARREIRAS|ACABAMENTO|REVESTIMENTO|ALVENARIA|HIDRAULICA|ELETRICA|SEGURANCA|PAISAGISMO|MANUTENCAO|DEMOLICAO|OAC_OAE|OUTROS
 - servico: específico
 - data: DD/MM/YYYY
+- analise_tecnica: 2-4 frases descrevendo o que você vê (equipamentos, trabalhadores, materiais, etapa da obra)
 
 JSON:
 \`\`\`json
-{"portico":"FREE_FLOW_P17","disciplina":"FUNDACAO","servico":"ARMADURA","data":"24/11/2025","rodovia":"SP_264","km_inicio":"131+100","sentido":"","analise_tecnica":"","confidence":0.9,"ocr_text":"","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
+{"portico":"FREE_FLOW_P17","disciplina":"FUNDACAO","servico":"ARMADURA","data":"24/11/2025","rodovia":"SP_264","km_inicio":"131+100","sentido":"","analise_tecnica":"Armadura de fundação sendo preparada em canteiro de obras. Ferragens montadas aguardando concretagem. Trabalhadores com EPIs visíveis na área. Condições climáticas favoráveis para execução.","confidence":0.9,"ocr_text":"","alertas":{"sem_placa":false,"texto_ilegivel":false,"evidencia_fraca":false}}
 \`\`\``;
 }
 
