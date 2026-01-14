@@ -115,28 +115,41 @@ export const hashFile = async (file: File): Promise<string> => {
 };
 
 // Build destination path based on classification
-// Estrutura desejada (conforme exemplo do usuário):
-//   PÓRTICO_XX/
-//     CATEGORIA (ex: MANUTENÇÃO, SEGURANÇA)/
-//       ATIVIDADE (ex: PINTURA EXTERNA)/
-//         MM_MÊS_ANO (ex: 08_AGOSTO_2025)/
-//           DD_MM (ex: 30_08)/
-//             fotos.jpg
+// Estrutura desejada:
+//   PORTICO/
+//     CATEGORIA/
+//       ATIVIDADE/
+//         MM_MÊS_ANO/
+//           DD_MM/
 //
-// Obs: Sem pasta "FOTOS" na raiz, pórtico direto na raiz
-const buildDestPath = (
+// Regras importantes:
+// - Evita duplicar níveis (ex: ATIVIDADE/ATIVIDADE)
+// - Só adiciona pasta de data se o mês for válido (1-12)
+export const buildDestPath = (
   _empresa: string,
-  portico: string, // = Obra/Local (ex: PÓRTICO_09, SP270)
-  _disciplina: string, // mantido por compatibilidade, não usado no path
-  servico: string, // = Serviço/atividade (ex: "SEGURANÇA - ALAMBRADO E FECHADURA")
+  portico: string,
+  disciplina: string,
+  servico: string,
   dataStr: string | null,
   organizeByDate: boolean
 ): string => {
-  const estrutura = extractEstrutura(servico);
-  const atividadeDesenvolvida = extractAtividade(servico);
+  const porticoFolder = (portico || 'NAO_IDENTIFICADO').trim();
 
-  // Base: PORTICO / CATEGORIA / ATIVIDADE (sem FOTOS/ na raiz)
-  let path = `${portico || 'NAO_IDENTIFICADO'}/${estrutura}/${atividadeDesenvolvida}`;
+  // Categoria: prioriza disciplina (mais estável); fallback para extração do serviço
+  const categoria = (disciplina && disciplina.trim() && disciplina !== 'OUTROS')
+    ? disciplina.trim().toUpperCase().replace(/\s+/g, '_')
+    : extractEstrutura(servico);
+
+  // Atividade: tenta extrair parte específica do serviço
+  let atividade = extractAtividade(servico);
+
+  // Se por algum motivo ficou igual à categoria, colapsa para evitar duplicação
+  if (atividade === categoria) {
+    atividade = 'REGISTRO';
+  }
+
+  // Base: PORTICO / CATEGORIA / ATIVIDADE
+  let path = `${porticoFolder}/${categoria}/${atividade}`;
 
   // Data: aceita DD/MM/YYYY, YYYY-MM-DD e ISO (com ou sem hora)
   // Formato: MM_MÊS_ANO/DD_MM (ex: 08_AGOSTO_2025/30_08)
@@ -147,18 +160,18 @@ const buildDestPath = (
     let day = '';
 
     // DD/MM/YYYY
-    let m = raw.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    let m = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     if (m) {
-      day = m[1];
+      day = String(m[1]).padStart(2, '0');
       month = parseInt(m[2], 10);
       year = m[3];
     } else {
       // YYYY-MM-DD or YYYY/MM/DD
-      m = raw.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
+      m = raw.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
       if (m) {
         year = m[1];
         month = parseInt(m[2], 10);
-        day = m[3];
+        day = String(m[3]).padStart(2, '0');
       } else {
         // ISO fallback via Date parsing
         const d = new Date(raw);
@@ -170,11 +183,10 @@ const buildDestPath = (
       }
     }
 
-    if (year && month && day) {
-      // Formato: MM_MÊS_ANO (ex: 08_AGOSTO_2025)
+    // Só cria pasta de data se mês/dia/ano forem válidos
+    if (year && day && month >= 1 && month <= 12) {
       const monthName = MONTH_NAMES[month] || `${String(month).padStart(2, '0')}_MES`;
       const monthFolder = `${monthName}_${year}`;
-      // Formato: DD_MM (ex: 30_08)
       const dayFolder = `${day}_${String(month).padStart(2, '0')}`;
       path += `/${monthFolder}/${dayFolder}`;
     }
