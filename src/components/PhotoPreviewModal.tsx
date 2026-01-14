@@ -347,7 +347,61 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
               </Label>
               <Textarea 
                 readOnly 
-                value={result.tecnico || ocrText || 'Nenhuma análise disponível'}
+                value={(() => {
+                  // Se tecnico parece ser JSON bruto, mostra uma análise formatada
+                  const rawTecnico = result.tecnico || '';
+                  if (rawTecnico.startsWith('{') || rawTecnico.startsWith('```json') || rawTecnico.includes('"PORTICO"')) {
+                    // Constrói uma descrição legível a partir dos campos
+                    const parts: string[] = [];
+                    if (result.portico && result.portico !== 'NAO_IDENTIFICADO') {
+                      parts.push(`Frente de Serviço: ${result.portico}`);
+                    }
+                    if (result.disciplina && result.disciplina !== 'OUTROS') {
+                      parts.push(`Disciplina: ${result.disciplina}`);
+                    }
+                    if (result.service && result.service !== 'NAO_IDENTIFICADO') {
+                      parts.push(`Serviço: ${result.service}`);
+                    }
+                    if (result.atividade) {
+                      parts.push(`Atividade: ${result.atividade}`);
+                    }
+                    if (result.rodovia) {
+                      parts.push(`Rodovia: ${result.rodovia}`);
+                    }
+                    if (result.km_inicio) {
+                      parts.push(`KM: ${result.km_inicio}${result.km_fim ? ' a ' + result.km_fim : ''}`);
+                    }
+                    if (result.sentido) {
+                      parts.push(`Sentido: ${result.sentido}`);
+                    }
+                    if (result.motorista) {
+                      parts.push(`Motorista: ${result.motorista}`);
+                    }
+                    if (result.colaborador) {
+                      parts.push(`Colaborador: ${result.colaborador}`);
+                    }
+                    if (result.data_detectada) {
+                      parts.push(`Data: ${result.data_detectada}`);
+                    }
+                    if (result.hora) {
+                      parts.push(`Hora: ${result.hora}`);
+                    }
+                    if (result.confidence !== undefined) {
+                      parts.push(`Confiança: ${Math.round(result.confidence * 100)}%`);
+                    }
+                    if (result.method) {
+                      const methodLabels: Record<string, string> = {
+                        'banco_conhecimento': 'Identificado via banco de conhecimento',
+                        'ocr_ia': 'Identificado via OCR + IA',
+                        'ia_forcada': 'Classificação por IA',
+                        'heuristica': 'Editado manualmente'
+                      };
+                      parts.push(`Método: ${methodLabels[result.method] || result.method}`);
+                    }
+                    return parts.length > 0 ? parts.join('\n') : 'Nenhuma análise disponível';
+                  }
+                  return rawTecnico || ocrText || 'Nenhuma análise disponível';
+                })()}
                 className="h-[200px] bg-secondary/50 text-xs resize-none"
               />
             </div>
