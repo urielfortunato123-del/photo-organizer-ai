@@ -29,7 +29,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { ProcessingResult, MONTH_NAMES } from '@/services/api';
+import { ProcessingResult } from '@/services/api';
+import { buildDestPath } from '@/utils/treeBuilder';
 import { useAprendizadoOCR } from '@/hooks/useAprendizadoOCR';
 import { toast } from 'sonner';
 
@@ -85,23 +86,6 @@ const isIncompleteResult = (r: ProcessingResult): boolean => {
     !r.disciplina || r.disciplina === '-' || r.disciplina === '' ||
     !r.service || r.service === '-' || r.service === ''
   );
-};
-
-// Build destination path
-const buildDestPath = (portico: string, disciplina: string, servico: string, data?: string): string => {
-  const basePath = `organized_photos/${portico}/${disciplina}/${servico}`;
-  
-  if (data) {
-    const match = data.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    if (match) {
-      const [, day, month] = match;
-      const monthNum = parseInt(month, 10);
-      const monthName = MONTH_NAMES[monthNum] || `${month}_MES`;
-      return `${basePath}/${monthNum.toString().padStart(2, '0')}_${monthName}/${day}_${month}`;
-    }
-  }
-  
-  return basePath;
 };
 
 const EditableResultsTable: React.FC<EditableResultsTableProps> = ({ 
@@ -209,12 +193,16 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
 
   const handleSaveEdit = async (result: ProcessingResult) => {
     if (onUpdateResult) {
-      const newDest = buildDestPath(
-        editValues.portico || result.portico || 'NAO_IDENTIFICADO',
-        editValues.disciplina || result.disciplina || 'OUTROS',
-        editValues.service || result.service || 'NAO_IDENTIFICADO',
-        editValues.data_detectada
-      );
+      // Constrói um result temporário com os valores editados para usar o buildDestPath
+      const tempResult: ProcessingResult = {
+        ...result,
+        portico: editValues.portico || result.portico,
+        disciplina: editValues.disciplina || result.disciplina,
+        service: editValues.service || result.service,
+        data_detectada: editValues.data_detectada || result.data_detectada,
+        atividade: result.atividade,
+      };
+      const newDest = buildDestPath(tempResult, true);
 
       // Detecta se houve correção no pórtico
       const porticoMudou = editValues.portico && 
@@ -357,7 +345,15 @@ const EditableResultsTable: React.FC<EditableResultsTableProps> = ({
       const newService = applyFields.servico ? editValues.service! : r.service || 'NAO_IDENTIFICADO';
       const newData = applyFields.data ? editValues.data_detectada! : r.data_detectada;
       
-      const newDest = buildDestPath(newPortico, newDisciplina, newService, newData);
+      // Constrói result temporário para buildDestPath
+      const tempResult: ProcessingResult = {
+        ...r,
+        portico: newPortico,
+        disciplina: newDisciplina,
+        service: newService,
+        data_detectada: newData,
+      };
+      const newDest = buildDestPath(tempResult, true);
       
       return {
         ...r,

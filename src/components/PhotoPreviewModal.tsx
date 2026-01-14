@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ProcessingResult, MONTH_NAMES } from '@/services/api';
+import { ProcessingResult } from '@/services/api';
+import { buildDestPath } from '@/utils/treeBuilder';
 import { cn } from '@/lib/utils';
 import { useAprendizadoOCR } from '@/hooks/useAprendizadoOCR';
 import { ExifData } from '@/hooks/useExifExtractor';
@@ -154,28 +155,18 @@ const PhotoPreviewModal: React.FC<PhotoPreviewModalProps> = memo(({
     setIsEditing(true);
   };
 
-  // Build destination path
-  const buildDestPath = (portico: string, disciplina: string, servico: string, data?: string): string => {
-    const basePath = `organized_photos/${portico}/${disciplina}/${servico}`;
-    
-    if (data) {
-      // Parse date DD/MM/YYYY
-      const match = data.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-      if (match) {
-        const [, day, month] = match;
-        const monthNum = parseInt(month, 10);
-        const monthName = MONTH_NAMES[monthNum] || `${month}_MES`;
-        return `${basePath}/${monthNum.toString().padStart(2, '0')}_${monthName}/${day}_${month}`;
-      }
-    }
-    
-    return basePath;
-  };
-
-
   const handleSaveEdit = async () => {
     if (onUpdateResult) {
-      const newDest = buildDestPath(editedPortico, editedDisciplina, editedService, editedData);
+      // Constrói result temporário para usar o buildDestPath centralizado
+      const tempResult: ProcessingResult = {
+        ...result,
+        portico: editedPortico,
+        disciplina: editedDisciplina,
+        service: editedService,
+        data_detectada: editedData || undefined,
+        atividade: result.atividade,
+      };
+      const newDest = buildDestPath(tempResult, true);
       
       // Detecta se houve correção na frente de serviço (portico)
       const porticoOriginal = result.portico || '';

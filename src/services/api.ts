@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { extractStructuredData } from '@/hooks/useOCR';
+import { buildDestPath as buildDestPathFromBuilder } from '@/utils/treeBuilder';
 
 export interface ProcessingConfig {
   default_portico?: string;
@@ -114,17 +115,8 @@ export const hashFile = async (file: File): Promise<string> => {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 };
 
-// Build destination path based on classification
-// Estrutura desejada:
-//   PORTICO/
-//     CATEGORIA/
-//       ATIVIDADE/
-//         MM_MÊS_ANO/
-//           DD_MM/
-//
-// Regras importantes:
-// - Evita duplicar níveis (ex: ATIVIDADE/ATIVIDADE)
-// - Só adiciona pasta de data se o mês for válido (1-12)
+// Build destination path - usa o builder centralizado
+// Mantém a assinatura antiga para compatibilidade, mas delega para o novo
 export const buildDestPath = (
   _empresa: string,
   portico: string,
@@ -133,66 +125,17 @@ export const buildDestPath = (
   dataStr: string | null,
   organizeByDate: boolean
 ): string => {
-  const porticoFolder = (portico || 'NAO_IDENTIFICADO').trim();
-
-  // Categoria: prioriza disciplina (mais estável); fallback para extração do serviço
-  const categoria = (disciplina && disciplina.trim() && disciplina !== 'OUTROS')
-    ? disciplina.trim().toUpperCase().replace(/\s+/g, '_')
-    : extractEstrutura(servico);
-
-  // Atividade: tenta extrair parte específica do serviço
-  let atividade = extractAtividade(servico);
-
-  // Se por algum motivo ficou igual à categoria, colapsa para evitar duplicação
-  if (atividade === categoria) {
-    atividade = 'REGISTRO';
-  }
-
-  // Base: PORTICO / CATEGORIA / ATIVIDADE
-  let path = `${porticoFolder}/${categoria}/${atividade}`;
-
-  // Data: aceita DD/MM/YYYY, YYYY-MM-DD e ISO (com ou sem hora)
-  // Formato: MM_MÊS_ANO/DD_MM (ex: 08_AGOSTO_2025/30_08)
-  if (organizeByDate && dataStr) {
-    const raw = String(dataStr).trim();
-    let year = '';
-    let month = 0;
-    let day = '';
-
-    // DD/MM/YYYY
-    let m = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (m) {
-      day = String(m[1]).padStart(2, '0');
-      month = parseInt(m[2], 10);
-      year = m[3];
-    } else {
-      // YYYY-MM-DD or YYYY/MM/DD
-      m = raw.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-      if (m) {
-        year = m[1];
-        month = parseInt(m[2], 10);
-        day = String(m[3]).padStart(2, '0');
-      } else {
-        // ISO fallback via Date parsing
-        const d = new Date(raw);
-        if (!Number.isNaN(d.getTime())) {
-          year = String(d.getFullYear());
-          month = d.getMonth() + 1;
-          day = String(d.getDate()).padStart(2, '0');
-        }
-      }
-    }
-
-    // Só cria pasta de data se mês/dia/ano forem válidos
-    if (year && day && month >= 1 && month <= 12) {
-      const monthName = MONTH_NAMES[month] || `${String(month).padStart(2, '0')}_MES`;
-      const monthFolder = `${monthName}_${year}`;
-      const dayFolder = `${day}_${String(month).padStart(2, '0')}`;
-      path += `/${monthFolder}/${dayFolder}`;
-    }
-  }
-
-  return path;
+  // Cria um ProcessingResult parcial para usar o builder centralizado
+  const tempResult = {
+    filename: '',
+    status: '',
+    portico,
+    disciplina,
+    service: servico,
+    data_detectada: dataStr || undefined,
+    exif_date: undefined,
+  };
+  return buildDestPathFromBuilder(tempResult, organizeByDate);
 };
 
 // Extrai a estrutura/categoria principal do serviço
